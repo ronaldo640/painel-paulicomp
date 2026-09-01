@@ -587,14 +587,19 @@
             const savedLogo = localStorage.getItem('paulicomp_custom_logo');
             const logoImg = document.getElementById('logoImage');
             const logoSvg = document.getElementById('logoDefaultSvg');
+    
             if (savedLogo) {
+                // Se o usuário fez upload manual pela tela, usa o personalizado
                 logoImg.src = savedLogo;
-                logoImg.classList.remove('hidden');
-                logoSvg.classList.add('hidden');
             } else {
-                logoImg.classList.add('hidden');
-                logoSvg.classList.remove('hidden');
+                // Se for o primeiro acesso, usa o arquivo logo.png fixo
+                logoImg.src = './logo.png';
             }
+    
+            // Garante que a imagem fique visível e o SVG fique oculto
+            logoImg.classList.remove('hidden');
+            logoSvg.classList.add('hidden');
+        }
         }
 
         function handleLogoUpload(e) {
