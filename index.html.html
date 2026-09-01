@@ -58,7 +58,7 @@
                 <div class="relative group cursor-pointer" id="logoWrapper" title="Clique para trocar a Logo">
                     <div class="h-12 px-3 py-1 bg-transparent border border-slate-700/60 rounded-xl flex items-center justify-center transition-all group-hover:border-blue-500 group-hover:bg-slate-800/40">
                         <!-- Logo fixa da empresa -->
-                        <img id="logoImage" src="./logo-empresa.png" alt="Logotipo Empresa" class="h-9 w-auto max-w-[170px] object-contain" onerror="this.classList.add('hidden'); document.getElementById('logoDefaultSvg').classList.remove('hidden');">
+                        <img id="logoImage" src="./logo-empresa.png.png" alt="Logotipo Empresa" class="h-9 w-auto max-w-[170px] object-contain" onerror="this.classList.add('hidden'); document.getElementById('logoDefaultSvg').classList.remove('hidden');">
                         <div id="logoDefaultSvg" class="hidden flex items-center gap-2.5">
                             <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 via-blue-500 to-cyan-400 flex items-center justify-center shadow-md shadow-blue-500/20">
                                 <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1022,7 +1022,7 @@
             const savedLogo = localStorage.getItem('paulicomp_custom_logo');
             const img = document.getElementById('logoImage');
             if (img) {
-                img.src = savedLogo ? savedLogo : './logo-empresa.png';
+                img.src = savedLogo ? savedLogo : './logo-empresa.png.png';
             }
 
             populateMonthFilter();
