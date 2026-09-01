@@ -26,6 +26,22 @@
             to { opacity: 1; transform: translateY(0); }
         }
         .toast-animate { animation: fadeInDown 0.3s ease-out forwards; }
+
+        /* Report Print Template Container (Portrait A4: 780px x 1100px max) */
+        #pdfReportTemplate {
+            display: none;
+            width: 780px;
+            height: 1100px;
+            max-height: 1100px;
+            background-color: #070b14;
+            color: #f8fafc;
+            padding: 12px 16px;
+            box-sizing: border-box;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            flex-direction: column;
+            justify-content: space-between;
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-blue-600 selection:text-white">
@@ -33,11 +49,11 @@
     <!-- Toast Container -->
     <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-md w-full pointer-events-none"></div>
 
-    <!-- Header -->
+    <!-- Top Executive Header -->
     <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 shadow-lg">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             
-            <!-- Logo -->
+            <!-- Logo & Brand Header -->
             <div class="flex items-center gap-4">
                 <div class="relative group cursor-pointer" id="logoWrapper" title="Clique para trocar a Logo">
                     <div class="h-12 px-3 py-1 bg-transparent border border-slate-700/60 rounded-xl flex items-center justify-center transition-all group-hover:border-blue-500 group-hover:bg-slate-800/40">
@@ -90,12 +106,17 @@
             </div>
         </div>
 
-        <!-- Filtros -->
+        <!-- Barra de Filtros -->
         <div class="bg-slate-900 border-t border-slate-800/80 px-4 sm:px-6 lg:px-8 py-2.5">
             <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
                 <div class="flex flex-wrap items-center gap-3">
                     <div class="flex items-center gap-1.5">
-                        <span class="text-xs font-semibold text-slate-400 flex items-center gap-1">Mês:</span>
+                        <span class="text-xs font-semibold text-slate-400 flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            Mês:
+                        </span>
                         <select id="filterMes" class="bg-slate-800 border border-blue-500/50 text-white text-xs font-bold rounded-md px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
                             <option value="ALL">Todos os Meses (Consolidado)</option>
                         </select>
@@ -314,8 +335,12 @@
                     Importe relatórios <b>.xls</b> ou <b>.xlsx</b>. O painel sincroniza automaticamente com o banco na nuvem.
                 </p>
                 <div class="pt-2 flex flex-wrap gap-2">
+                    <label class="cursor-pointer bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 shadow transition">
+                        <span>Carregar Planilhas Agora</span>
+                        <input type="file" id="modalFileInput" accept=".xls,.xlsx,.csv" multiple class="hidden">
+                    </label>
                     <button id="btnExportExcel" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition">Exportar Base Completa</button>
-                    <button id="btnSyncCloud" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition">Forçar Sincronização Nuvem</button>
+                    <button id="btnSyncCloud" class="bg-cyan-900/60 hover:bg-cyan-800 text-cyan-300 border border-cyan-700 text-xs font-semibold px-3 py-2.5 rounded-lg transition ml-auto">Forçar Sincronização</button>
                 </div>
             </div>
             <div class="grid grid-cols-3 gap-3 text-center">
@@ -335,16 +360,143 @@
         </div>
     </div>
 
-    <!-- Script Principal -->
+    <!-- Template do Relatório PDF (A4 Portrait 1 Página) -->
+    <div id="pdfReportContainer" class="fixed -left-[9999px] top-0 z-[-100]">
+        <div id="pdfReportTemplate" style="width: 780px; height: 1100px; max-height: 1100px; background: #070b14; color: #f8fafc; padding: 12px 16px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;">
+            
+            <!-- Header Relatório -->
+            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1.5px solid #1e293b; padding-bottom: 6px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div id="repLogoHolder" style="display: flex; align-items: center;"></div>
+                    <div style="border-left: 1.5px solid #1e293b; padding-left: 8px;">
+                        <h2 style="font-size: 11px; font-weight: 800; color: #ffffff; text-transform: uppercase; margin: 0; line-height: 1.2;">
+                            Relatório Executivo de Produtividade & Logística
+                        </h2>
+                        <span style="font-size: 8px; font-weight: 600; color: #94a3b8; display: block; margin-top: 1px;">
+                            Granularidade: 1 Nota Fiscal = 1 Embalagem Despachada
+                        </span>
+                    </div>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <div style="background: rgba(30, 58, 138, 0.4); border: 1px solid #3b82f6; border-radius: 4px; padding: 3px 8px; text-align: right;">
+                        <span style="font-size: 7px; font-weight: 700; color: #93c5fd; text-transform: uppercase; display: block;">Mês Ref.</span>
+                        <span id="repRefMes" style="font-size: 10px; font-weight: 800; color: #ffffff;">-</span>
+                    </div>
+                    <div style="background: rgba(14, 116, 144, 0.35); border: 1px solid #06b6d4; border-radius: 4px; padding: 3px 8px; text-align: right;">
+                        <span style="font-size: 7px; font-weight: 700; color: #67e8f9; text-transform: uppercase; display: block;">Filial</span>
+                        <span id="repRefFilial" style="font-size: 10px; font-weight: 800; color: #ffffff;">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPIs Relatório -->
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px;">
+                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; position: relative;">
+                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2.5px; background: linear-gradient(90deg, #2563eb, #06b6d4);"></div>
+                    <span style="font-size: 7.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Total Embalagens</span>
+                    <div id="repKpiTotal" style="font-size: 15px; font-weight: 900; color: #ffffff; line-height: 1.1; margin-top: 2px;">0</div>
+                </div>
+                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; position: relative;">
+                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2.5px; background: linear-gradient(90deg, #10b981, #14b8a6);"></div>
+                    <span style="font-size: 7.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Throughput Médio</span>
+                    <div id="repKpiMedia" style="font-size: 15px; font-weight: 900; color: #ffffff; line-height: 1.1; margin-top: 2px;">0.0</div>
+                </div>
+                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; position: relative;">
+                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2.5px; background: linear-gradient(90deg, #f59e0b, #ea580c);"></div>
+                    <span style="font-size: 7.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Pico Operacional</span>
+                    <div id="repKpiPico" style="font-size: 15px; font-weight: 900; color: #ffffff; line-height: 1.1; margin-top: 2px;">0</div>
+                </div>
+                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; position: relative;">
+                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2.5px; background: linear-gradient(90deg, #a855f7, #ec4899);"></div>
+                    <span style="font-size: 7.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Mix B2C / B2B</span>
+                    <div id="repKpiMix" style="font-size: 13px; font-weight: 900; color: #ffffff; line-height: 1.1; margin-top: 2px;">0% / 0%</div>
+                </div>
+            </div>
+
+            <!-- Gráficos no PDF com Espaçamentos Equilibrados -->
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px; flex: 1;">
+                
+                <!-- Linha 1: Evolução + Share -->
+                <div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 8px; height: 200px;">
+                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
+                            <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Evolução do Throughput</span>
+                            <span id="repChart1Sub" style="font-size: 7.5px; color: #38bdf8; font-weight: 600;">-</span>
+                        </div>
+                        <div style="flex: 1; position: relative; width: 100%; height: 165px; display: flex; align-items: center; justify-content: center;">
+                            <img id="repImgEvolucao" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
+                        </div>
+                    </div>
+
+                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column;">
+                        <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
+                            <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Share por Filial (%)</span>
+                        </div>
+                        <div style="flex: 1; position: relative; width: 100%; height: 165px; display: flex; align-items: center; justify-content: center;">
+                            <img id="repImgShare" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Linha 2: Dia da Semana -->
+                <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; height: 165px; display: flex; flex-direction: column; margin-top: 14px;">
+                    <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
+                        <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Ritmo por Dia da Semana</span>
+                    </div>
+                    <div style="flex: 1; position: relative; width: 100%; height: 135px; display: flex; align-items: center; justify-content: center;">
+                        <img id="repImgDia" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
+                    </div>
+                </div>
+
+                <!-- Linha 3: Canais + Região -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; height: 175px; margin-top: 14px;">
+                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column;">
+                        <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
+                            <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Canais Logísticos de Despacho</span>
+                        </div>
+                        <div style="flex: 1; position: relative; width: 100%; height: 145px; display: flex; align-items: center; justify-content: center;">
+                            <img id="repImgCanais" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
+                        </div>
+                    </div>
+
+                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column;">
+                        <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
+                            <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Dispersão por Região</span>
+                        </div>
+                        <div style="flex: 1; position: relative; width: 100%; height: 145px; display: flex; align-items: center; justify-content: center;">
+                            <img id="repImgRegioes" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Footer Relatório -->
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1e293b; padding-top: 4px; margin-top: 4px;">
+                <span style="font-size: 7px; color: #64748b;">Paulicomp Logística & Almoxarifado • Gestão Executiva de Expedição</span>
+                <span style="font-size: 7px; font-weight: 700; color: #38bdf8;">Página 1 de 1 (Formato Retrato A4)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 border-t border-slate-800 py-4 text-center text-xs text-slate-500">
+        Paulicomp Logística & Almoxarifado | Painel Executivo Integrado
+    </footer>
+
+    <!-- Scripts de Lógica e Renderização -->
     <script>
         Chart.register(ChartDataLabels);
 
-        // Base Segura Padrão (Garante que nunca abra quebrado)
         let database = [
-            {"filial":"PAULICOMP SP","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019601","cliente":"Cliente Paulicomp 19601","tipo":"B2C (CPF)","canal":"Mercado Envios","uf":"SP","cidade":"São Paulo","regiao":"Sudeste","dia_semana":"Segunda-feira"},
+            {"filial":"PAULICOMP SP","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019601","cliente":"Cliente Paulicomp 19601","tipo":"B2C (CPF)","canal":"Mercado Envios","uf":"BA","cidade":"Capital/Interior","regiao":"Nordeste","dia_semana":"Segunda-feira"},
             {"filial":"PAULICOMP SP","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019602","cliente":"Cliente Paulicomp 19602","tipo":"B2C (CPF)","canal":"Mercado Envios","uf":"SP","cidade":"São Paulo","regiao":"Sudeste","dia_semana":"Segunda-feira"},
+            {"filial":"PAULICOMP SP","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019603","cliente":"Cliente Paulicomp 19603","tipo":"B2B (CNPJ)","canal":"Mercado Envios","uf":"RJ","cidade":"Capital/Interior","regiao":"Sudeste","dia_semana":"Segunda-feira"},
             {"filial":"PAULICOMP SUL","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019635","cliente":"Cliente Sul 19635","tipo":"B2C (CPF)","canal":"Shopee Envios","uf":"SC","cidade":"Florianópolis","regiao":"Sul","dia_semana":"Segunda-feira"},
-            {"filial":"COMP TRADE","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019685","cliente":"Cliente Trade 19685","tipo":"B2C (CPF)","canal":"Mercado Envios","uf":"MG","cidade":"São Paulo","regiao":"Sudeste","dia_semana":"Segunda-feira"}
+            {"filial":"PAULICOMP SUL","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019636","cliente":"Cliente Sul 19636","tipo":"B2C (CPF)","canal":"Shopee Envios","uf":"MG","cidade":"Florianópolis","regiao":"Sudeste","dia_semana":"Segunda-feira"},
+            {"filial":"COMP TRADE","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019685","cliente":"Cliente Trade 19685","tipo":"B2C (CPF)","canal":"Mercado Envios","uf":"MG","cidade":"São Paulo","regiao":"Sudeste","dia_semana":"Segunda-feira"},
+            {"filial":"COMP TRADE","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019686","cliente":"Cliente Trade 19686","tipo":"B2C (CPF)","canal":"Mercado Envios","uf":"RS","cidade":"São Paulo","regiao":"Sul","dia_semana":"Segunda-feira"}
         ];
 
         let chartEvolucao = null, chartShareFilial = null, chartDiaSemana = null, chartCanais = null, chartRegioes = null;
@@ -454,7 +606,7 @@
             document.getElementById('kpiMix').innerText = `${b2cPct}% / ${b2bPct}%`;
             document.getElementById('kpiMixTxt').innerText = `${b2cCount} B2C | ${b2bCount} B2B`;
 
-            // Gráfico 1
+            // CHART 1: Evolução
             let labels1 = [], data1 = [];
             if (total === 0) {
                 labels1 = ['Sem Dados']; data1 = [0];
@@ -496,17 +648,30 @@
                             borderWidth: 2,
                             borderRadius: isAllMonths ? 4 : 0,
                             fill: !isAllMonths,
-                            tension: 0.25
+                            tension: 0.25,
+                            pointRadius: 3
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        plugins: { legend: { display: false } }
+                        layout: { padding: { top: 18, left: 5, right: 5 } },
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: {
+                                anchor: 'end', align: 'top', color: '#FFFFFF',
+                                font: { weight: 'bold', size: 9 },
+                                formatter: (val) => val > 0 ? val.toLocaleString('pt-BR') : ''
+                            }
+                        },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 }, maxRotation: 45 } },
+                            y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+                        }
                     }
                 });
             }
 
-            // Gráfico 2
+            // CHART 2: Share Filial
             const branchMap = { 'PAULICOMP SP': 0, 'PAULICOMP SUL': 0, 'COMP TRADE': 0 };
             filtered.forEach(d => { if (branchMap[d.filial] !== undefined) branchMap[d.filial]++; });
 
@@ -520,15 +685,31 @@
                         datasets: [{
                             data: total === 0 ? [1,1,1] : Object.values(branchMap),
                             backgroundColor: ['#2563eb', '#06b6d4', '#f59e0b'],
-                            borderWidth: 0
+                            borderColor: '#0f172a', borderWidth: 2
                         }]
                     },
-                    options: { responsive: true, maintainAspectRatio: false }
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: '#FFFFFF', font: { size: 11, weight: '600' }, padding: 10, usePointStyle: true }
+                            },
+                            datalabels: {
+                                color: '#FFFFFF', font: { weight: 'bold', size: 11 },
+                                formatter: (val) => {
+                                    if (!val || total === 0) return '';
+                                    return `${((val / total) * 100).toFixed(1)}%`;
+                                }
+                            }
+                        },
+                        cutout: '52%'
+                    }
                 });
             }
 
-            // Gráfico 3
-            const weekOrder = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta'];
+            // CHART 3: Dia da Semana
+            const weekOrder = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
             const weekMap = { 'Segunda-feira': 0, 'Terça-feira': 0, 'Quarta-feira': 0, 'Quinta-feira': 0, 'Sexta-feira': 0 };
             filtered.forEach(d => { if (weekMap[d.dia_semana] !== undefined) weekMap[d.dia_semana]++; });
 
@@ -538,32 +719,64 @@
                 chartDiaSemana = new Chart(ctx3.getContext('2d'), {
                     type: 'bar',
                     data: {
-                        labels: weekOrder,
-                        datasets: [{ data: Object.values(weekMap), backgroundColor: '#6366f1', borderRadius: 4 }]
+                        labels: weekOrder.map(d => d.replace('-feira', '')),
+                        datasets: [{ data: weekOrder.map(d => weekMap[d]), backgroundColor: '#6366f1', borderRadius: 4 }]
                     },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        layout: { padding: { top: 18 } },
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: {
+                                anchor: 'end', align: 'top', color: '#FFFFFF', font: { weight: 'bold', size: 10 },
+                                formatter: (val) => val > 0 ? val.toLocaleString('pt-BR') : ''
+                            }
+                        },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+                            y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+                        }
+                    }
                 });
             }
 
-            // Gráfico 4
+            // CHART 4: Canais
             const canalMap = {};
             filtered.forEach(d => { canalMap[d.canal] = (canalMap[d.canal] || 0) + 1; });
+            const canalLabels = Object.keys(canalMap).length ? Object.keys(canalMap) : ['Sem dados'];
+            const canalValues = Object.keys(canalMap).length ? Object.values(canalMap) : [0];
+
             if (chartCanais) chartCanais.destroy();
             const ctx4 = document.getElementById('chartCanais');
             if (ctx4) {
                 chartCanais = new Chart(ctx4.getContext('2d'), {
                     type: 'bar',
                     data: {
-                        labels: Object.keys(canalMap).length ? Object.keys(canalMap) : ['Sem dados'],
-                        datasets: [{ data: Object.keys(canalMap).length ? Object.values(canalMap) : [0], backgroundColor: '#10b981', borderRadius: 4 }]
+                        labels: canalLabels,
+                        datasets: [{ data: canalValues, backgroundColor: '#10b981', borderRadius: 4 }]
                     },
-                    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                    options: {
+                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                        layout: { padding: { right: 25 } },
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: {
+                                anchor: 'end', align: 'right', color: '#FFFFFF', font: { weight: 'bold', size: 10 },
+                                formatter: (val) => val > 0 ? val.toLocaleString('pt-BR') : ''
+                            }
+                        },
+                        scales: {
+                            x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+                            y: { grid: { display: false }, ticks: { color: '#f1f5f9', font: { size: 10 } } }
+                        }
+                    }
                 });
             }
 
-            // Gráfico 5
+            // CHART 5: Regiões
             const regMap = { 'Sudeste': 0, 'Sul': 0, 'Nordeste': 0, 'Centro-Oeste': 0, 'Norte': 0 };
             filtered.forEach(d => { if (regMap[d.regiao] !== undefined) regMap[d.regiao]++; });
+
             if (chartRegioes) chartRegioes.destroy();
             const ctx5 = document.getElementById('chartRegioes');
             if (ctx5) {
@@ -573,7 +786,21 @@
                         labels: Object.keys(regMap),
                         datasets: [{ data: Object.values(regMap), backgroundColor: '#ec4899', borderRadius: 4 }]
                     },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        layout: { padding: { top: 18 } },
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: {
+                                anchor: 'end', align: 'top', color: '#FFFFFF', font: { weight: 'bold', size: 10 },
+                                formatter: (val) => val > 0 ? val.toLocaleString('pt-BR') : ''
+                            }
+                        },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+                            y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+                        }
+                    }
                 });
             }
 
@@ -599,7 +826,61 @@
             }
         }
 
-        // Sincronização Neon em Segundo Plano
+        // Geração do Relatório PDF A4 Retrato
+        function gerarRelatorioPDF() {
+            showToast("Gerando relatório executivo em PDF...", "info");
+
+            const selMes = document.getElementById('filterMes');
+            const selFilial = document.getElementById('filterFilial');
+            const mesText = selMes.options[selMes.selectedIndex].text;
+            const filialText = selFilial.options[selFilial.selectedIndex].text;
+
+            document.querySelectorAll('#pdfReportTemplate #repRefMes').forEach(el => el.innerText = mesText);
+            document.querySelectorAll('#pdfReportTemplate #repRefFilial').forEach(el => el.innerText = filialText);
+
+            const repLogoHolder = document.getElementById('repLogoHolder');
+            repLogoHolder.innerHTML = '';
+            const clonedLogo = document.getElementById('logoWrapper').cloneNode(true);
+            clonedLogo.style.border = 'none'; clonedLogo.style.padding = '0';
+            repLogoHolder.appendChild(clonedLogo);
+
+            document.getElementById('repKpiTotal').innerText = document.getElementById('kpiTotal').innerText;
+            document.getElementById('repKpiMedia').innerText = document.getElementById('kpiMedia').innerText;
+            document.getElementById('repKpiPico').innerText = document.getElementById('kpiPico').innerText;
+            document.getElementById('repKpiMix').innerText = document.getElementById('kpiMix').innerText;
+            document.getElementById('repChart1Sub').innerText = document.getElementById('chart1Subtitle').innerText;
+
+            try {
+                if (chartEvolucao) document.getElementById('repImgEvolucao').src = chartEvolucao.toBase64Image('image/png', 1.0);
+                if (chartShareFilial) document.getElementById('repImgShare').src = chartShareFilial.toBase64Image('image/png', 1.0);
+                if (chartDiaSemana) document.getElementById('repImgDia').src = chartDiaSemana.toBase64Image('image/png', 1.0);
+                if (chartCanais) document.getElementById('repImgCanais').src = chartCanais.toBase64Image('image/png', 1.0);
+                if (chartRegioes) document.getElementById('repImgRegioes').src = chartRegioes.toBase64Image('image/png', 1.0);
+            } catch(e) {
+                console.warn("Erro ao capturar imagens dos gráficos:", e);
+            }
+
+            const element = document.getElementById('pdfReportTemplate');
+            element.style.display = 'flex';
+
+            const opt = {
+                margin: 0,
+                filename: `Relatorio_Paulicomp_${filialText.replace(/[^a-zA-Z0-9]/g, '_')}_${mesText.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#070b14' },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                element.style.display = 'none';
+                showToast("PDF gerado e baixado com sucesso!", "success");
+            }).catch(err => {
+                element.style.display = 'none';
+                console.error("Erro no PDF:", err);
+                showToast("Erro ao gerar PDF.", "error");
+            });
+        }
+
         async function syncWithNeon() {
             try {
                 const res = await fetch('/api/dispatches');
@@ -610,20 +891,141 @@
                         localStorage.setItem('paulicomp_expedicao_db', JSON.stringify(database));
                         populateMonthFilter();
                         updateDashboard();
-                        showToast(`Nuvem sincronizada: ${database.length} registros.`, "success");
+                        showToast(`Sincronizado: ${database.length} registros da nuvem.`, "success");
                     }
                 }
             } catch (err) {
-                console.warn("Neon API offline. Rodando localmente:", err);
+                console.warn("Offline Neon:", err);
             }
         }
 
-        // Handlers dos Botões (Diretos e Seguros)
+        function processExcelFiles(files) {
+            if (!files || files.length === 0) return;
+
+            let filesProcessed = 0;
+            const newRecords = [];
+
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    try {
+                        const data = new Uint8Array(evt.target.result);
+                        const workbook = XLSX.read(data, { type: 'array', cellDates: false, raw: true });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+                        const fname = file.name.toUpperCase();
+                        let filial = "PAULICOMP SP";
+                        if (fname.includes("SUL")) filial = "PAULICOMP SUL";
+                        else if (fname.includes("COMP TRADE") || fname.includes("TRADE")) filial = "COMP TRADE";
+
+                        jsonRows.forEach(row => {
+                            const keys = Object.keys(row);
+                            const findKey = (candidates) => {
+                                for (const c of candidates) {
+                                    const match = keys.find(k => k.trim().toLowerCase() === c.toLowerCase());
+                                    if (match) return row[match];
+                                }
+                                return "";
+                            };
+
+                            const rawDate = findKey(['Data', 'DATA', 'Data Emissão', 'Data Emissao']);
+                            if (!rawDate && rawDate !== 0) return;
+
+                            let dataStr = "";
+                            let dataFmt = "";
+                            if (typeof rawDate === 'number') {
+                                const parsedDate = XLSX.SSF.parse_date_code(rawDate);
+                                const d = String(parsedDate.d).padStart(2, '0');
+                                const m = String(parsedDate.m).padStart(2, '0');
+                                const y = parsedDate.y;
+                                dataFmt = `${d}/${m}/${y}`;
+                                dataStr = `${y}-${m}-${d}`;
+                            } else {
+                                const str = String(rawDate).trim();
+                                if (str.includes('/')) {
+                                    const parts = str.split('/');
+                                    if (parts.length === 3) {
+                                        const d = parts[0].padStart(2, '0');
+                                        const m = parts[1].padStart(2, '0');
+                                        const y = parts[2].length === 2 ? '20' + parts[2] : parts[2];
+                                        dataFmt = `${d}/${m}/${y}`;
+                                        dataStr = `${y}-${m}-${d}`;
+                                    }
+                                }
+                            }
+
+                            if (!dataStr || dataStr.includes('undefined')) return;
+
+                            const nf = findKey(['Identificação', 'Identificacao', 'NF', 'Nota Fiscal']) || "-";
+                            const cliente = findKey(['Cliente', 'Destinatário', 'Nome']) || "-";
+                            const doc = String(findKey(['CPF / CNPJ', 'CPF/CNPJ', 'CNPJ', 'CPF']) || "").replace(/[^0-9]/g, '');
+                            const tipo = doc.length > 11 ? 'B2B (CNPJ)' : 'B2C (CPF)';
+                            const canal = findKey(['Forma de envio', 'Canal', 'Transportadora']) || "Mercado Envios";
+                            const uf = String(findKey(['UF', 'Estado']) || "SP").toUpperCase().trim();
+                            const cidade = findKey(['Cidade', 'Municipio']) || "-";
+                            const regiao = ufToRegion[uf] || 'Outros';
+
+                            const dObj = new Date(dataStr + 'T12:00:00');
+                            const diaSemana = ptDays[dObj.getDay()] || 'Segunda-feira';
+
+                            newRecords.push({
+                                filial: findKey(['Filial', 'Unidade']) || filial,
+                                data: dataStr,
+                                data_fmt: dataFmt,
+                                nf: String(nf),
+                                cliente: String(cliente),
+                                tipo: tipo,
+                                canal: String(canal),
+                                uf: uf,
+                                cidade: String(cidade),
+                                regiao: regiao,
+                                dia_semana: diaSemana
+                            });
+                        });
+                    } catch(err) {
+                        showToast(`Erro no arquivo ${file.name}`, "error");
+                    }
+
+                    filesProcessed++;
+                    if (filesProcessed === files.length) {
+                        if (newRecords.length > 0) {
+                            const existingKeys = new Set(database.map(d => `${d.filial}_${d.nf}_${d.data}`));
+                            const uniqueNew = newRecords.filter(d => !existingKeys.has(`${d.filial}_${d.nf}_${d.data}`));
+                            if (uniqueNew.length > 0) {
+                                database = [...database, ...uniqueNew];
+                                localStorage.setItem('paulicomp_expedicao_db', JSON.stringify(database));
+                                populateMonthFilter();
+                                updateDashboard();
+                                showToast(`<b>${uniqueNew.length}</b> novos registros carregados!`, "success");
+
+                                // Sincroniza com o Neon
+                                fetch('/api/dispatches', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(uniqueNew)
+                                }).catch(console.warn);
+                            } else {
+                                showToast("Registros já existentes.", "info");
+                            }
+                        }
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
-            // Carrega do Cache Local primeiro
             const saved = localStorage.getItem('paulicomp_expedicao_db');
             if (saved) {
                 try { database = JSON.parse(saved); } catch(e){}
+            }
+
+            const savedLogo = localStorage.getItem('paulicomp_custom_logo');
+            if (savedLogo) {
+                const img = document.getElementById('logoImage');
+                if (img) img.src = savedLogo;
             }
 
             populateMonthFilter();
@@ -635,10 +1037,24 @@
                 document.getElementById(id)?.addEventListener('change', updateDashboard);
             });
 
-            // Modal Banco de Dados
+            // Botão PDF
+            document.getElementById('btnPdfReport')?.addEventListener('click', gerarRelatorioPDF);
+
+            // Modal
             const modal = document.getElementById('dataModal');
             document.getElementById('btnOpenModal')?.addEventListener('click', () => modal.classList.remove('hidden'));
             document.getElementById('btnCloseModal')?.addEventListener('click', () => modal.classList.add('hidden'));
+
+            // Inputs de Planilha
+            document.getElementById('excelFileInput')?.addEventListener('change', (e) => {
+                processExcelFiles(e.target.files);
+                e.target.value = '';
+            });
+            document.getElementById('modalFileInput')?.addEventListener('change', (e) => {
+                processExcelFiles(e.target.files);
+                e.target.value = '';
+                modal.classList.add('hidden');
+            });
 
             // Logo Upload
             document.getElementById('logoWrapper')?.addEventListener('click', () => document.getElementById('logoUploadInput').click());
@@ -654,75 +1070,6 @@
                 reader.readAsDataURL(file);
             });
 
-            // Importar Excel
-            document.getElementById('excelFileInput')?.addEventListener('change', (e) => {
-                const files = e.target.files;
-                if (!files || files.length === 0) return;
-
-                Array.from(files).forEach(file => {
-                    const reader = new FileReader();
-                    reader.onload = (evt) => {
-                        try {
-                            const data = new Uint8Array(evt.target.result);
-                            const workbook = XLSX.read(data, { type: 'array' });
-                            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                            const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-
-                            const newRecs = [];
-                            jsonRows.forEach(row => {
-                                const findKey = (cands) => {
-                                    const k = Object.keys(row).find(x => cands.includes(x.trim().toLowerCase()));
-                                    return k ? row[k] : "";
-                                };
-                                const rawDate = findKey(['data', 'data emissão', 'data emissao']);
-                                if (!rawDate) return;
-
-                                let dataStr = String(rawDate).trim();
-                                if (dataStr.includes('/')) {
-                                    const p = dataStr.split('/');
-                                    if (p.length === 3) dataStr = `${p[2].length===2?'20'+p[2]:p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
-                                }
-                                
-                                const nf = findKey(['identificação', 'identificacao', 'nf', 'nota fiscal']) || "-";
-                                const doc = String(findKey(['cpf / cnpj', 'cpf/cnpj', 'cnpj', 'cpf'])).replace(/[^0-9]/g, '');
-
-                                newRecs.push({
-                                    filial: findKey(['filial', 'unidade']) || 'PAULICOMP SP',
-                                    data: dataStr,
-                                    data_fmt: dataStr.split('-').reverse().join('/'),
-                                    nf: String(nf),
-                                    cliente: String(findKey(['cliente', 'destinatário', 'nome']) || "-"),
-                                    tipo: doc.length > 11 ? 'B2B (CNPJ)' : 'B2C (CPF)',
-                                    canal: String(findKey(['forma de envio', 'canal']) || 'Mercado Envios'),
-                                    uf: String(findKey(['uf', 'estado']) || 'SP').toUpperCase().trim(),
-                                    cidade: String(findKey(['cidade', 'municipio']) || "-"),
-                                    regiao: ufToRegion[String(findKey(['uf', 'estado']) || 'SP').toUpperCase().trim()] || 'Sudeste',
-                                    dia_semana: ptDays[new Date(dataStr + 'T12:00:00').getDay()] || 'Segunda-feira'
-                                });
-                            });
-
-                            if (newRecs.length > 0) {
-                                database = [...database, ...newRecs];
-                                localStorage.setItem('paulicomp_expedicao_db', JSON.stringify(database));
-                                populateMonthFilter();
-                                updateDashboard();
-                                showToast(`${newRecs.length} registros adicionados localmente!`, "success");
-                                
-                                // Envia para o Neon em segundo plano
-                                fetch('/api/dispatches', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify(newRecs)
-                                }).catch(console.warn);
-                            }
-                        } catch(err) {
-                            showToast("Erro ao processar planilha.", "error");
-                        }
-                    };
-                    reader.readAsArrayBuffer(file);
-                });
-            });
-
             // Exportar Excel
             document.getElementById('btnExportExcel')?.addEventListener('click', () => {
                 const ws = XLSX.utils.json_to_sheet(database);
@@ -731,15 +1078,10 @@
                 XLSX.writeFile(wb, "Base_Expedicao_Paulicomp.xlsx");
             });
 
-            // Forçar Sincronização
+            // Sincronizar
             document.getElementById('btnSyncCloud')?.addEventListener('click', () => {
                 showToast("Sincronizando...", "info");
                 syncWithNeon();
-            });
-
-            // Exportar PDF
-            document.getElementById('btnPdfReport')?.addEventListener('click', () => {
-                window.print();
             });
         });
     </script>
