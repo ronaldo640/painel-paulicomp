@@ -362,14 +362,14 @@
 
     <!-- Template do Relatório PDF (A4 Portrait 1 Página) -->
     <div id="pdfReportContainer" class="fixed -left-[9999px] top-0 z-[-100]">
-        <div id="pdfReportTemplate" style="width: 780px; height: 1100px; max-height: 1100px; background: #070b14; color: #f8fafc; padding: 12px 16px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;">
+        <div id="pdfReportTemplate" style="width: 780px; height: 1100px; max-height: 1100px; background: #070b14; color: #f8fafc; padding: 6px 16px 10px 16px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;">
             
-            <!-- Header Relatório -->
-            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1.5px solid #1e293b; padding-bottom: 6px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
+            <!-- Header Relatório (Subido e Compactado) -->
+            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1.5px solid #1e293b; padding-bottom: 4px; margin-top: 0;">
+                <div style="display: flex; align-items: center; gap: 8px;">
                     <div id="repLogoHolder" style="display: flex; align-items: center;"></div>
                     <div style="border-left: 1.5px solid #1e293b; padding-left: 8px;">
-                        <h2 style="font-size: 11px; font-weight: 800; color: #ffffff; text-transform: uppercase; margin: 0; line-height: 1.2;">
+                        <h2 style="font-size: 11px; font-weight: 800; color: #ffffff; text-transform: uppercase; margin: 0; line-height: 1.1;">
                             Relatório Executivo de Produtividade & Logística
                         </h2>
                         <span style="font-size: 8px; font-weight: 600; color: #94a3b8; display: block; margin-top: 1px;">
@@ -379,52 +379,52 @@
                 </div>
 
                 <div style="display: flex; align-items: center; gap: 6px;">
-                    <div style="background: rgba(30, 58, 138, 0.4); border: 1px solid #3b82f6; border-radius: 4px; padding: 3px 8px; text-align: right;">
+                    <div style="background: rgba(30, 58, 138, 0.4); border: 1px solid #3b82f6; border-radius: 4px; padding: 2px 7px; text-align: right;">
                         <span style="font-size: 7px; font-weight: 700; color: #93c5fd; text-transform: uppercase; display: block;">Mês Ref.</span>
                         <span id="repRefMes" style="font-size: 10px; font-weight: 800; color: #ffffff;">-</span>
                     </div>
-                    <div style="background: rgba(14, 116, 144, 0.35); border: 1px solid #06b6d4; border-radius: 4px; padding: 3px 8px; text-align: right;">
+                    <div style="background: rgba(14, 116, 144, 0.35); border: 1px solid #06b6d4; border-radius: 4px; padding: 2px 7px; text-align: right;">
                         <span style="font-size: 7px; font-weight: 700; color: #67e8f9; text-transform: uppercase; display: block;">Filial</span>
                         <span id="repRefFilial" style="font-size: 10px; font-weight: 800; color: #ffffff;">-</span>
                     </div>
                 </div>
             </div>
 
-            <!-- KPIs Relatório -->
+            <!-- KPIs Relatório (Compactados) -->
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px;">
-                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; position: relative;">
-                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2.5px; background: linear-gradient(90deg, #2563eb, #06b6d4);"></div>
+                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 4px 8px; position: relative;">
+                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, #2563eb, #06b6d4);"></div>
                     <span style="font-size: 7.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Total Embalagens</span>
-                    <div id="repKpiTotal" style="font-size: 15px; font-weight: 900; color: #ffffff; line-height: 1.1; margin-top: 2px;">0</div>
+                    <div id="repKpiTotal" style="font-size: 14px; font-weight: 900; color: #ffffff; line-height: 1.1; margin-top: 1px;">0</div>
                 </div>
-                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; position: relative;">
-                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2.5px; background: linear-gradient(90deg, #10b981, #14b8a6);"></div>
+                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 4px 8px; position: relative;">
+                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, #10b981, #14b8a6);"></div>
                     <span style="font-size: 7.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Throughput Médio</span>
-                    <div id="repKpiMedia" style="font-size: 15px; font-weight: 900; color: #ffffff; line-height: 1.1; margin-top: 2px;">0.0</div>
+                    <div id="repKpiMedia" style="font-size: 14px; font-weight: 900; color: #ffffff; line-height: 1.1; margin-top: 1px;">0.0</div>
                 </div>
-                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; position: relative;">
-                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2.5px; background: linear-gradient(90deg, #f59e0b, #ea580c);"></div>
+                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 4px 8px; position: relative;">
+                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, #f59e0b, #ea580c);"></div>
                     <span style="font-size: 7.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Pico Operacional</span>
-                    <div id="repKpiPico" style="font-size: 15px; font-weight: 900; color: #ffffff; line-height: 1.1; margin-top: 2px;">0</div>
+                    <div id="repKpiPico" style="font-size: 14px; font-weight: 900; color: #ffffff; line-height: 1.1; margin-top: 1px;">0</div>
                 </div>
-                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; position: relative;">
-                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2.5px; background: linear-gradient(90deg, #a855f7, #ec4899);"></div>
+                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 4px 8px; position: relative;">
+                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, #a855f7, #ec4899);"></div>
                     <span style="font-size: 7.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Mix B2C / B2B</span>
-                    <div id="repKpiMix" style="font-size: 13px; font-weight: 900; color: #ffffff; line-height: 1.1; margin-top: 2px;">0% / 0%</div>
+                    <div id="repKpiMix" style="font-size: 13px; font-weight: 900; color: #ffffff; line-height: 1.1; margin-top: 1px;">0% / 0%</div>
                 </div>
             </div>
 
-            <!-- Gráficos no PDF com Espaçamentos Equilibrados -->
-            <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px; flex: 1;">
+            <!-- Gráficos no PDF -->
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px; flex: 1;">
                 
-                <!-- Linha 1: Evolução + Share -->
-                <div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 8px; height: 200px;">
+                <!-- Linha 1: Evolução + Share (Subidos e com mais altura útil) -->
+                <div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 8px; height: 215px; margin-top: 0;">
                     <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column;">
                         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
                             <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Evolução do Throughput</span>
                             <span id="repChart1Sub" style="font-size: 7.5px; color: #38bdf8; font-weight: 600;">-</span>
                         </div>
-                        <div style="flex: 1; position: relative; width: 100%; height: 165px; display: flex; align-items: center; justify-content: center;">
+                        <div style="flex: 1; position: relative; width: 100%; height: 180px; display: flex; align-items: center; justify-content: center;">
                             <img id="repImgEvolucao" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
                         </div>
                     </div>
@@ -433,14 +433,14 @@
                         <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
                             <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Share por Filial (%)</span>
                         </div>
-                        <div style="flex: 1; position: relative; width: 100%; height: 165px; display: flex; align-items: center; justify-content: center;">
+                        <div style="flex: 1; position: relative; width: 100%; height: 180px; display: flex; align-items: center; justify-content: center;">
                             <img id="repImgShare" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
                         </div>
                     </div>
                 </div>
 
                 <!-- Linha 2: Dia da Semana -->
-                <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; height: 165px; display: flex; flex-direction: column; margin-top: 14px;">
+                <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; height: 165px; display: flex; flex-direction: column; margin-top: 6px;">
                     <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
                         <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Ritmo por Dia da Semana</span>
                     </div>
@@ -450,7 +450,7 @@
                 </div>
 
                 <!-- Linha 3: Canais + Região -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; height: 175px; margin-top: 14px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; height: 175px; margin-top: 6px;">
                     <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column;">
                         <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
                             <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Canais Logísticos de Despacho</span>
@@ -473,7 +473,7 @@
             </div>
 
             <!-- Footer Relatório -->
-            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1e293b; padding-top: 4px; margin-top: 4px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1e293b; padding-top: 4px; margin-top: 2px;">
                 <span style="font-size: 7px; color: #64748b;">Paulicomp Logística & Almoxarifado • Gestão Executiva de Expedição</span>
                 <span style="font-size: 7px; font-weight: 700; color: #38bdf8;">Página 1 de 1 (Formato Retrato A4)</span>
             </div>
