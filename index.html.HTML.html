@@ -530,530 +530,307 @@
         // INTEGRAÇÃO COM A API DO BANCO NEON
         // ==========================================
         async function loadDataFromApi() {
-            showToast("Sincronizando com o banco Neon...", "info");
-            try {
-                const res = await fetch('/api/dispatches');
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data && data.length > 0) {
-                        database = data;
-                        localStorage.setItem('paulicomp_expedicao_db', JSON.stringify(database));
-                        showToast(`Conectado ao Neon! ${database.length.toLocaleString('pt-BR')} registros sincronizados.`, "success");
-                    } else {
-                        // Banco recém-criado: usa cache local se houver
-                        const saved = localStorage.getItem('paulicomp_expedicao_db');
-                        database = saved ? JSON.parse(saved) : [];
-                    }
-                } else {
-                    throw new Error("Erro na resposta da API");
-                }
-            } catch (e) {
-                console.warn("API indisponível, usando cache local:", e);
-                const saved = localStorage.getItem('paulicomp_expedicao_db');
-                database = saved ? JSON.parse(saved) : [];
-            }
-            populateMonthFilter();
-            updateDashboard();
-            updateModalStats();
-        }
-
-        async function saveRecordsToApi(newRecords, newestMonthImported) {
-            showToast("Enviando dados para o banco na nuvem...", "info");
-            try {
-                const res = await fetch('/api/dispatches', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(newRecords)
-                });
-
-                if (res.ok) {
-                    const result = await res.json();
-                    showToast(`<b>${result.inserted}</b> registros novos salvos no banco Neon!`, "success");
-                    await loadDataFromApi();
-                    if (newestMonthImported) {
-                        populateMonthFilter(false, newestMonthImported);
-                        updateDashboard();
-                    }
-                } else {
-                    throw new Error("Erro no POST");
-                }
-            } catch (err) {
-                console.error("Erro ao salvar na API:", err);
-                showToast("Erro ao sincronizar com Neon. Verifique a DATABASE_URL na Vercel.", "error");
-            }
-        }
-
-        function initLogo() {
-            const savedLogo = localStorage.getItem('paulicomp_custom_logo');
-            const logoImg = document.getElementById('logoImage');
-            const logoSvg = document.getElementById('logoDefaultSvg');
-    
-            if (savedLogo) {
-                // Se o usuário fez upload manual pela tela, usa o personalizado
-                logoImg.src = savedLogo;
+    showToast("Sincronizando com o banco Neon...", "info");
+    try {
+        const res = await fetch('/api/dispatches');
+        if (res.ok) {
+            const data = await res.json();
+            database = Array.isArray(data) ? data : [];
+            localStorage.setItem('paulicomp_expedicao_db', JSON.stringify(database));
+            if (database.length > 0) {
+                showToast(`Conectado ao Neon! ${database.length.toLocaleString('pt-BR')} registros carregados.`, "success");
             } else {
-                // Se for o primeiro acesso, usa o arquivo logo.png fixo
-                logoImg.src = './logo.png';
+                showToast("Banco conectado, aguardando importação de planilhas.", "info");
             }
+        } else {
+            throw new Error("Erro na API");
+        }
+    } catch (e) {
+        console.warn("Falha de conexão com a API, carregando cache:", e);
+        const saved = localStorage.getItem('paulicomp_expedicao_db');
+        database = saved ? JSON.parse(saved) : [];
+    }
     
-            // Garante que a imagem fique visível e o SVG fique oculto
-            logoImg.classList.remove('hidden');
-            logoSvg.classList.add('hidden');
-        }
-        }
+    // Atualiza a interface com segurança
+    try {
+        populateMonthFilter();
+        updateDashboard();
+        updateModalStats();
+    } catch (err) {
+        console.error("Erro na renderização visual:", err);
+    }
+}
 
-        function handleLogoUpload(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                const b64 = evt.target.result;
-                try {
-                    localStorage.setItem('paulicomp_custom_logo', b64);
-                    initLogo();
-                    showToast("Logotipo atualizado com sucesso!", "success");
-                } catch(err) {
-                    showToast("Imagem muito grande para salvar no navegador.", "error");
-                }
-            };
-            reader.readAsDataURL(file);
-        }
+function updateDashboard() {
+    if (!Array.isArray(database)) database = [];
 
-        document.getElementById('logoWrapper').addEventListener('click', () => {
-            document.getElementById('logoUploadInput').click();
+    const selMes = document.getElementById('filterMes');
+    const selFilial = document.getElementById('filterFilial');
+    const selCanal = document.getElementById('filterCanal');
+    const selTipo = document.getElementById('filterTipo');
+
+    const fMes = selMes ? selMes.value : 'ALL';
+    const fFilial = selFilial ? selFilial.value : 'ALL';
+    const fCanal = selCanal ? selCanal.value : 'ALL';
+    const fTipo = selTipo ? selTipo.value : 'ALL';
+
+    const isAllMonths = (fMes === 'ALL');
+    const granText = document.getElementById('granularityText');
+    const chartSub = document.getElementById('chart1Subtitle');
+    if (granText) granText.innerText = isAllMonths ? "Visão por Quinzena (Consolidado)" : "Visão Diária Detalhada";
+    if (chartSub) chartSub.innerText = isAllMonths ? "Agrupado por Quinzena" : "Detalhamento Diário";
+
+    const filtered = database.filter(d => {
+        return (fMes === 'ALL' || (d.data && d.data.startsWith(fMes))) &&
+               (fFilial === 'ALL' || d.filial === fFilial) &&
+               (fCanal === 'ALL' || d.canal === fCanal) &&
+               (fTipo === 'ALL' || d.tipo === fTipo);
+    });
+
+    const total = filtered.length;
+    document.getElementById('kpiTotal').innerText = total.toLocaleString('pt-BR');
+    document.getElementById('headerRowCount').innerText = database.length.toLocaleString('pt-BR');
+
+    const dateMap = {};
+    filtered.forEach(d => { if (d.data_fmt) dateMap[d.data_fmt] = (dateMap[d.data_fmt] || 0) + 1; });
+    const uniqueDays = Object.keys(dateMap).length;
+    const media = uniqueDays > 0 ? (total / uniqueDays).toFixed(1) : '0.0';
+    document.getElementById('kpiMedia').innerText = media;
+    document.getElementById('kpiDiasTxt').innerText = `Em ${uniqueDays} dias ativos`;
+
+    let peakVal = 0, peakDate = '-';
+    for (const [dt, cnt] of Object.entries(dateMap)) {
+        if (cnt > peakVal) { peakVal = cnt; peakDate = dt; }
+    }
+    document.getElementById('kpiPico').innerText = peakVal.toLocaleString('pt-BR');
+    document.getElementById('kpiPicoData').innerText = peakDate !== '-' ? `Pico: ${peakDate}` : '-';
+
+    const b2cCount = filtered.filter(d => d.tipo && d.tipo.includes('B2C')).length;
+    const b2bCount = filtered.filter(d => d.tipo && d.tipo.includes('B2B')).length;
+    const b2cPct = total > 0 ? Math.round((b2cCount / total) * 100) : 0;
+    const b2bPct = total > 0 ? Math.round((b2bCount / total) * 100) : 0;
+    document.getElementById('kpiMix').innerText = `${b2cPct}% / ${b2bPct}%`;
+    document.getElementById('kpiMixTxt').innerText = `${b2cCount} B2C | ${b2bCount} B2B`;
+
+    // Gráfico 1: Evolução
+    let labels1 = [], data1 = [];
+    if (total === 0) {
+        labels1 = ['Sem Dados'];
+        data1 = [0];
+    } else if (isAllMonths) {
+        const qMap = {};
+        filtered.forEach(d => {
+            if (!d.data) return;
+            const [y, m, day] = d.data.split('-').map(Number);
+            const q = day <= 15 ? 1 : 2;
+            const key = `${y}-${m}-${q}`;
+            if (!qMap[key]) qMap[key] = { label: `${q}ª Q. ${ptMonths[m-1].substring(0,3)}/${String(y).slice(2)}`, count: 0 };
+            qMap[key].count++;
         });
+        const sortedKeys = Object.keys(qMap).sort();
+        labels1 = sortedKeys.map(k => qMap[k].label);
+        data1 = sortedKeys.map(k => qMap[k].count);
+    } else {
+        const sortedDates = Object.keys(dateMap).sort((a,b) => {
+            const [d1,m1,y1] = a.split('/').map(Number);
+            const [d2,m2,y2] = b.split('/').map(Number);
+            return new Date(y1,m1-1,d1) - new Date(y2,m2-1,d2);
+        });
+        labels1 = sortedDates;
+        data1 = sortedDates.map(d => dateMap[d]);
+    }
 
-        const ufToRegion = {
-            'SP': 'Sudeste', 'RJ': 'Sudeste', 'MG': 'Sudeste', 'ES': 'Sudeste',
-            'PR': 'Sul', 'SC': 'Sul', 'RS': 'Sul',
-            'BA': 'Nordeste', 'PE': 'Nordeste', 'CE': 'Nordeste', 'RN': 'Nordeste',
-            'PB': 'Nordeste', 'MA': 'Nordeste', 'AL': 'Nordeste', 'SE': 'Nordeste', 'PI': 'Nordeste',
-            'DF': 'Centro-Oeste', 'GO': 'Centro-Oeste', 'MT': 'Centro-Oeste', 'MS': 'Centro-Oeste',
-            'PA': 'Norte', 'AM': 'Norte', 'RO': 'Norte', 'TO': 'Norte', 'AC': 'Norte', 'AP': 'Norte', 'RR': 'Norte'
-        };
-
-        const ptDays = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
-        const ptMonths = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-        function populateMonthFilter(selectNewestMonth = false, targetMonth = null) {
-            const select = document.getElementById('filterMes');
-            const previousVal = select.value;
-            const monthSet = new Set();
-            database.forEach(d => {
-                if (d.data) {
-                    const [y, m] = d.data.split('-');
-                    monthSet.add(`${y}-${m}`);
-                }
-            });
-            const sortedMonths = Array.from(monthSet).sort().reverse();
-            select.innerHTML = '<option value="ALL">Todos os Meses (Consolidado)</option>';
-            sortedMonths.forEach(ym => {
-                const [year, month] = ym.split('-');
-                const monthName = ptMonths[parseInt(month, 10) - 1];
-                const opt = document.createElement('option');
-                opt.value = ym;
-                opt.innerText = `${monthName}/${year}`;
-                select.appendChild(opt);
-            });
-
-            if (targetMonth && sortedMonths.includes(targetMonth)) {
-                select.value = targetMonth;
-            } else if (selectNewestMonth && sortedMonths.length > 0) {
-                select.value = sortedMonths[0];
-            } else if (sortedMonths.includes(previousVal) || previousVal === 'ALL') {
-                select.value = previousVal;
-            } else {
-                select.value = 'ALL';
-            }
-        }
-
-        let chartEvolucao = null;
-        let chartShareFilial = null;
-        let chartDiaSemana = null;
-        let chartCanais = null;
-        let chartRegioes = null;
-
-        function toggleDataModal(show) {
-            const modal = document.getElementById('dataModal');
-            if (show) {
-                modal.classList.remove('hidden');
-                updateModalStats();
-            } else {
-                modal.classList.add('hidden');
-            }
-        }
-
-        function updateModalStats() {
-            document.getElementById('modalTotalRows').innerText = database.length.toLocaleString('pt-BR');
-            const months = new Set(database.map(d => d.data ? d.data.substring(0,7) : '')).size;
-            document.getElementById('modalTotalMonths').innerText = months;
-            document.getElementById('headerRowCount').innerText = database.length.toLocaleString('pt-BR');
-        }
-
-        function resetToInitialData() {
-            if (confirm("Deseja recarregar os dados do banco de dados na nuvem?")) {
-                loadDataFromApi();
-                toggleDataModal(false);
-            }
-        }
-
-        function handleExcelImport(e) {
-            const fileInput = e.target;
-            const files = fileInput.files;
-            if (!files || files.length === 0) return;
-
-            let filesProcessed = 0;
-            const newRecords = [];
-            let newestMonthImported = null;
-
-            Array.from(files).forEach(file => {
-                const reader = new FileReader();
-                reader.onload = function(evt) {
-                    try {
-                        const data = new Uint8Array(evt.target.result);
-                        const workbook = XLSX.read(data, { type: 'array', cellDates: false, raw: true });
-                        const firstSheetName = workbook.SheetNames[0];
-                        const worksheet = workbook.Sheets[firstSheetName];
-                        const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-
-                        const fname = file.name.toUpperCase();
-                        let filial = "PAULICOMP SP";
-                        if (fname.includes("SUL")) filial = "PAULICOMP SUL";
-                        else if (fname.includes("COMP TRADE") || fname.includes("TRADE")) filial = "COMP TRADE";
-
-                        jsonRows.forEach(row => {
-                            const keys = Object.keys(row);
-                            const findKey = (candidates) => {
-                                for (const c of candidates) {
-                                    const match = keys.find(k => k.trim().toLowerCase() === c.toLowerCase());
-                                    if (match) return row[match];
-                                }
-                                return "";
-                            };
-
-                            const rawDate = findKey(['Data', 'DATA', 'Data Emissão', 'Data Emissao']);
-                            if (!rawDate && rawDate !== 0) return;
-
-                            let dataStr = "";
-                            let dataFmt = "";
-                            if (typeof rawDate === 'number') {
-                                const parsedDate = XLSX.SSF.parse_date_code(rawDate);
-                                const d = String(parsedDate.d).padStart(2, '0');
-                                const m = String(parsedDate.m).padStart(2, '0');
-                                const y = parsedDate.y;
-                                dataFmt = `${d}/${m}/${y}`;
-                                dataStr = `${y}-${m}-${d}`;
-                            } else {
-                                const str = String(rawDate).trim();
-                                if (str.includes('/')) {
-                                    const parts = str.split('/');
-                                    if (parts.length === 3) {
-                                        const d = parts[0].padStart(2, '0');
-                                        const m = parts[1].padStart(2, '0');
-                                        const y = parts[2].length === 2 ? '20' + parts[2] : parts[2];
-                                        dataFmt = `${d}/${m}/${y}`;
-                                        dataStr = `${y}-${m}-${d}`;
-                                    }
-                                }
-                            }
-
-                            if (!dataStr || dataStr.includes('undefined')) return;
-
-                            const ym = dataStr.substring(0, 7);
-                            if (!newestMonthImported || ym > newestMonthImported) newestMonthImported = ym;
-
-                            const nf = findKey(['Identificação', 'Identificacao', 'NF', 'Nota Fiscal']) || "-";
-                            const cliente = findKey(['Cliente', 'Destinatário', 'Nome']) || "-";
-                            const doc = String(findKey(['CPF / CNPJ', 'CPF/CNPJ', 'CNPJ', 'CPF']) || "").replace(/[^0-9]/g, '');
-                            const tipo = doc.length > 11 ? 'B2B (CNPJ)' : 'B2C (CPF)';
-                            const canal = findKey(['Forma de envio', 'Canal', 'Transportadora']) || "Mercado Envios";
-                            const uf = String(findKey(['UF', 'Estado']) || "SP").toUpperCase().trim();
-                            const cidade = findKey(['Cidade', 'Municipio']) || "-";
-                            const regiao = ufToRegion[uf] || 'Outros';
-
-                            const dObj = new Date(dataStr + 'T12:00:00');
-                            const diaSemana = ptDays[dObj.getDay()] || 'Segunda-feira';
-
-                            newRecords.push({
-                                filial: findKey(['Filial', 'Unidade']) || filial,
-                                data: dataStr,
-                                data_fmt: dataFmt,
-                                nf: String(nf),
-                                cliente: String(cliente),
-                                tipo: tipo,
-                                canal: String(canal),
-                                uf: uf,
-                                cidade: String(cidade),
-                                regiao: regiao,
-                                dia_semana: diaSemana
-                            });
-                        });
-                    } catch(err) {
-                        showToast(`Erro ao processar arquivo "${file.name}"`, "error");
+    if (chartEvolucao) chartEvolucao.destroy();
+    const ctx1 = document.getElementById('chartEvolucao');
+    if (ctx1) {
+        chartEvolucao = new Chart(ctx1.getContext('2d'), {
+            type: isAllMonths ? 'bar' : 'line',
+            data: {
+                labels: labels1,
+                datasets: [{
+                    label: 'Volumes',
+                    data: data1,
+                    borderColor: '#3b82f6',
+                    backgroundColor: isAllMonths ? 'rgba(59, 130, 246, 0.85)' : 'rgba(59, 130, 246, 0.15)',
+                    borderWidth: 2,
+                    borderRadius: isAllMonths ? 4 : 0,
+                    fill: !isAllMonths,
+                    tension: 0.25,
+                    pointRadius: 3
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                layout: { padding: { top: 18, left: 5, right: 5 } },
+                plugins: {
+                    legend: { display: false },
+                    datalabels: {
+                        anchor: 'end', align: 'top', color: '#e2e8f0',
+                        font: { weight: 'bold', size: 9 },
+                        formatter: (val) => val > 0 ? val.toLocaleString('pt-BR') : ''
                     }
-
-                    filesProcessed++;
-                    if (filesProcessed === files.length) {
-                        fileInput.value = '';
-                        if (newRecords.length > 0) {
-                            saveRecordsToApi(newRecords, newestMonthImported);
-                        } else {
-                            showToast("Nenhum registro válido identificado na planilha.", "info");
-                        }
-                    }
-                };
-                reader.readAsArrayBuffer(file);
-            });
-        }
-
-        function exportConsolidatedExcel() {
-            const ws = XLSX.utils.json_to_sheet(database);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Base_Expedicao");
-            XLSX.writeFile(wb, "Base_Consolidada_Expedicao_Paulicomp.xlsx");
-            showToast("Base exportada com sucesso!", "success");
-        }
-
-        function updateDashboard() {
-            const fMes = document.getElementById('filterMes').value;
-            const fFilial = document.getElementById('filterFilial').value;
-            const fCanal = document.getElementById('filterCanal').value;
-            const fTipo = document.getElementById('filterTipo').value;
-
-            const isAllMonths = (fMes === 'ALL');
-            document.getElementById('granularityText').innerText = isAllMonths ? "Visão por Quinzena (Consolidado)" : "Visão Diária Detalhada";
-            document.getElementById('chart1Subtitle').innerText = isAllMonths ? "Agrupado por Quinzena" : "Detalhamento Diário";
-
-            const filtered = database.filter(d => {
-                return (fMes === 'ALL' || (d.data && d.data.startsWith(fMes))) &&
-                       (fFilial === 'ALL' || d.filial === fFilial) &&
-                       (fCanal === 'ALL' || d.canal === fCanal) &&
-                       (fTipo === 'ALL' || d.tipo === fTipo);
-            });
-
-            const total = filtered.length;
-            document.getElementById('kpiTotal').innerText = total.toLocaleString('pt-BR');
-            document.getElementById('headerRowCount').innerText = database.length.toLocaleString('pt-BR');
-
-            const dateMap = {};
-            filtered.forEach(d => { if (d.data_fmt) dateMap[d.data_fmt] = (dateMap[d.data_fmt] || 0) + 1; });
-            const uniqueDays = Object.keys(dateMap).length;
-            const media = uniqueDays > 0 ? (total / uniqueDays).toFixed(1) : '0.0';
-            document.getElementById('kpiMedia').innerText = media;
-            document.getElementById('kpiDiasTxt').innerText = `Em ${uniqueDays} dias ativos`;
-
-            let peakVal = 0, peakDate = '-';
-            for (const [dt, cnt] of Object.entries(dateMap)) {
-                if (cnt > peakVal) { peakVal = cnt; peakDate = dt; }
-            }
-            document.getElementById('kpiPico').innerText = peakVal.toLocaleString('pt-BR');
-            document.getElementById('kpiPicoData').innerText = peakDate !== '-' ? `Pico: ${peakDate}` : '-';
-
-            const b2cCount = filtered.filter(d => d.tipo && d.tipo.includes('B2C')).length;
-            const b2bCount = filtered.filter(d => d.tipo && d.tipo.includes('B2B')).length;
-            const b2cPct = total > 0 ? Math.round((b2cCount / total) * 100) : 0;
-            const b2bPct = total > 0 ? Math.round((b2bCount / total) * 100) : 0;
-            document.getElementById('kpiMix').innerText = `${b2cPct}% / ${b2bPct}%`;
-            document.getElementById('kpiMixTxt').innerText = `${b2cCount} B2C | ${b2bCount} B2B`;
-
-            // CHART 1: Evolução
-            let labels1 = [], data1 = [];
-            if (isAllMonths) {
-                const qMap = {};
-                filtered.forEach(d => {
-                    if (!d.data) return;
-                    const [y, m, day] = d.data.split('-').map(Number);
-                    const q = day <= 15 ? 1 : 2;
-                    const key = `${y}-${m}-${q}`;
-                    if (!qMap[key]) qMap[key] = { label: `${q}ª Q. ${ptMonths[m-1].substring(0,3)}/${String(y).slice(2)}`, count: 0 };
-                    qMap[key].count++;
-                });
-                const sortedKeys = Object.keys(qMap).sort();
-                labels1 = sortedKeys.map(k => qMap[k].label);
-                data1 = sortedKeys.map(k => qMap[k].count);
-            } else {
-                const sortedDates = Object.keys(dateMap).sort((a,b) => {
-                    const [d1,m1,y1] = a.split('/').map(Number);
-                    const [d2,m2,y2] = b.split('/').map(Number);
-                    return new Date(y1,m1-1,d1) - new Date(y2,m2-1,d2);
-                });
-                labels1 = sortedDates;
-                data1 = sortedDates.map(d => dateMap[d]);
-            }
-
-            if (chartEvolucao) chartEvolucao.destroy();
-            chartEvolucao = new Chart(document.getElementById('chartEvolucao').getContext('2d'), {
-                type: isAllMonths ? 'bar' : 'line',
-                data: {
-                    labels: labels1,
-                    datasets: [{
-                        label: 'Volumes',
-                        data: data1,
-                        borderColor: '#3b82f6',
-                        backgroundColor: isAllMonths ? 'rgba(59, 130, 246, 0.85)' : 'rgba(59, 130, 246, 0.15)',
-                        borderWidth: 2,
-                        borderRadius: isAllMonths ? 4 : 0,
-                        fill: !isAllMonths,
-                        tension: 0.25,
-                        pointRadius: 3
-                    }]
                 },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    layout: { padding: { top: 18, left: 5, right: 5 } },
-                    plugins: {
-                        legend: { display: false },
-                        datalabels: {
-                            anchor: 'end', align: 'top', color: '#e2e8f0',
-                            font: { weight: 'bold', size: 9 },
-                            formatter: (val) => val > 0 ? val.toLocaleString('pt-BR') : ''
-                        }
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 }, maxRotation: 45 } },
+                    y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+                }
+            }
+        });
+    }
+
+    // Gráfico 2: Share Filial
+    const branchMap = { 'PAULICOMP SP': 0, 'PAULICOMP SUL': 0, 'COMP TRADE': 0 };
+    filtered.forEach(d => { if (branchMap[d.filial] !== undefined) branchMap[d.filial]++; });
+
+    if (chartShareFilial) chartShareFilial.destroy();
+    const ctx2 = document.getElementById('chartShareFilial');
+    if (ctx2) {
+        chartShareFilial = new Chart(ctx2.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(branchMap),
+                datasets: [{
+                    data: total === 0 ? [1, 1, 1] : Object.values(branchMap),
+                    backgroundColor: total === 0 ? ['#1e293b', '#334155', '#475569'] : ['#2563eb', '#06b6d4', '#f59e0b'],
+                    borderColor: '#0f172a', borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#FFFFFF', font: { size: 11, weight: '600' }, padding: 10, usePointStyle: true }
                     },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 }, maxRotation: 45 } },
-                        y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+                    datalabels: {
+                        color: '#FFFFFF', font: { weight: 'bold', size: 11 },
+                        formatter: (val) => {
+                            if (!val || total === 0) return '';
+                            return `${((val / total) * 100).toFixed(1)}%`;
+                        }
                     }
-                }
-            });
-
-            // CHART 2: Share Filial
-            const branchMap = { 'PAULICOMP SP': 0, 'PAULICOMP SUL': 0, 'COMP TRADE': 0 };
-            filtered.forEach(d => { if (branchMap[d.filial] !== undefined) branchMap[d.filial]++; });
-
-            if (chartShareFilial) chartShareFilial.destroy();
-            chartShareFilial = new Chart(document.getElementById('chartShareFilial').getContext('2d'), {
-                type: 'doughnut',
-                data: {
-                    labels: Object.keys(branchMap),
-                    datasets: [{
-                        data: Object.values(branchMap),
-                        backgroundColor: ['#2563eb', '#06b6d4', '#f59e0b'],
-                        borderColor: '#0f172a', borderWidth: 2
-                    }]
                 },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: { color: '#FFFFFF', font: { size: 11, weight: '600' }, padding: 10, usePointStyle: true }
-                        },
-                        datalabels: {
-                            color: '#FFFFFF', font: { weight: 'bold', size: 11 },
-                            formatter: (val, ctx) => {
-                                if (!val || total === 0) return '';
-                                return `${((val / total) * 100).toFixed(1)}%`;
-                            }
-                        }
-                    },
-                    cutout: '52%'
-                }
-            });
+                cutout: '52%'
+            }
+        });
+    }
 
-            // CHART 3: Dia da Semana
-            const weekOrder = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
-            const weekMap = { 'Segunda-feira': 0, 'Terça-feira': 0, 'Quarta-feira': 0, 'Quinta-feira': 0, 'Sexta-feira': 0 };
-            filtered.forEach(d => { if (weekMap[d.dia_semana] !== undefined) weekMap[d.dia_semana]++; });
+    // Gráfico 3: Dia da Semana
+    const weekOrder = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
+    const weekMap = { 'Segunda-feira': 0, 'Terça-feira': 0, 'Quarta-feira': 0, 'Quinta-feira': 0, 'Sexta-feira': 0 };
+    filtered.forEach(d => { if (weekMap[d.dia_semana] !== undefined) weekMap[d.dia_semana]++; });
 
-            if (chartDiaSemana) chartDiaSemana.destroy();
-            chartDiaSemana = new Chart(document.getElementById('chartDiaSemana').getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels: weekOrder.map(d => d.replace('-feira', '')),
-                    datasets: [{ data: weekOrder.map(d => weekMap[d]), backgroundColor: '#6366f1', borderRadius: 4 }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    layout: { padding: { top: 18 } },
-                    plugins: {
-                        legend: { display: false },
-                        datalabels: {
-                            anchor: 'end', align: 'top', color: '#e2e8f0', font: { weight: 'bold', size: 10 },
-                            formatter: (val) => val > 0 ? val.toLocaleString('pt-BR') : ''
-                        }
-                    },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
-                        y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+    if (chartDiaSemana) chartDiaSemana.destroy();
+    const ctx3 = document.getElementById('chartDiaSemana');
+    if (ctx3) {
+        chartDiaSemana = new Chart(ctx3.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: weekOrder.map(d => d.replace('-feira', '')),
+                datasets: [{ data: weekOrder.map(d => weekMap[d]), backgroundColor: '#6366f1', borderRadius: 4 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                layout: { padding: { top: 18 } },
+                plugins: {
+                    legend: { display: false },
+                    datalabels: {
+                        anchor: 'end', align: 'top', color: '#e2e8f0', font: { weight: 'bold', size: 10 },
+                        formatter: (val) => val > 0 ? val.toLocaleString('pt-BR') : ''
                     }
-                }
-            });
-
-            // CHART 4: Canais
-            const canalMap = {};
-            filtered.forEach(d => { canalMap[d.canal] = (canalMap[d.canal] || 0) + 1; });
-
-            if (chartCanais) chartCanais.destroy();
-            chartCanais = new Chart(document.getElementById('chartCanais').getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels: Object.keys(canalMap),
-                    datasets: [{ data: Object.values(canalMap), backgroundColor: '#10b981', borderRadius: 4 }]
                 },
-                options: {
-                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-                    layout: { padding: { right: 25 } },
-                    plugins: {
-                        legend: { display: false },
-                        datalabels: {
-                            anchor: 'end', align: 'right', color: '#e2e8f0', font: { weight: 'bold', size: 10 },
-                            formatter: (val) => val > 0 ? val.toLocaleString('pt-BR') : ''
-                        }
-                    },
-                    scales: {
-                        x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8', font: { size: 9 } } },
-                        y: { grid: { display: false }, ticks: { color: '#f1f5f9', font: { size: 10 } } }
-                    }
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+                    y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
                 }
-            });
+            }
+        });
+    }
 
-            // CHART 5: Regiões
-            const regMap = { 'Sudeste': 0, 'Sul': 0, 'Nordeste': 0, 'Centro-Oeste': 0, 'Norte': 0 };
-            filtered.forEach(d => { if (regMap[d.regiao] !== undefined) regMap[d.regiao]++; });
+    // Gráfico 4: Canais
+    const canalMap = {};
+    filtered.forEach(d => { canalMap[d.canal] = (canalMap[d.canal] || 0) + 1; });
+    const canalLabels = Object.keys(canalMap).length > 0 ? Object.keys(canalMap) : ['Sem dados'];
+    const canalValues = Object.keys(canalMap).length > 0 ? Object.values(canalMap) : [0];
 
-            if (chartRegioes) chartRegioes.destroy();
-            chartRegioes = new Chart(document.getElementById('chartRegioes').getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels: Object.keys(regMap),
-                    datasets: [{ data: Object.values(regMap), backgroundColor: '#ec4899', borderRadius: 4 }]
+    if (chartCanais) chartCanais.destroy();
+    const ctx4 = document.getElementById('chartCanais');
+    if (ctx4) {
+        chartCanais = new Chart(ctx4.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: canalLabels,
+                datasets: [{ data: canalValues, backgroundColor: '#10b981', borderRadius: 4 }]
+            },
+            options: {
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                layout: { padding: { right: 25 } },
+                plugins: {
+                    legend: { display: false },
+                    datalabels: {
+                        anchor: 'end', align: 'right', color: '#e2e8f0', font: { weight: 'bold', size: 10 },
+                        formatter: (val) => val > 0 ? val.toLocaleString('pt-BR') : ''
+                    }
                 },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    layout: { padding: { top: 18 } },
-                    plugins: {
-                        legend: { display: false },
-                        datalabels: {
-                            anchor: 'end', align: 'top', color: '#e2e8f0', font: { weight: 'bold', size: 10 },
-                            formatter: (val) => val > 0 ? val.toLocaleString('pt-BR') : ''
-                        }
-                    },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } },
-                        y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
-                    }
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+                    y: { grid: { display: false }, ticks: { color: '#f1f5f9', font: { size: 10 } } }
                 }
-            });
+            }
+        });
+    }
 
-            // Transaction Table
-            const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = '';
-            document.getElementById('tableRecordCount').innerText = `Mostrando ${Math.min(50, filtered.length)} de ${filtered.length.toLocaleString('pt-BR')}`;
-            filtered.slice(0, 50).forEach(row => {
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-slate-800/60 transition-colors';
-                tr.innerHTML = `
-                    <td class="px-4 py-2 font-mono text-slate-300">${row.data_fmt}</td>
-                    <td class="px-4 py-2 font-medium text-white">${row.filial}</td>
-                    <td class="px-4 py-2 font-mono text-blue-400 font-semibold">${row.nf}</td>
-                    <td class="px-4 py-2 truncate max-w-xs">${row.cliente}</td>
-                    <td class="px-4 py-2"><span class="px-2 py-0.5 rounded text-[11px] ${row.tipo && row.tipo.includes('B2B') ? 'bg-amber-900/60 text-amber-300' : 'bg-slate-800 text-slate-300'}">${row.tipo}</span></td>
-                    <td class="px-4 py-2 text-slate-200">${row.canal}</td>
-                    <td class="px-4 py-2 text-slate-400">${row.cidade}/${row.uf}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
+    // Gráfico 5: Regiões
+    const regMap = { 'Sudeste': 0, 'Sul': 0, 'Nordeste': 0, 'Centro-Oeste': 0, 'Norte': 0 };
+    filtered.forEach(d => { if (regMap[d.regiao] !== undefined) regMap[d.regiao]++; });
+
+    if (chartRegioes) chartRegioes.destroy();
+    const ctx5 = document.getElementById('chartRegioes');
+    if (ctx5) {
+        chartRegioes = new Chart(ctx5.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: Object.keys(regMap),
+                datasets: [{ data: Object.values(regMap), backgroundColor: '#ec4899', borderRadius: 4 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                layout: { padding: { top: 18 } },
+                plugins: {
+                    legend: { display: false },
+                    datalabels: {
+                        anchor: 'end', align: 'top', color: '#e2e8f0', font: { weight: 'bold', size: 10 },
+                        formatter: (val) => val > 0 ? val.toLocaleString('pt-BR') : ''
+                    }
+                },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+                    y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+                }
+            }
+        });
+    }
+
+    // Tabela
+    const tbody = document.getElementById('tableBody');
+    if (tbody) {
+        tbody.innerHTML = '';
+        document.getElementById('tableRecordCount').innerText = `Mostrando ${Math.min(50, filtered.length)} de ${filtered.length.toLocaleString('pt-BR')}`;
+        filtered.slice(0, 50).forEach(row => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-800/60 transition-colors';
+            tr.innerHTML = `
+                <td class="px-4 py-2 font-mono text-slate-300">${row.data_fmt || '-'}</td>
+                <td class="px-4 py-2 font-medium text-white">${row.filial || '-'}</td>
+                <td class="px-4 py-2 font-mono text-blue-400 font-semibold">${row.nf || '-'}</td>
+                <td class="px-4 py-2 truncate max-w-xs">${row.cliente || '-'}</td>
+                <td class="px-4 py-2"><span class="px-2 py-0.5 rounded text-[11px] ${row.tipo && row.tipo.includes('B2B') ? 'bg-amber-900/60 text-amber-300' : 'bg-slate-800 text-slate-300'}">${row.tipo || '-'}</span></td>
+                <td class="px-4 py-2 text-slate-200">${row.canal || '-'}</td>
+                <td class="px-4 py-2 text-slate-400">${row.cidade || '-'}/${row.uf || '-'}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
 
         function gerarRelatorioPDF() {
             showToast("Gerando relatório executivo em PDF (A4 Retrato)...", "info");
