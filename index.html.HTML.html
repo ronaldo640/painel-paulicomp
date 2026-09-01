@@ -57,19 +57,20 @@
             <div class="flex items-center gap-4">
                 <div class="relative group cursor-pointer" title="Clique para trocar a Logo ou selecionar uma imagem do seu computador">
                     <div id="logoWrapper" class="h-12 px-3 py-1 bg-transparent border border-slate-700/60 rounded-xl flex items-center justify-center transition-all group-hover:border-blue-500 group-hover:bg-slate-800/40">
-                        <img id="logoImage" src="./logo.png.png" alt="Paulicomp Logo" class="h-9 w-auto max-w-[150px] object-contain">
-                        <div id="logoDefaultSvg" class="hidden flex items-center gap-2.5">
-                            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 via-blue-500 to-cyan-400 flex items-center justify-center shadow-md shadow-blue-500/20">
-                                <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                                </svg>
-                            </div>
-                            <div class="flex flex-col">
-                                <span class="text-base font-black tracking-wider text-white uppercase font-mono leading-none">PAULICOMP</span>
-                                <span class="text-[9px] font-bold tracking-widest text-cyan-400 uppercase leading-tight">LOGÍSTICA & EXPEDIÇÃO</span>
-                            </div>
+                        <!-- Certifique-se de que o nome do arquivo aqui seja exatamente o mesmo que você subiu no GitHub (ex: logo.png) -->
+                            <img id="logoImage" src="./logo.png" alt="Paulicomp Logo" class="h-9 w-auto max-w-[150px] object-contain">
+                                <div id="logoDefaultSvg" class="hidden flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 via-blue-500 to-cyan-400 flex items-center justify-center shadow-md shadow-blue-500/20">
+                                    <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                            </svg>
                         </div>
-                    </div>
+                   <div class="flex flex-col">
+            <span class="text-base font-black tracking-wider text-white uppercase font-mono leading-none">PAULICOMP</span>
+            <span class="text-[9px] font-bold tracking-widest text-cyan-400 uppercase leading-tight">LOGÍSTICA & EXPEDIÇÃO</span>
+        </div>
+    </div>
+</div>
                     <span class="absolute -bottom-2 -right-1 bg-blue-600 text-[9px] font-bold px-1.5 py-0.2 rounded text-white shadow opacity-0 group-hover:opacity-100 transition-opacity">Trocar Logo</span>
                     <input type="file" id="logoUploadInput" accept="image/*" class="hidden" onchange="handleLogoUpload(event)">
                 </div>
