@@ -110,30 +110,31 @@ async function fetchFilial(token, filialNome, dataInicial, dataFinal) {
   return rows;
 }
 
-const INSERT_CHUNK_SIZE = 500; // registros por INSERT em lote (via UNNEST), não 1 query por linha
+const INSERT_CHUNK_SIZE = 300; // registros por INSERT em lote (VALUES múltiplo), não 1 query por linha
+const DISPATCH_COLUMNS = ['filial', 'data', 'data_fmt', 'nf', 'cliente', 'tipo', 'canal', 'uf', 'cidade', 'regiao', 'dia_semana'];
 
 async function insertRows(sql, rows) {
   let inserted = 0;
   for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
     const chunk = rows.slice(i, i + INSERT_CHUNK_SIZE);
-    const result = await sql`
-      INSERT INTO dispatches (filial, data, data_fmt, nf, cliente, tipo, canal, uf, cidade, regiao, dia_semana)
-      SELECT * FROM UNNEST(
-        ${chunk.map(r => r.filial)}::text[],
-        ${chunk.map(r => r.data)}::date[],
-        ${chunk.map(r => r.data_fmt)}::text[],
-        ${chunk.map(r => r.nf)}::text[],
-        ${chunk.map(r => r.cliente)}::text[],
-        ${chunk.map(r => r.tipo)}::text[],
-        ${chunk.map(r => r.canal)}::text[],
-        ${chunk.map(r => r.uf)}::text[],
-        ${chunk.map(r => r.cidade)}::text[],
-        ${chunk.map(r => r.regiao)}::text[],
-        ${chunk.map(r => r.dia_semana)}::text[]
-      )
+    const params = [];
+    const valuesSql = chunk.map((item, idx) => {
+      const base = idx * DISPATCH_COLUMNS.length;
+      params.push(
+        item.filial, item.data, item.data_fmt, item.nf, item.cliente,
+        item.tipo, item.canal, item.uf, item.cidade, item.regiao, item.dia_semana,
+      );
+      const placeholders = DISPATCH_COLUMNS.map((_, c) => `$${base + c + 1}`).join(', ');
+      return `(${placeholders})`;
+    }).join(', ');
+
+    const text = `
+      INSERT INTO dispatches (${DISPATCH_COLUMNS.join(', ')})
+      VALUES ${valuesSql}
       ON CONFLICT (filial, nf, data) DO NOTHING
       RETURNING id;
     `;
+    const result = await sql(text, params);
     inserted += result.length;
   }
   return inserted;
