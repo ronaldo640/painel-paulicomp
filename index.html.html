@@ -27,12 +27,12 @@
         }
         .toast-animate { animation: fadeInDown 0.3s ease-out forwards; }
 
-        /* Report Print Template Container (Portrait A4: 780px x 1100px max) */
+        /* Report Print Template Container (Landscape A4: 1100px x 780px max) */
         #pdfReportTemplate {
             display: none;
-            width: 780px;
-            height: 1100px;
-            max-height: 1100px;
+            width: 1100px;
+            height: 780px;
+            max-height: 780px;
             background-color: #070b14;
             color: #f8fafc;
             padding: 12px 16px;
@@ -81,13 +81,20 @@
                 </div>
             </div>
 
-            <!-- Botões Topo (Sem o botão duplicado de Importar Planilha) -->
+            <!-- Botões Topo -->
             <div class="flex flex-wrap items-center gap-2.5">
                 <button id="btnPdfReport" class="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold px-3.5 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-all active:scale-95 border border-red-500/30">
                     <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                     </svg>
-                    <span>Relatório PDF</span>
+                    <span>Relatório PDF (Paisagem)</span>
+                </button>
+
+                <button id="btnOpenApiModal" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-all">
+                    <svg class="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                    <span>Integração API (Tiny/Olist)</span>
                 </button>
 
                 <button id="btnOpenModal" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-2 transition-all">
@@ -328,8 +335,8 @@
                     Importe relatórios <b>.xls</b> ou <b>.xlsx</b>. O painel sincroniza automaticamente com o banco na nuvem.
                 </p>
                 <div class="pt-2 flex flex-wrap gap-2">
-                    <!-- Botão de Upload com Estilo Verde de Destaque -->
-                    <label class="cursor-pointer bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 shadow transition active:scale-95">
+                    <!-- Botão de Upload com Estilo Verde de Destaque (protegido por login) -->
+                    <label id="modalImportLabel" class="cursor-pointer bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 shadow transition active:scale-95">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                         </svg>
@@ -354,12 +361,100 @@
                     <p class="text-lg font-bold text-emerald-400" id="modalTotalBranches">3</p>
                 </div>
             </div>
+
+            <!-- Controle de Acesso para Importação -->
+            <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 space-y-3">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-xs font-bold text-slate-200 uppercase tracking-wider">Controle de Acesso à Importação</h4>
+                    <span id="authStatusBadge" class="text-[10px] font-semibold px-2 py-1 rounded-full border"></span>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">Somente usuários cadastrados podem importar planilhas, evitando que dados fora do tema do painel sejam inseridos.</p>
+                <div class="flex flex-wrap gap-2">
+                    <button id="authLoginBtn" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition">Entrar</button>
+                    <button id="authLogoutBtn" class="hidden bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-4 py-2 rounded-lg transition">Sair</button>
+                    <button id="authManageBtn" class="hidden bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-4 py-2 rounded-lg transition">Gerenciar Usuários</button>
+                </div>
+                <div id="userManagePanel" class="hidden pt-2 border-t border-slate-700/60 space-y-2">
+                    <div class="flex flex-wrap gap-2">
+                        <input id="newUserName" type="text" placeholder="Novo usuário" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-md px-2.5 py-1.5 outline-none flex-1 min-w-[120px]">
+                        <input id="newUserPass" type="password" placeholder="Senha" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-md px-2.5 py-1.5 outline-none flex-1 min-w-[120px]">
+                        <button id="btnCreateUser" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">Adicionar</button>
+                    </div>
+                    <ul id="userListUl" class="text-xs text-slate-300 space-y-1"></ul>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Template do Relatório PDF (A4 Portrait 1 Página) -->
+    <!-- Login / Criação de Usuário Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-[60] flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 id="loginModalTitle" class="text-base font-bold text-white">Entrar</h3>
+                <button id="btnCloseLoginModal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition text-lg">&times;</button>
+            </div>
+            <p id="loginModalHint" class="hidden text-xs text-amber-300 bg-amber-950/40 border border-amber-800/60 rounded-lg p-2.5">Nenhum usuário cadastrado ainda. Crie o primeiro usuário administrador para liberar a importação de planilhas.</p>
+            <div class="space-y-2">
+                <input id="loginUserInput" type="text" placeholder="Usuário" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                <input id="loginPassInput" type="password" placeholder="Senha" class="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <p id="loginErrorMsg" class="hidden text-xs text-rose-400"></p>
+            <button id="loginSubmitBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition">Entrar</button>
+        </div>
+    </div>
+
+    <!-- Integração API (Tiny/Olist) Modal -->
+    <div id="apiModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-5">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div>
+                    <h3 class="text-base font-bold text-white">Integração API Tiny ERP (Olist)</h3>
+                    <p class="text-xs text-slate-400">Sincronize automaticamente as notas fiscais de expedição por filial</p>
+                </div>
+                <button id="btnCloseApiModal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition text-lg">&times;</button>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Token API v2 — PAULICOMP SP</label>
+                    <input id="tinyTokenSP" type="password" placeholder="Token gerado no painel do Tiny" class="w-full mt-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Token API v2 — PAULICOMP SUL</label>
+                    <input id="tinyTokenSUL" type="password" placeholder="Token gerado no painel do Tiny" class="w-full mt-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Token API v2 — COMP TRADE</label>
+                    <input id="tinyTokenTRADE" type="password" placeholder="Token gerado no painel do Tiny" class="w-full mt-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Data Inicial</label>
+                        <input id="tinyDataInicial" type="date" class="w-full mt-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Data Final</label>
+                        <input id="tinyDataFinal" type="date" class="w-full mt-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                <label class="flex items-center gap-2 text-xs text-slate-300 pt-1">
+                    <input id="tinyAutoSyncToggle" type="checkbox" class="rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-blue-500">
+                    Sincronizar automaticamente a cada 30 minutos enquanto o painel estiver aberto
+                </label>
+            </div>
+
+            <div class="flex flex-wrap gap-2 pt-1">
+                <button id="btnSaveTinyTokens" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition">Salvar Tokens</button>
+                <button id="btnSyncTinyNow" class="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white text-xs font-bold px-4 py-2.5 rounded-lg transition">Sincronizar Agora</button>
+            </div>
+
+            <div id="tinySyncStatus" class="text-xs text-slate-400 space-y-1 pt-2 border-t border-slate-800"></div>
+        </div>
+    </div>
+
+    <!-- Template do Relatório PDF (A4 Landscape 1 Página) -->
     <div id="pdfReportContainer" class="fixed -left-[9999px] top-0 z-[-100]">
-        <div id="pdfReportTemplate" style="width: 780px; height: 1100px; max-height: 1100px; background: #070b14; color: #f8fafc; padding: 6px 16px 10px 16px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;">
+        <div id="pdfReportTemplate" style="width: 1100px; height: 780px; max-height: 780px; background: #070b14; color: #f8fafc; padding: 6px 16px 10px 16px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;">
             
             <!-- Header Relatório (Subido e Compactado) -->
             <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1.5px solid #1e293b; padding-bottom: 4px; margin-top: 0;">
@@ -411,58 +506,58 @@
                 </div>
             </div>
 
-            <!-- Gráficos no PDF -->
-            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px; flex: 1;">
-                
+            <!-- Gráficos no PDF (2 linhas flex, espelhando o grid da tela — cada gráfico ocupa o espaço
+                 restante via flexbox, sem alturas fixas em pixel, então nunca há sobreposição. -->
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px; flex: 1; min-height: 0;">
+
                 <!-- Linha 1: Evolução + Share -->
-                <div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 8px; height: 215px; margin-top: 0;">
-                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
+                <div style="display: grid; grid-template-columns: 1.8fr 1fr; gap: 8px; flex: 1.15; min-height: 0;">
+                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column; min-height: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px; flex-shrink: 0;">
                             <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Evolução dos Volumes Expedidos</span>
                             <span id="repChart1Sub" style="font-size: 7.5px; color: #38bdf8; font-weight: 600;">-</span>
                         </div>
-                        <div style="flex: 1; position: relative; width: 100%; height: 180px; display: flex; align-items: center; justify-content: center;">
-                            <img id="repImgEvolucao" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
+                        <div style="flex: 1; min-height: 0; position: relative; width: 100%; display: flex; align-items: center; justify-content: center;">
+                            <img id="repImgEvolucao" style="max-width: 100%; max-height: 100%; object-fit: contain;">
                         </div>
                     </div>
 
-                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column;">
-                        <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
+                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column; min-height: 0;">
+                        <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px; flex-shrink: 0;">
                             <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Produção por Filial (%)</span>
                         </div>
-                        <div style="flex: 1; position: relative; width: 100%; height: 180px; display: flex; align-items: center; justify-content: center;">
-                            <img id="repImgShare" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
+                        <div style="flex: 1; min-height: 0; position: relative; width: 100%; display: flex; align-items: center; justify-content: center;">
+                            <img id="repImgShare" style="max-width: 100%; max-height: 100%; object-fit: contain;">
                         </div>
                     </div>
                 </div>
 
-                <!-- Linha 2: Dia da Semana -->
-                <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; height: 165px; display: flex; flex-direction: column; margin-top: 60px;">
-                    <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
-                        <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Ritmo por Dia da Semana</span>
+                <!-- Linha 2: Dia da Semana + Canais + Região -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; flex: 1; min-height: 0;">
+                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column; min-height: 0;">
+                        <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px; flex-shrink: 0;">
+                            <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Ritmo por Dia da Semana</span>
+                        </div>
+                        <div style="flex: 1; min-height: 0; position: relative; width: 100%; display: flex; align-items: center; justify-content: center;">
+                            <img id="repImgDia" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                        </div>
                     </div>
-                    <div style="flex: 1; position: relative; width: 100%; height: 135px; display: flex; align-items: center; justify-content: center;">
-                        <img id="repImgDia" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
-                    </div>
-                </div>
 
-                <!-- Linha 3: Canais + Região -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; height: 175px; margin-top: 6px;">
-                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column;">
-                        <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
+                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column; min-height: 0;">
+                        <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px; flex-shrink: 0;">
                             <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Canais Logísticos de Despacho</span>
                         </div>
-                        <div style="flex: 1; position: relative; width: 100%; height: 145px; display: flex; align-items: center; justify-content: center;">
-                            <img id="repImgCanais" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
+                        <div style="flex: 1; min-height: 0; position: relative; width: 100%; display: flex; align-items: center; justify-content: center;">
+                            <img id="repImgCanais" style="max-width: 100%; max-height: 100%; object-fit: contain;">
                         </div>
                     </div>
 
-                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column;">
-                        <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
+                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column; min-height: 0;">
+                        <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px; flex-shrink: 0;">
                             <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Dispersão por Região</span>
                         </div>
-                        <div style="flex: 1; position: relative; width: 100%; height: 145px; display: flex; align-items: center; justify-content: center;">
-                            <img id="repImgRegioes" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
+                        <div style="flex: 1; min-height: 0; position: relative; width: 100%; display: flex; align-items: center; justify-content: center;">
+                            <img id="repImgRegioes" style="max-width: 100%; max-height: 100%; object-fit: contain;">
                         </div>
                     </div>
                 </div>
@@ -472,7 +567,7 @@
             <!-- Footer Relatório -->
             <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1e293b; padding-top: 4px; margin-top: 2px;">
                 <span style="font-size: 7px; color: #64748b;">Paulicomp Logística & Almoxarifado • Gestão Executiva de Expedição</span>
-                <span style="font-size: 7px; font-weight: 700; color: #38bdf8;">Página 1 de 1 (Formato Retrato A4)</span>
+                <span style="font-size: 7px; font-weight: 700; color: #38bdf8;">Página 1 de 1 (Formato Paisagem A4)</span>
             </div>
         </div>
     </div>
@@ -823,7 +918,7 @@
             }
         }
 
-        // Geração do Relatório PDF A4 Retrato
+        // Geração do Relatório PDF A4 Paisagem
         function gerarRelatorioPDF() {
             showToast("Gerando relatório executivo em PDF...", "info");
 
@@ -865,7 +960,7 @@
                 filename: `Relatorio_Paulicomp_${filialText.replace(/[^a-zA-Z0-9]/g, '_')}_${mesText.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#070b14' },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
             };
 
             html2pdf().set(opt).from(element).save().then(() => {
@@ -898,6 +993,11 @@
 
         function processExcelFiles(files) {
             if (!files || files.length === 0) return;
+
+            if (!isAuthenticated()) {
+                showToast("Faça login para importar planilhas.", "error");
+                return;
+            }
 
             let filesProcessed = 0;
             const newRecords = [];
@@ -988,21 +1088,9 @@
                     filesProcessed++;
                     if (filesProcessed === files.length) {
                         if (newRecords.length > 0) {
-                            const existingKeys = new Set(database.map(d => `${d.filial}_${d.nf}_${d.data}`));
-                            const uniqueNew = newRecords.filter(d => !existingKeys.has(`${d.filial}_${d.nf}_${d.data}`));
+                            const uniqueNew = mergeNewRecords(newRecords);
                             if (uniqueNew.length > 0) {
-                                database = [...database, ...uniqueNew];
-                                localStorage.setItem('paulicomp_expedicao_db', JSON.stringify(database));
-                                populateMonthFilter();
-                                updateDashboard();
                                 showToast(`<b>${uniqueNew.length}</b> novos registros carregados!`, "success");
-
-                                // Sincroniza com o Neon
-                                fetch('/api/dispatches', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify(uniqueNew)
-                                }).catch(console.warn);
                             } else {
                                 showToast("Registros já existentes.", "info");
                             }
@@ -1011,6 +1099,327 @@
                 };
                 reader.readAsArrayBuffer(file);
             });
+        }
+
+        // Mescla novos registros na base local (dedup por filial+nf+data), persiste no
+        // localStorage e envia ao Neon via /api/dispatches — usado tanto pela importação
+        // de planilha quanto pela sincronização com a API do Tiny, mantendo os dois
+        // caminhos de entrada de dados consistentes com o mesmo banco compartilhado.
+        function mergeNewRecords(newRecords) {
+            if (!newRecords || newRecords.length === 0) return [];
+            const existingKeys = new Set(database.map(d => `${d.filial}_${d.nf}_${d.data}`));
+            const uniqueNew = newRecords.filter(d => !existingKeys.has(`${d.filial}_${d.nf}_${d.data}`));
+            if (uniqueNew.length > 0) {
+                database = [...database, ...uniqueNew];
+                localStorage.setItem('paulicomp_expedicao_db', JSON.stringify(database));
+                populateMonthFilter();
+                updateDashboard();
+                updateModalStats();
+                fetch('/api/dispatches', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(uniqueNew)
+                }).catch(console.warn);
+            }
+            return uniqueNew;
+        }
+
+        // ===================================================================
+        // Access Control — gates spreadsheet import behind username/password
+        // login, so only registered staff can add data to the dashboard.
+        // Client-side only (no backend): deters casual/accidental misuse by
+        // anyone with dashboard access, not a hardened security boundary.
+        // ===================================================================
+        const AUTH_USERS_KEY = 'paulicomp_dashboard_users';
+        const AUTH_SESSION_KEY = 'paulicomp_auth_user';
+
+        function getUsers() {
+            try { return JSON.parse(localStorage.getItem(AUTH_USERS_KEY)) || []; }
+            catch(e) { return []; }
+        }
+        function saveUsers(users) { localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users)); }
+        function isAuthenticated() { return !!sessionStorage.getItem(AUTH_SESSION_KEY); }
+        function currentUser() { return sessionStorage.getItem(AUTH_SESSION_KEY) || null; }
+
+        function randomSalt() {
+            const arr = new Uint8Array(16);
+            crypto.getRandomValues(arr);
+            return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function hashPassword(password, salt) {
+            const data = new TextEncoder().encode(salt + ':' + password);
+            const digest = await crypto.subtle.digest('SHA-256', data);
+            return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function submitLogin() {
+            const username = document.getElementById('loginUserInput').value.trim();
+            const password = document.getElementById('loginPassInput').value;
+            const errEl = document.getElementById('loginErrorMsg');
+            errEl.classList.add('hidden');
+
+            if (!username || !password) {
+                errEl.textContent = "Informe usuário e senha.";
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            const users = getUsers();
+
+            if (users.length === 0) {
+                if (password.length < 4) {
+                    errEl.textContent = "A senha deve ter ao menos 4 caracteres.";
+                    errEl.classList.remove('hidden');
+                    return;
+                }
+                const salt = randomSalt();
+                const hash = await hashPassword(password, salt);
+                users.push({ username, salt, hash });
+                saveUsers(users);
+                loginSuccess(username);
+                showToast(`Usuário administrador "${username}" criado com sucesso.`, "success");
+                return;
+            }
+
+            const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+            if (!user) {
+                errEl.textContent = "Usuário não encontrado.";
+                errEl.classList.remove('hidden');
+                return;
+            }
+            const hash = await hashPassword(password, user.salt);
+            if (hash !== user.hash) {
+                errEl.textContent = "Senha incorreta.";
+                errEl.classList.remove('hidden');
+                return;
+            }
+            loginSuccess(user.username);
+        }
+
+        function loginSuccess(username) {
+            sessionStorage.setItem(AUTH_SESSION_KEY, username);
+            toggleLoginModal(false);
+            refreshAuthUI();
+            showToast(`Bem-vindo, ${username}!`, "success");
+        }
+
+        function logoutUser() {
+            sessionStorage.removeItem(AUTH_SESSION_KEY);
+            toggleUserManage(false);
+            refreshAuthUI();
+            showToast("Sessão encerrada.", "info");
+        }
+
+        function toggleLoginModal(show) {
+            const modal = document.getElementById('loginModal');
+            if (show) {
+                const isFirstRun = getUsers().length === 0;
+                document.getElementById('loginModalHint').classList.toggle('hidden', !isFirstRun);
+                document.getElementById('loginModalTitle').textContent = isFirstRun ? "Criar Administrador" : "Entrar";
+                document.getElementById('loginSubmitBtn').textContent = isFirstRun ? "Criar e Entrar" : "Entrar";
+                document.getElementById('loginUserInput').value = '';
+                document.getElementById('loginPassInput').value = '';
+                document.getElementById('loginErrorMsg').classList.add('hidden');
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function toggleUserManage(show) {
+            const panel = document.getElementById('userManagePanel');
+            if (show) { panel.classList.remove('hidden'); renderUserList(); }
+            else { panel.classList.add('hidden'); }
+        }
+
+        function renderUserList() {
+            const ul = document.getElementById('userListUl');
+            ul.innerHTML = '';
+            getUsers().forEach(u => {
+                const li = document.createElement('li');
+                li.className = 'flex items-center justify-between bg-slate-900/60 px-2.5 py-1.5 rounded-md';
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = u.username;
+                const btn = document.createElement('button');
+                btn.textContent = 'Remover';
+                btn.className = 'text-rose-400 hover:text-rose-300 text-[11px] font-semibold';
+                btn.onclick = () => removeUser(u.username);
+                li.appendChild(nameSpan);
+                li.appendChild(btn);
+                ul.appendChild(li);
+            });
+        }
+
+        function removeUser(username) {
+            let users = getUsers();
+            if (users.length <= 1) {
+                showToast("É necessário manter ao menos um usuário cadastrado.", "error");
+                return;
+            }
+            if (!confirm(`Remover o usuário "${username}"?`)) return;
+            users = users.filter(u => u.username !== username);
+            saveUsers(users);
+            if (currentUser() === username) logoutUser();
+            renderUserList();
+        }
+
+        async function createUser() {
+            const username = document.getElementById('newUserName').value.trim();
+            const password = document.getElementById('newUserPass').value;
+            if (!username || !password) { showToast("Informe usuário e senha.", "error"); return; }
+            if (password.length < 4) { showToast("A senha deve ter ao menos 4 caracteres.", "error"); return; }
+            const users = getUsers();
+            if (users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
+                showToast("Já existe um usuário com esse nome.", "error");
+                return;
+            }
+            const salt = randomSalt();
+            const hash = await hashPassword(password, salt);
+            users.push({ username, salt, hash });
+            saveUsers(users);
+            document.getElementById('newUserName').value = '';
+            document.getElementById('newUserPass').value = '';
+            renderUserList();
+            showToast(`Usuário "${username}" adicionado.`, "success");
+        }
+
+        function refreshAuthUI() {
+            const badge = document.getElementById('authStatusBadge');
+            const loginBtn = document.getElementById('authLoginBtn');
+            const logoutBtn = document.getElementById('authLogoutBtn');
+            const manageBtn = document.getElementById('authManageBtn');
+            if (isAuthenticated()) {
+                badge.textContent = `Conectado: ${currentUser()}`;
+                badge.className = 'text-[10px] font-semibold px-2 py-1 rounded-full border text-emerald-300 bg-emerald-950/60 border-emerald-800';
+                loginBtn.classList.add('hidden');
+                logoutBtn.classList.remove('hidden');
+                manageBtn.classList.remove('hidden');
+            } else {
+                badge.textContent = 'Não conectado';
+                badge.className = 'text-[10px] font-semibold px-2 py-1 rounded-full border text-slate-400 bg-slate-800 border-slate-700';
+                loginBtn.classList.remove('hidden');
+                logoutBtn.classList.add('hidden');
+                manageBtn.classList.add('hidden');
+                toggleUserManage(false);
+            }
+        }
+
+        // ===================================================================
+        // Tiny ERP (Olist) API Integration — pulls shipping invoices automatically
+        // through the /api/tiny-sync serverless proxy (avoids browser CORS and
+        // keeps the token off any request the dashboard doesn't control itself).
+        // Records pulled this way go through the same mergeNewRecords() pipeline
+        // as the Excel import, so they also land in the shared Neon database.
+        // ===================================================================
+        const TINY_TOKENS_KEY = 'paulicomp_tiny_tokens';
+        const TINY_AUTOSYNC_KEY = 'paulicomp_tiny_autosync';
+        let tinyAutoSyncTimer = null;
+        const TINY_FILIAIS = [
+            { key: 'SP', nome: 'PAULICOMP SP' },
+            { key: 'SUL', nome: 'PAULICOMP SUL' },
+            { key: 'TRADE', nome: 'COMP TRADE' },
+        ];
+
+        function toggleApiModal(show) {
+            const modal = document.getElementById('apiModal');
+            if (show) { loadTinyTokensIntoForm(); modal.classList.remove('hidden'); }
+            else { modal.classList.add('hidden'); }
+        }
+
+        function getTinyTokens() {
+            try { return JSON.parse(localStorage.getItem(TINY_TOKENS_KEY)) || {}; }
+            catch(e) { return {}; }
+        }
+
+        function loadTinyTokensIntoForm() {
+            const tokens = getTinyTokens();
+            document.getElementById('tinyTokenSP').value = tokens.SP || '';
+            document.getElementById('tinyTokenSUL').value = tokens.SUL || '';
+            document.getElementById('tinyTokenTRADE').value = tokens.TRADE || '';
+            document.getElementById('tinyAutoSyncToggle').checked = localStorage.getItem(TINY_AUTOSYNC_KEY) === '1';
+
+            if (!document.getElementById('tinyDataInicial').value) {
+                const hoje = new Date();
+                const inicio = new Date(hoje.getTime() - 60 * 24 * 60 * 60 * 1000);
+                document.getElementById('tinyDataFinal').value = hoje.toISOString().substring(0, 10);
+                document.getElementById('tinyDataInicial').value = inicio.toISOString().substring(0, 10);
+            }
+        }
+
+        function saveTinyTokens() {
+            const tokens = {
+                SP: document.getElementById('tinyTokenSP').value.trim(),
+                SUL: document.getElementById('tinyTokenSUL').value.trim(),
+                TRADE: document.getElementById('tinyTokenTRADE').value.trim(),
+            };
+            localStorage.setItem(TINY_TOKENS_KEY, JSON.stringify(tokens));
+            showToast("Tokens salvos neste navegador.", "success");
+        }
+
+        function saveTinyAutoSyncPref() {
+            localStorage.setItem(TINY_AUTOSYNC_KEY, document.getElementById('tinyAutoSyncToggle').checked ? '1' : '0');
+            setupTinyAutoSync();
+        }
+
+        function setupTinyAutoSync() {
+            if (tinyAutoSyncTimer) clearInterval(tinyAutoSyncTimer);
+            if (localStorage.getItem(TINY_AUTOSYNC_KEY) === '1') {
+                tinyAutoSyncTimer = setInterval(syncTinyAll, 30 * 60 * 1000);
+            }
+        }
+
+        function brDate(isoDate) {
+            if (!isoDate) return null;
+            const [y, m, d] = isoDate.split('-');
+            return `${d}/${m}/${y}`;
+        }
+
+        async function syncTinyAll() {
+            const tokens = getTinyTokens();
+            const filiaisAtivas = TINY_FILIAIS.filter(f => tokens[f.key]);
+
+            if (filiaisAtivas.length === 0) {
+                showToast("Nenhum token do Tiny cadastrado. Salve os tokens antes de sincronizar.", "error");
+                return;
+            }
+
+            const dataInicial = brDate(document.getElementById('tinyDataInicial').value);
+            const dataFinal = brDate(document.getElementById('tinyDataFinal').value);
+            const statusEl = document.getElementById('tinySyncStatus');
+            statusEl.innerHTML = 'Sincronizando...';
+            showToast("Sincronizando com a API do Tiny...", "info");
+
+            let totalAdded = 0;
+            const logLines = [];
+
+            for (const f of filiaisAtivas) {
+                try {
+                    const resp = await fetch('/api/tiny-sync', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filial: f.nome, token: tokens[f.key], dataInicial, dataFinal }),
+                    });
+                    const json = await resp.json();
+                    if (!json.ok) {
+                        logLines.push(`<span class="text-rose-400">${f.nome}: ${json.error || 'erro desconhecido'}</span>`);
+                        continue;
+                    }
+                    const enriched = json.rows.map(r => {
+                        const dObj = new Date(r.data + 'T12:00:00');
+                        return { ...r, regiao: ufToRegion[r.uf] || 'Outros', dia_semana: ptDays[dObj.getDay()] || 'Segunda-feira' };
+                    });
+                    const added = mergeNewRecords(enriched);
+                    totalAdded += added.length;
+                    logLines.push(`<span class="text-emerald-400">${f.nome}: ${added.length} novo(s) de ${json.rows.length} lido(s)</span>`);
+                } catch (err) {
+                    logLines.push(`<span class="text-rose-400">${f.nome}: falha de conexão (${err.message})</span>`);
+                }
+            }
+
+            statusEl.innerHTML = logLines.map(l => `<div>${l}</div>`).join('') +
+                `<div class="text-slate-500 pt-1">Última sincronização: ${new Date().toLocaleString('pt-BR')}</div>`;
+            showToast(`Sincronização concluída: <b>${totalAdded}</b> novo(s) registro(s).`, "success");
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -1028,6 +1437,11 @@
             populateMonthFilter();
             updateDashboard();
             syncWithNeon();
+            refreshAuthUI();
+            setupTinyAutoSync();
+            if (Object.values(getTinyTokens()).some(Boolean)) {
+                syncTinyAll();
+            }
 
             // Filtros
             ['filterMes', 'filterFilial', 'filterCanal', 'filterTipo'].forEach(id => {
@@ -1037,17 +1451,41 @@
             // Botão PDF
             document.getElementById('btnPdfReport')?.addEventListener('click', gerarRelatorioPDF);
 
-            // Modal
+            // Modal Banco de Dados
             const modal = document.getElementById('dataModal');
             document.getElementById('btnOpenModal')?.addEventListener('click', () => modal.classList.remove('hidden'));
             document.getElementById('btnCloseModal')?.addEventListener('click', () => modal.classList.add('hidden'));
 
-            // Input de Planilha no Modal
+            // Input de Planilha no Modal (protegido por login)
+            document.getElementById('modalImportLabel')?.addEventListener('click', (e) => {
+                if (!isAuthenticated()) {
+                    e.preventDefault();
+                    modal.classList.add('hidden');
+                    toggleLoginModal(true);
+                    showToast("Faça login para importar planilhas.", "info");
+                }
+            });
             document.getElementById('modalFileInput')?.addEventListener('change', (e) => {
                 processExcelFiles(e.target.files);
                 e.target.value = '';
                 modal.classList.add('hidden');
             });
+
+            // Controle de Acesso (login / usuários)
+            document.getElementById('authLoginBtn')?.addEventListener('click', () => toggleLoginModal(true));
+            document.getElementById('authLogoutBtn')?.addEventListener('click', logoutUser);
+            document.getElementById('authManageBtn')?.addEventListener('click', () => toggleUserManage(true));
+            document.getElementById('btnCreateUser')?.addEventListener('click', createUser);
+            document.getElementById('btnCloseLoginModal')?.addEventListener('click', () => toggleLoginModal(false));
+            document.getElementById('loginSubmitBtn')?.addEventListener('click', submitLogin);
+            document.getElementById('loginPassInput')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLogin(); });
+
+            // Modal Integração API (Tiny/Olist)
+            document.getElementById('btnOpenApiModal')?.addEventListener('click', () => toggleApiModal(true));
+            document.getElementById('btnCloseApiModal')?.addEventListener('click', () => toggleApiModal(false));
+            document.getElementById('btnSaveTinyTokens')?.addEventListener('click', saveTinyTokens);
+            document.getElementById('btnSyncTinyNow')?.addEventListener('click', syncTinyAll);
+            document.getElementById('tinyAutoSyncToggle')?.addEventListener('change', saveTinyAutoSyncPref);
 
             // Logo Upload
             document.getElementById('logoWrapper')?.addEventListener('click', () => document.getElementById('logoUploadInput').click());
