@@ -574,28 +574,38 @@
             }, 5000);
         }
 
+        // Monta o seletor em hierarquia Ano > Mês: cada ano vira um <optgroup> com uma opção
+        // "Ano Completo" (filtra o ano inteiro) seguida dos meses daquele ano.
         function populateMonthFilter() {
             const select = document.getElementById('filterMes');
             if (!select) return;
             const previousVal = select.value;
-            const monthSet = new Set();
+            const yearMap = {};
             database.forEach(d => {
                 if (d.data) {
                     const [y, m] = d.data.split('-');
-                    monthSet.add(`${y}-${m}`);
+                    if (!yearMap[y]) yearMap[y] = new Set();
+                    yearMap[y].add(m);
                 }
             });
-            const sortedMonths = Array.from(monthSet).sort().reverse();
-            select.innerHTML = '<option value="ALL">Todos os Meses (Consolidado)</option>';
-            sortedMonths.forEach(ym => {
-                const [year, month] = ym.split('-');
-                const monthName = ptMonths[parseInt(month, 10) - 1];
-                const opt = document.createElement('option');
-                opt.value = ym;
-                opt.innerText = `${monthName}/${year}`;
-                select.appendChild(opt);
+            const sortedYears = Object.keys(yearMap).sort().reverse();
+            const validValues = new Set(['ALL']);
+            let html = '<option value="ALL">Todos os Meses (Consolidado)</option>';
+            sortedYears.forEach(year => {
+                validValues.add(year);
+                const months = Array.from(yearMap[year]).sort().reverse();
+                html += `<optgroup label="${year}">`;
+                html += `<option value="${year}">Ano Completo — ${year}</option>`;
+                months.forEach(m => {
+                    const ym = `${year}-${m}`;
+                    validValues.add(ym);
+                    const monthName = ptMonths[parseInt(m, 10) - 1];
+                    html += `<option value="${ym}">${monthName}/${year}</option>`;
+                });
+                html += `</optgroup>`;
             });
-            if (sortedMonths.includes(previousVal) || previousVal === 'ALL') select.value = previousVal;
+            select.innerHTML = html;
+            select.value = validValues.has(previousVal) ? previousVal : 'ALL';
         }
 
         function updateModalStats() {
@@ -613,11 +623,13 @@
             const fCanal = document.getElementById('filterCanal')?.value || 'ALL';
             const fTipo = document.getElementById('filterTipo')?.value || 'ALL';
 
-            const isAllMonths = (fMes === 'ALL');
+            // "ALL" (tudo) ou um ano inteiro (ex: "2026") cobrem vários meses — agrupar por mês
+            // evita um gráfico poluído com dezenas de barras quinzenais/diárias.
+            const isMultiMonth = (fMes === 'ALL' || fMes.length === 4);
             const granText = document.getElementById('granularityText');
             const chartSub = document.getElementById('chart1Subtitle');
-            if (granText) granText.innerText = isAllMonths ? "Visão por Quinzena (Consolidado)" : "Visão Diária Detalhada";
-            if (chartSub) chartSub.innerText = isAllMonths ? "Agrupado por Quinzena" : "Detalhamento Diário";
+            if (granText) granText.innerText = isMultiMonth ? "Visão Mensal (Consolidado)" : "Visão Diária Detalhada";
+            if (chartSub) chartSub.innerText = isMultiMonth ? "Agrupado por Mês" : "Detalhamento Diário";
 
             const filtered = database.filter(d => {
                 return (fMes === 'ALL' || (d.data && d.data.startsWith(fMes))) &&
@@ -654,19 +666,18 @@
             let labels1 = [], data1 = [];
             if (total === 0) {
                 labels1 = ['Sem Dados']; data1 = [0];
-            } else if (isAllMonths) {
-                const qMap = {};
+            } else if (isMultiMonth) {
+                const mMap = {};
                 filtered.forEach(d => {
                     if (!d.data) return;
-                    const [y, m, day] = d.data.split('-').map(Number);
-                    const q = day <= 15 ? 1 : 2;
-                    const key = `${y}-${m}-${q}`;
-                    if (!qMap[key]) qMap[key] = { label: `${q}ª Q. ${ptMonths[m-1].substring(0,3)}/${String(y).slice(2)}`, count: 0 };
-                    qMap[key].count++;
+                    const [y, m] = d.data.split('-').map(Number);
+                    const key = `${y}-${String(m).padStart(2, '0')}`;
+                    if (!mMap[key]) mMap[key] = { label: `${ptMonths[m-1].substring(0,3)}/${y}`, count: 0 };
+                    mMap[key].count++;
                 });
-                const sortedKeys = Object.keys(qMap).sort();
-                labels1 = sortedKeys.map(k => qMap[k].label);
-                data1 = sortedKeys.map(k => qMap[k].count);
+                const sortedKeys = Object.keys(mMap).sort();
+                labels1 = sortedKeys.map(k => mMap[k].label);
+                data1 = sortedKeys.map(k => mMap[k].count);
             } else {
                 const sortedDates = Object.keys(dateMap).sort((a,b) => {
                     const [d1,m1,y1] = a.split('/').map(Number);
@@ -681,17 +692,17 @@
             const ctx1 = document.getElementById('chartEvolucao');
             if (ctx1) {
                 chartEvolucao = new Chart(ctx1.getContext('2d'), {
-                    type: isAllMonths ? 'bar' : 'line',
+                    type: isMultiMonth ? 'bar' : 'line',
                     data: {
                         labels: labels1,
                         datasets: [{
                             label: 'Volumes',
                             data: data1,
                             borderColor: '#3b82f6',
-                            backgroundColor: isAllMonths ? 'rgba(59, 130, 246, 0.85)' : 'rgba(59, 130, 246, 0.15)',
+                            backgroundColor: isMultiMonth ? 'rgba(59, 130, 246, 0.85)' : 'rgba(59, 130, 246, 0.15)',
                             borderWidth: 2,
-                            borderRadius: isAllMonths ? 4 : 0,
-                            fill: !isAllMonths,
+                            borderRadius: isMultiMonth ? 4 : 0,
+                            fill: !isMultiMonth,
                             tension: 0.25,
                             pointRadius: 3
                         }]
