@@ -90,12 +90,13 @@
                     <span>Relatório PDF (Paisagem)</span>
                 </button>
 
-                <button id="btnOpenApiModal" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-all">
-                    <svg class="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                <button id="btnSyncTinyNow" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-all" title="Puxa as notas fiscais mais recentes do Tiny/Olist para o painel">
+                    <svg id="btnSyncTinyIcon" class="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                     </svg>
-                    <span>Integração API (Tiny/Olist)</span>
+                    <span>Sincronizar Tiny/Olist</span>
                 </button>
+                <span id="tinySyncStatusText" class="text-[10px] text-slate-500 hidden sm:inline"></span>
 
                 <button id="btnOpenModal" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-2 transition-all">
                     <svg class="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -400,67 +401,6 @@
             </div>
             <p id="loginErrorMsg" class="hidden text-xs text-rose-400"></p>
             <button id="loginSubmitBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition">Entrar</button>
-        </div>
-    </div>
-
-    <!-- Integração API (Tiny/Olist) Modal -->
-    <div id="apiModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-5">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-4">
-                <div>
-                    <h3 class="text-base font-bold text-white">Integração API Tiny ERP (Olist)</h3>
-                    <p class="text-xs text-slate-400">Sincronize automaticamente as notas fiscais de expedição por filial</p>
-                </div>
-                <button id="btnCloseApiModal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition text-lg">&times;</button>
-            </div>
-
-            <div class="space-y-3">
-                <!-- Estado "conectado": aparece quando os tokens já foram salvos, sem exibir os campos de novo -->
-                <div id="tinyConnectedStatus" class="hidden bg-emerald-950/40 border border-emerald-800/60 rounded-lg p-3 flex items-center justify-between gap-3">
-                    <div class="text-xs text-emerald-300">
-                        <span class="font-bold">✓ Tokens salvos neste navegador:</span>
-                        <span id="tinyConnectedList" class="text-emerald-200"></span>
-                    </div>
-                    <button id="btnEditTinyTokens" class="text-[11px] font-semibold text-emerald-300 hover:text-white underline shrink-0">Editar Tokens</button>
-                </div>
-
-                <div id="tinyTokenFields" class="space-y-3">
-                    <div>
-                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Token API v2 — PAULICOMP SP</label>
-                        <input id="tinyTokenSP" type="password" placeholder="Token gerado no painel do Tiny" class="w-full mt-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Token API v2 — PAULICOMP SUL</label>
-                        <input id="tinyTokenSUL" type="password" placeholder="Token gerado no painel do Tiny" class="w-full mt-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Token API v2 — COMP TRADE</label>
-                        <input id="tinyTokenTRADE" type="password" placeholder="Token gerado no painel do Tiny" class="w-full mt-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <button id="btnSaveTinyTokens" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition">Salvar Tokens</button>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Data Inicial</label>
-                        <input id="tinyDataInicial" type="date" class="w-full mt-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Data Final</label>
-                        <input id="tinyDataFinal" type="date" class="w-full mt-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                </div>
-                <label class="flex items-center gap-2 text-xs text-slate-300 pt-1">
-                    <input id="tinyAutoSyncToggle" type="checkbox" class="rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-blue-500">
-                    Sincronizar automaticamente a cada 30 minutos enquanto o painel estiver aberto
-                </label>
-            </div>
-
-            <div class="flex flex-wrap gap-2 pt-1">
-                <button id="btnSyncTinyNow" class="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white text-xs font-bold px-4 py-2.5 rounded-lg transition">Sincronizar Agora</button>
-            </div>
-
-            <div id="tinySyncStatus" class="text-xs text-slate-400 space-y-1 pt-2 border-t border-slate-800"></div>
         </div>
     </div>
 
@@ -1330,142 +1270,63 @@
         }
 
         // ===================================================================
-        // Tiny ERP (Olist) API Integration — pulls shipping invoices automatically
-        // through the /api/tiny-sync serverless proxy (avoids browser CORS and
-        // keeps the token off any request the dashboard doesn't control itself).
-        // Records pulled this way go through the same mergeNewRecords() pipeline
-        // as the Excel import, so they also land in the shared Neon database.
+        // Tiny ERP (Olist) API Integration — o botão "Sincronizar Tiny/Olist"
+        // chama /api/tiny-sync direto (GET, sem corpo). Essa função lê os
+        // tokens de variáveis de ambiente na própria Vercel e já grava os
+        // registros no Neon — nenhum token passa pelo navegador nem precisa
+        // ser configurado por quem só está vendo o link do painel. Depois de
+        // sincronizar, o painel só recarrega os dados via syncWithNeon().
         // ===================================================================
-        const TINY_TOKENS_KEY = 'paulicomp_tiny_tokens';
-        const TINY_AUTOSYNC_KEY = 'paulicomp_tiny_autosync';
-        let tinyAutoSyncTimer = null;
-        const TINY_FILIAIS = [
-            { key: 'SP', nome: 'PAULICOMP SP' },
-            { key: 'SUL', nome: 'PAULICOMP SUL' },
-            { key: 'TRADE', nome: 'COMP TRADE' },
-        ];
+        let tinySyncInFlight = false;
 
-        function toggleApiModal(show) {
-            const modal = document.getElementById('apiModal');
-            if (show) { loadTinyTokensIntoForm(); modal.classList.remove('hidden'); }
-            else { modal.classList.add('hidden'); }
-        }
+        async function syncTinyAll() {
+            if (tinySyncInFlight) return;
+            tinySyncInFlight = true;
 
-        function getTinyTokens() {
-            try { return JSON.parse(localStorage.getItem(TINY_TOKENS_KEY)) || {}; }
-            catch(e) { return {}; }
-        }
+            const btn = document.getElementById('btnSyncTinyNow');
+            const icon = document.getElementById('btnSyncTinyIcon');
+            const statusText = document.getElementById('tinySyncStatusText');
+            if (btn) btn.disabled = true;
+            if (icon) icon.classList.add('animate-spin');
 
-        function loadTinyTokensIntoForm() {
-            const tokens = getTinyTokens();
-            document.getElementById('tinyTokenSP').value = tokens.SP || '';
-            document.getElementById('tinyTokenSUL').value = tokens.SUL || '';
-            document.getElementById('tinyTokenTRADE').value = tokens.TRADE || '';
-            document.getElementById('tinyAutoSyncToggle').checked = localStorage.getItem(TINY_AUTOSYNC_KEY) === '1';
+            try {
+                const resp = await fetch('/api/tiny-sync');
+                const json = await resp.json();
 
-            if (!document.getElementById('tinyDataInicial').value) {
-                const hoje = new Date();
-                const inicio = new Date(hoje.getTime() - 60 * 24 * 60 * 60 * 1000);
-                document.getElementById('tinyDataFinal').value = hoje.toISOString().substring(0, 10);
-                document.getElementById('tinyDataInicial').value = inicio.toISOString().substring(0, 10);
+                if (!json.ok) {
+                    showToast(`Erro ao sincronizar com o Tiny: ${json.error || 'erro desconhecido'}`, "error");
+                    return;
+                }
+                if (json.warning) {
+                    showToast(json.warning, "info");
+                    return;
+                }
+
+                const erros = json.results.filter(r => r.error);
+                if (erros.length > 0) {
+                    showToast(`Falha ao sincronizar ${erros.map(e => e.filial).join(', ')}: ${erros[0].error}`, "error");
+                }
+                if (json.insertedTotal > 0) {
+                    await syncWithNeon();
+                    showToast(`Sincronização concluída: <b>${json.insertedTotal}</b> novo(s) registro(s).`, "success");
+                } else if (erros.length === 0) {
+                    showToast("Sincronizado — nenhum registro novo no Tiny.", "info");
+                }
+
+                if (statusText) statusText.textContent = `Última sinc.: ${new Date().toLocaleTimeString('pt-BR')}`;
+            } catch (err) {
+                showToast(`Falha de conexão ao sincronizar: ${err.message}`, "error");
+            } finally {
+                tinySyncInFlight = false;
+                if (btn) btn.disabled = false;
+                if (icon) icon.classList.remove('animate-spin');
             }
-
-            // Se já existe pelo menos um token salvo, mostra o resumo em vez dos campos
-            refreshTinyTokenView();
-        }
-
-        // Alterna entre a visão compacta ("tokens já salvos") e o formulário de edição,
-        // para não pedir os tokens de novo toda vez que o usuário só quer sincronizar.
-        function refreshTinyTokenView(forceEdit = false) {
-            const tokens = getTinyTokens();
-            const configuradas = TINY_FILIAIS.filter(f => tokens[f.key]);
-            const fieldsEl = document.getElementById('tinyTokenFields');
-            const statusEl = document.getElementById('tinyConnectedStatus');
-
-            if (configuradas.length > 0 && !forceEdit) {
-                document.getElementById('tinyConnectedList').textContent = configuradas.map(f => f.nome).join(', ');
-                statusEl.classList.remove('hidden');
-                fieldsEl.classList.add('hidden');
-            } else {
-                statusEl.classList.add('hidden');
-                fieldsEl.classList.remove('hidden');
-            }
-        }
-
-        function saveTinyTokens() {
-            const tokens = {
-                SP: document.getElementById('tinyTokenSP').value.trim(),
-                SUL: document.getElementById('tinyTokenSUL').value.trim(),
-                TRADE: document.getElementById('tinyTokenTRADE').value.trim(),
-            };
-            localStorage.setItem(TINY_TOKENS_KEY, JSON.stringify(tokens));
-            showToast("Tokens salvos neste navegador.", "success");
-            refreshTinyTokenView();
-        }
-
-        function saveTinyAutoSyncPref() {
-            localStorage.setItem(TINY_AUTOSYNC_KEY, document.getElementById('tinyAutoSyncToggle').checked ? '1' : '0');
-            setupTinyAutoSync();
         }
 
         function setupTinyAutoSync() {
-            if (tinyAutoSyncTimer) clearInterval(tinyAutoSyncTimer);
-            if (localStorage.getItem(TINY_AUTOSYNC_KEY) === '1') {
-                tinyAutoSyncTimer = setInterval(syncTinyAll, 30 * 60 * 1000);
-            }
-        }
-
-        function brDate(isoDate) {
-            if (!isoDate) return null;
-            const [y, m, d] = isoDate.split('-');
-            return `${d}/${m}/${y}`;
-        }
-
-        async function syncTinyAll() {
-            const tokens = getTinyTokens();
-            const filiaisAtivas = TINY_FILIAIS.filter(f => tokens[f.key]);
-
-            if (filiaisAtivas.length === 0) {
-                showToast("Nenhum token do Tiny cadastrado. Salve os tokens antes de sincronizar.", "error");
-                return;
-            }
-
-            const dataInicial = brDate(document.getElementById('tinyDataInicial').value);
-            const dataFinal = brDate(document.getElementById('tinyDataFinal').value);
-            const statusEl = document.getElementById('tinySyncStatus');
-            statusEl.innerHTML = 'Sincronizando...';
-            showToast("Sincronizando com a API do Tiny...", "info");
-
-            let totalAdded = 0;
-            const logLines = [];
-
-            for (const f of filiaisAtivas) {
-                try {
-                    const resp = await fetch('/api/tiny-sync', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ filial: f.nome, token: tokens[f.key], dataInicial, dataFinal }),
-                    });
-                    const json = await resp.json();
-                    if (!json.ok) {
-                        logLines.push(`<span class="text-rose-400">${f.nome}: ${json.error || 'erro desconhecido'}</span>`);
-                        continue;
-                    }
-                    const enriched = json.rows.map(r => {
-                        const dObj = new Date(r.data + 'T12:00:00');
-                        return { ...r, regiao: ufToRegion[r.uf] || 'Outros', dia_semana: ptDays[dObj.getDay()] || 'Segunda-feira' };
-                    });
-                    const added = mergeNewRecords(enriched);
-                    totalAdded += added.length;
-                    logLines.push(`<span class="text-emerald-400">${f.nome}: ${added.length} novo(s) de ${json.rows.length} lido(s)</span>`);
-                } catch (err) {
-                    logLines.push(`<span class="text-rose-400">${f.nome}: falha de conexão (${err.message})</span>`);
-                }
-            }
-
-            statusEl.innerHTML = logLines.map(l => `<div>${l}</div>`).join('') +
-                `<div class="text-slate-500 pt-1">Última sincronização: ${new Date().toLocaleString('pt-BR')}</div>`;
-            showToast(`Sincronização concluída: <b>${totalAdded}</b> novo(s) registro(s).`, "success");
+            // Sincroniza sozinho a cada 30 min enquanto alguém estiver com o painel aberto —
+            // não depende de configuração nenhuma, então fica sempre ativo.
+            setInterval(syncTinyAll, 30 * 60 * 1000);
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -1484,10 +1345,8 @@
             updateDashboard();
             syncWithNeon();
             refreshAuthUI();
+            syncTinyAll();
             setupTinyAutoSync();
-            if (Object.values(getTinyTokens()).some(Boolean)) {
-                syncTinyAll();
-            }
 
             // Filtros
             ['filterMes', 'filterFilial', 'filterCanal', 'filterTipo'].forEach(id => {
@@ -1527,12 +1386,7 @@
             document.getElementById('loginPassInput')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitLogin(); });
 
             // Modal Integração API (Tiny/Olist)
-            document.getElementById('btnOpenApiModal')?.addEventListener('click', () => toggleApiModal(true));
-            document.getElementById('btnCloseApiModal')?.addEventListener('click', () => toggleApiModal(false));
-            document.getElementById('btnSaveTinyTokens')?.addEventListener('click', saveTinyTokens);
             document.getElementById('btnSyncTinyNow')?.addEventListener('click', syncTinyAll);
-            document.getElementById('tinyAutoSyncToggle')?.addEventListener('change', saveTinyAutoSyncPref);
-            document.getElementById('btnEditTinyTokens')?.addEventListener('click', () => refreshTinyTokenView(true));
 
             // Logo Upload
             document.getElementById('logoWrapper')?.addEventListener('click', () => document.getElementById('logoUploadInput').click());

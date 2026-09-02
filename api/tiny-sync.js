@@ -1,10 +1,24 @@
-// Vercel Serverless Function — proxy para a API v2 do Tiny ERP (Olist).
-// Roda no servidor para evitar bloqueio de CORS no navegador e para nunca
-// expor o token em requisições feitas por terceiros (o token só é repassado
-// pelo próprio painel, num POST direto para esta função).
+// Vercel Serverless Function — sincroniza notas fiscais da API v2 do Tiny ERP
+// (Olist) direto para o banco Neon (tabela dispatches).
+//
+// Os tokens NUNCA passam pelo navegador: ficam só como variáveis de ambiente
+// do projeto na Vercel (TINY_TOKEN_SP, TINY_TOKEN_SUL, TINY_TOKEN_TRADE).
+// Isso permite que qualquer pessoa com o link do painel dispare uma
+// sincronização (botão "Sincronizar Tiny/Olist") ou que a Vercel chame esta
+// função automaticamente via Cron Job — sem que ninguém precise inserir ou
+// ver as chaves de API.
+
+import { neon } from '@neondatabase/serverless';
 
 const TINY_BASE_URL = "https://api.tiny.com.br/api2/notas.fiscais.pesquisa.php";
 const MAX_PAGES = 40; // proteção contra loops longos / consumo excessivo de cota da API
+const LOOKBACK_DAYS = 60; // janela padrão quando dataInicial/dataFinal não são informadas
+
+const TINY_FILIAIS = [
+  { key: 'SP', nome: 'PAULICOMP SP', env: 'TINY_TOKEN_SP' },
+  { key: 'SUL', nome: 'PAULICOMP SUL', env: 'TINY_TOKEN_SUL' },
+  { key: 'TRADE', nome: 'COMP TRADE', env: 'TINY_TOKEN_TRADE' },
+];
 
 function toIsoDate(brDate) {
   // "dd/mm/yyyy" -> "yyyy-mm-dd"
@@ -13,6 +27,22 @@ function toIsoDate(brDate) {
   if (!d || !m || !y) return null;
   return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
 }
+
+function toBrDate(date) {
+  const d = String(date.getDate()).padStart(2, "0");
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  return `${d}/${m}/${date.getFullYear()}`;
+}
+
+const ufToRegion = {
+  SP: 'Sudeste', RJ: 'Sudeste', MG: 'Sudeste', ES: 'Sudeste',
+  PR: 'Sul', SC: 'Sul', RS: 'Sul',
+  BA: 'Nordeste', PE: 'Nordeste', CE: 'Nordeste', RN: 'Nordeste',
+  PB: 'Nordeste', MA: 'Nordeste', AL: 'Nordeste', SE: 'Nordeste', PI: 'Nordeste',
+  DF: 'Centro-Oeste', GO: 'Centro-Oeste', MT: 'Centro-Oeste', MS: 'Centro-Oeste',
+  PA: 'Norte', AM: 'Norte', RO: 'Norte', TO: 'Norte', AC: 'Norte', AP: 'Norte', RR: 'Norte',
+};
+const ptDays = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 
 function mapNota(nf, filial) {
   const cliente = nf.cliente || {};
@@ -31,6 +61,9 @@ function mapNota(nf, filial) {
     ? "B2C (CPF)"
     : "B2B (CNPJ)";
 
+  const uf = String(entrega.uf || cliente.uf || "SP").toUpperCase().trim();
+  const dObj = new Date(dataIso + 'T12:00:00');
+
   return {
     filial,
     data: dataIso,
@@ -39,69 +72,106 @@ function mapNota(nf, filial) {
     cliente: entrega.nome_destinatario || cliente.nome || nf.nome || "-",
     tipo,
     canal: (transportador.nome && transportador.nome.trim()) || "Mercado Envios",
-    uf: String(entrega.uf || cliente.uf || "SP").toUpperCase().trim(),
+    uf,
     cidade: entrega.cidade || cliente.cidade || "-",
+    regiao: ufToRegion[uf] || 'Outros',
+    dia_semana: ptDays[dObj.getDay()] || 'Segunda-feira',
   };
 }
 
-module.exports = async (req, res) => {
-  if (req.method !== "POST") {
-    res.status(405).json({ ok: false, error: "Método não permitido. Use POST." });
-    return;
-  }
+async function fetchFilial(token, filialNome, dataInicial, dataFinal) {
+  const rows = [];
+  let pagina = 1;
+  let totalPaginas = 1;
 
-  const { filial, token, dataInicial, dataFinal } = req.body || {};
+  do {
+    const params = new URLSearchParams({ token, formato: "json", pagina: String(pagina) });
+    if (dataInicial) params.set("dataInicial", dataInicial);
+    if (dataFinal) params.set("dataFinal", dataFinal);
 
-  if (!filial || !token) {
-    res.status(400).json({ ok: false, error: "Parâmetros obrigatórios ausentes: filial e token." });
-    return;
-  }
+    const resp = await fetch(`${TINY_BASE_URL}?${params.toString()}`);
+    const json = await resp.json();
+    const retorno = json.retorno || {};
 
-  try {
-    const rows = [];
-    let pagina = 1;
-    let totalPaginas = 1;
-    let statusApi = null;
+    if (retorno.status === "Erro" || retorno.status === "erro") {
+      const msg = (retorno.erros || []).map(e => e.erro).join("; ") || "Erro desconhecido na API do Tiny.";
+      throw new Error(msg);
+    }
 
-    do {
-      const params = new URLSearchParams({
-        token,
-        formato: "json",
-        pagina: String(pagina),
-      });
-      if (dataInicial) params.set("dataInicial", dataInicial);
-      if (dataFinal) params.set("dataFinal", dataFinal);
-
-      const resp = await fetch(`${TINY_BASE_URL}?${params.toString()}`);
-      const json = await resp.json();
-      const retorno = json.retorno || {};
-      statusApi = retorno.status;
-
-      if (retorno.status === "Erro" || retorno.status === "erro") {
-        const msg = (retorno.erros || []).map(e => e.erro).join("; ") || "Erro desconhecido na API do Tiny.";
-        res.status(502).json({ ok: false, error: msg, filial });
-        return;
-      }
-
-      totalPaginas = Number(retorno.numero_paginas || 1);
-      (retorno.notas_fiscais || []).forEach(item => {
-        const mapped = mapNota(item.nota_fiscal || {}, filial);
-        if (mapped) rows.push(mapped);
-      });
-
-      pagina++;
-    } while (pagina <= totalPaginas && pagina <= MAX_PAGES);
-
-    res.status(200).json({
-      ok: true,
-      filial,
-      status: statusApi,
-      totalPaginas,
-      paginasLidas: Math.min(totalPaginas, MAX_PAGES),
-      truncado: totalPaginas > MAX_PAGES,
-      rows,
+    totalPaginas = Number(retorno.numero_paginas || 1);
+    (retorno.notas_fiscais || []).forEach(item => {
+      const mapped = mapNota(item.nota_fiscal || {}, filialNome);
+      if (mapped) rows.push(mapped);
     });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: `Falha ao consultar a API do Tiny: ${err.message}`, filial });
+
+    pagina++;
+  } while (pagina <= totalPaginas && pagina <= MAX_PAGES);
+
+  return rows;
+}
+
+async function insertRows(sql, rows) {
+  let inserted = 0;
+  for (const item of rows) {
+    const result = await sql`
+      INSERT INTO dispatches (
+        filial, data, data_fmt, nf, cliente, tipo, canal, uf, cidade, regiao, dia_semana
+      ) VALUES (
+        ${item.filial}, ${item.data}, ${item.data_fmt}, ${item.nf}, ${item.cliente},
+        ${item.tipo}, ${item.canal}, ${item.uf}, ${item.cidade}, ${item.regiao}, ${item.dia_semana}
+      )
+      ON CONFLICT (filial, nf, data) DO NOTHING
+      RETURNING id;
+    `;
+    if (result.length > 0) inserted++;
   }
-};
+  return inserted;
+}
+
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    return res.status(405).json({ ok: false, error: 'Método não permitido.' });
+  }
+
+  const query = req.method === 'GET' ? req.query : (req.body || {});
+  let dataInicial = query.dataInicial || null;
+  let dataFinal = query.dataFinal || null;
+  if (!dataInicial || !dataFinal) {
+    const hoje = new Date();
+    const inicio = new Date(hoje.getTime() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+    dataFinal = dataFinal || toBrDate(hoje);
+    dataInicial = dataInicial || toBrDate(inicio);
+  }
+
+  const filiaisAtivas = TINY_FILIAIS.filter(f => process.env[f.env]);
+  if (filiaisAtivas.length === 0) {
+    return res.status(200).json({
+      ok: true,
+      results: [],
+      insertedTotal: 0,
+      warning: 'Nenhum token do Tiny configurado nas variáveis de ambiente da Vercel (TINY_TOKEN_SP / TINY_TOKEN_SUL / TINY_TOKEN_TRADE).',
+    });
+  }
+
+  const sql = neon(process.env.DATABASE_URL);
+  const results = [];
+  let insertedTotal = 0;
+
+  for (const f of filiaisAtivas) {
+    try {
+      const rows = await fetchFilial(process.env[f.env], f.nome, dataInicial, dataFinal);
+      const inserted = await insertRows(sql, rows);
+      insertedTotal += inserted;
+      results.push({ filial: f.nome, lidos: rows.length, inseridos: inserted });
+    } catch (err) {
+      results.push({ filial: f.nome, error: err.message });
+    }
+  }
+
+  res.status(200).json({ ok: true, dataInicial, dataFinal, results, insertedTotal });
+}
