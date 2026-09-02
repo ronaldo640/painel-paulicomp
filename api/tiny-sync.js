@@ -11,7 +11,7 @@
 import { neon } from '@neondatabase/serverless';
 
 const TINY_BASE_URL = "https://api.tiny.com.br/api2/notas.fiscais.pesquisa.php";
-const MAX_PAGES = 40; // proteção contra loops longos / consumo excessivo de cota da API
+const MAX_PAGES = 60; // proteção contra loops longos / consumo excessivo de cota da API por filial
 const LOOKBACK_DAYS = 60; // janela padrão quando dataInicial/dataFinal não são informadas
 
 const TINY_FILIAIS = [
@@ -110,20 +110,31 @@ async function fetchFilial(token, filialNome, dataInicial, dataFinal) {
   return rows;
 }
 
+const INSERT_CHUNK_SIZE = 500; // registros por INSERT em lote (via UNNEST), não 1 query por linha
+
 async function insertRows(sql, rows) {
   let inserted = 0;
-  for (const item of rows) {
+  for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
+    const chunk = rows.slice(i, i + INSERT_CHUNK_SIZE);
     const result = await sql`
-      INSERT INTO dispatches (
-        filial, data, data_fmt, nf, cliente, tipo, canal, uf, cidade, regiao, dia_semana
-      ) VALUES (
-        ${item.filial}, ${item.data}, ${item.data_fmt}, ${item.nf}, ${item.cliente},
-        ${item.tipo}, ${item.canal}, ${item.uf}, ${item.cidade}, ${item.regiao}, ${item.dia_semana}
+      INSERT INTO dispatches (filial, data, data_fmt, nf, cliente, tipo, canal, uf, cidade, regiao, dia_semana)
+      SELECT * FROM UNNEST(
+        ${chunk.map(r => r.filial)}::text[],
+        ${chunk.map(r => r.data)}::date[],
+        ${chunk.map(r => r.data_fmt)}::text[],
+        ${chunk.map(r => r.nf)}::text[],
+        ${chunk.map(r => r.cliente)}::text[],
+        ${chunk.map(r => r.tipo)}::text[],
+        ${chunk.map(r => r.canal)}::text[],
+        ${chunk.map(r => r.uf)}::text[],
+        ${chunk.map(r => r.cidade)}::text[],
+        ${chunk.map(r => r.regiao)}::text[],
+        ${chunk.map(r => r.dia_semana)}::text[]
       )
       ON CONFLICT (filial, nf, data) DO NOTHING
       RETURNING id;
     `;
-    if (result.length > 0) inserted++;
+    inserted += result.length;
   }
   return inserted;
 }
@@ -148,30 +159,35 @@ export default async function handler(req, res) {
     dataInicial = dataInicial || toBrDate(inicio);
   }
 
-  const filiaisAtivas = TINY_FILIAIS.filter(f => process.env[f.env]);
+  // Opcional: restringe a sincronização a uma única filial (SP/SUL/TRADE) — útil
+  // para preencher histórico aos poucos, sem estourar o tempo máximo da função.
+  const filialFiltro = query.filial ? String(query.filial).toUpperCase() : null;
+  const filiaisAtivas = TINY_FILIAIS.filter(f => process.env[f.env] && (!filialFiltro || f.key === filialFiltro));
   if (filiaisAtivas.length === 0) {
     return res.status(200).json({
       ok: true,
       results: [],
       insertedTotal: 0,
-      warning: 'Nenhum token do Tiny configurado nas variáveis de ambiente da Vercel (TINY_TOKEN_SP / TINY_TOKEN_SUL / TINY_TOKEN_TRADE).',
+      warning: filialFiltro
+        ? `Token não configurado para a filial "${filialFiltro}".`
+        : 'Nenhum token do Tiny configurado nas variáveis de ambiente da Vercel (TINY_TOKEN_SP / TINY_TOKEN_SUL / TINY_TOKEN_TRADE).',
     });
   }
 
   const sql = neon(process.env.DATABASE_URL);
-  const results = [];
-  let insertedTotal = 0;
 
-  for (const f of filiaisAtivas) {
+  // Busca e grava as filiais em paralelo — a busca na API do Tiny é o gargalo,
+  // não a escrita no banco (já feita em lote), então isso reduz bastante o tempo total.
+  const results = await Promise.all(filiaisAtivas.map(async f => {
     try {
       const rows = await fetchFilial(process.env[f.env], f.nome, dataInicial, dataFinal);
       const inserted = await insertRows(sql, rows);
-      insertedTotal += inserted;
-      results.push({ filial: f.nome, lidos: rows.length, inseridos: inserted });
+      return { filial: f.nome, lidos: rows.length, inseridos: inserted };
     } catch (err) {
-      results.push({ filial: f.nome, error: err.message });
+      return { filial: f.nome, error: err.message };
     }
-  }
+  }));
 
+  const insertedTotal = results.reduce((sum, r) => sum + (r.inseridos || 0), 0);
   res.status(200).json({ ok: true, dataInicial, dataFinal, results, insertedTotal });
 }
