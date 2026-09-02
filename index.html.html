@@ -415,18 +415,31 @@
             </div>
 
             <div class="space-y-3">
-                <div>
-                    <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Token API v2 — PAULICOMP SP</label>
-                    <input id="tinyTokenSP" type="password" placeholder="Token gerado no painel do Tiny" class="w-full mt-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                <!-- Estado "conectado": aparece quando os tokens já foram salvos, sem exibir os campos de novo -->
+                <div id="tinyConnectedStatus" class="hidden bg-emerald-950/40 border border-emerald-800/60 rounded-lg p-3 flex items-center justify-between gap-3">
+                    <div class="text-xs text-emerald-300">
+                        <span class="font-bold">✓ Tokens salvos neste navegador:</span>
+                        <span id="tinyConnectedList" class="text-emerald-200"></span>
+                    </div>
+                    <button id="btnEditTinyTokens" class="text-[11px] font-semibold text-emerald-300 hover:text-white underline shrink-0">Editar Tokens</button>
                 </div>
-                <div>
-                    <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Token API v2 — PAULICOMP SUL</label>
-                    <input id="tinyTokenSUL" type="password" placeholder="Token gerado no painel do Tiny" class="w-full mt-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+
+                <div id="tinyTokenFields" class="space-y-3">
+                    <div>
+                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Token API v2 — PAULICOMP SP</label>
+                        <input id="tinyTokenSP" type="password" placeholder="Token gerado no painel do Tiny" class="w-full mt-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Token API v2 — PAULICOMP SUL</label>
+                        <input id="tinyTokenSUL" type="password" placeholder="Token gerado no painel do Tiny" class="w-full mt-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Token API v2 — COMP TRADE</label>
+                        <input id="tinyTokenTRADE" type="password" placeholder="Token gerado no painel do Tiny" class="w-full mt-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <button id="btnSaveTinyTokens" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition">Salvar Tokens</button>
                 </div>
-                <div>
-                    <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Token API v2 — COMP TRADE</label>
-                    <input id="tinyTokenTRADE" type="password" placeholder="Token gerado no painel do Tiny" class="w-full mt-1 bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
+
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Data Inicial</label>
@@ -444,7 +457,6 @@
             </div>
 
             <div class="flex flex-wrap gap-2 pt-1">
-                <button id="btnSaveTinyTokens" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition">Salvar Tokens</button>
                 <button id="btnSyncTinyNow" class="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white text-xs font-bold px-4 py-2.5 rounded-lg transition">Sincronizar Agora</button>
             </div>
 
@@ -832,11 +844,23 @@
                 });
             }
 
-            // CHART 4: Canais
+            // CHART 4: Canais (só exibe canais com mais de 10 envios; o restante vira "Outros")
             const canalMap = {};
             filtered.forEach(d => { canalMap[d.canal] = (canalMap[d.canal] || 0) + 1; });
-            const canalLabels = Object.keys(canalMap).length ? Object.keys(canalMap) : ['Sem dados'];
-            const canalValues = Object.keys(canalMap).length ? Object.values(canalMap) : [0];
+            const canalEntries = Object.entries(canalMap);
+            const canalPrincipais = canalEntries.filter(([, v]) => v > 10).sort((a, b) => b[1] - a[1]);
+            const outrosTotal = canalEntries.filter(([, v]) => v <= 10).reduce((sum, [, v]) => sum + v, 0);
+
+            let canalLabels = canalPrincipais.map(([k]) => k);
+            let canalValues = canalPrincipais.map(([, v]) => v);
+            if (outrosTotal > 0) {
+                canalLabels.push('Outros');
+                canalValues.push(outrosTotal);
+            }
+            if (canalLabels.length === 0) {
+                canalLabels = ['Sem dados'];
+                canalValues = [0];
+            }
 
             if (chartCanais) chartCanais.destroy();
             const ctx4 = document.getElementById('chartCanais');
@@ -1345,6 +1369,27 @@
                 document.getElementById('tinyDataFinal').value = hoje.toISOString().substring(0, 10);
                 document.getElementById('tinyDataInicial').value = inicio.toISOString().substring(0, 10);
             }
+
+            // Se já existe pelo menos um token salvo, mostra o resumo em vez dos campos
+            refreshTinyTokenView();
+        }
+
+        // Alterna entre a visão compacta ("tokens já salvos") e o formulário de edição,
+        // para não pedir os tokens de novo toda vez que o usuário só quer sincronizar.
+        function refreshTinyTokenView(forceEdit = false) {
+            const tokens = getTinyTokens();
+            const configuradas = TINY_FILIAIS.filter(f => tokens[f.key]);
+            const fieldsEl = document.getElementById('tinyTokenFields');
+            const statusEl = document.getElementById('tinyConnectedStatus');
+
+            if (configuradas.length > 0 && !forceEdit) {
+                document.getElementById('tinyConnectedList').textContent = configuradas.map(f => f.nome).join(', ');
+                statusEl.classList.remove('hidden');
+                fieldsEl.classList.add('hidden');
+            } else {
+                statusEl.classList.add('hidden');
+                fieldsEl.classList.remove('hidden');
+            }
         }
 
         function saveTinyTokens() {
@@ -1355,6 +1400,7 @@
             };
             localStorage.setItem(TINY_TOKENS_KEY, JSON.stringify(tokens));
             showToast("Tokens salvos neste navegador.", "success");
+            refreshTinyTokenView();
         }
 
         function saveTinyAutoSyncPref() {
@@ -1486,6 +1532,7 @@
             document.getElementById('btnSaveTinyTokens')?.addEventListener('click', saveTinyTokens);
             document.getElementById('btnSyncTinyNow')?.addEventListener('click', syncTinyAll);
             document.getElementById('tinyAutoSyncToggle')?.addEventListener('change', saveTinyAutoSyncPref);
+            document.getElementById('btnEditTinyTokens')?.addEventListener('click', () => refreshTinyTokenView(true));
 
             // Logo Upload
             document.getElementById('logoWrapper')?.addEventListener('click', () => document.getElementById('logoUploadInput').click());
