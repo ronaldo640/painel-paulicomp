@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Executivo de Expedição & Logística | Paulicomp</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Chart.js DataLabels Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    <!-- SheetJS (xlsx) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- html2pdf.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .toast-animate { animation: fadeInDown 0.3s ease-out forwards; }
+
+        /* Report Print Template Container (Portrait A4: 780px x 1100px max) */
+        #pdfReportTemplate {
+            display: none;
+            width: 780px;
+            height: 1100px;
+            max-height: 1100px;
+            background-color: #070b14;
+            color: #f8fafc;
+            padding: 12px 16px;
+            box-sizing: border-box;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-blue-600 selection:text-white">
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-md w-full pointer-events-none"></div>
+
+    <!-- Top Executive Header -->
+    <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            
+            <!-- Logo & Brand Header -->
+            <div class="flex items-center gap-4">
+                <div class="relative group cursor-pointer" id="logoWrapper" title="Clique para trocar a Logo">
+                    <div class="h-12 px-3 py-1 bg-transparent border border-slate-700/60 rounded-xl flex items-center justify-center transition-all group-hover:border-blue-500 group-hover:bg-slate-800/40">
+                        <!-- Logo fixa da empresa -->
+                        <img id="logoImage" src="./logo-empresa.png" alt="Logotipo Empresa" class="h-9 w-auto max-w-[170px] object-contain" onerror="this.classList.add('hidden'); document.getElementById('logoDefaultSvg').classList.remove('hidden');">
+                        <div id="logoDefaultSvg" class="hidden flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 via-blue-500 to-cyan-400 flex items-center justify-center shadow-md shadow-blue-500/20">
+                                <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                                </svg>
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-base font-black tracking-wider text-white uppercase font-mono leading-none">PAULICOMP</span>
+                                <span class="text-[9px] font-bold tracking-widest text-cyan-400 uppercase leading-tight">LOGÍSTICA & EXPEDIÇÃO</span>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="absolute -bottom-2 -right-1 bg-blue-600 text-[9px] font-bold px-1.5 py-0.2 rounded text-white shadow opacity-0 group-hover:opacity-100 transition-opacity">Trocar Logo</span>
+                    <input type="file" id="logoUploadInput" accept="image/*" class="hidden">
+                </div>
+
+                <div class="hidden sm:block border-l border-slate-800 pl-4">
+                    <h1 class="text-sm font-bold text-slate-100 tracking-tight">Painel Executivo de Produtividade</h1>
+                    <p class="text-xs text-slate-400">Granularidade: 1 Nota Fiscal = 1 Embalagem | Multi-Filiais</p>
+                </div>
+            </div>
+
+            <!-- Botões Topo (Sem o botão duplicado de Importar Planilha) -->
+            <div class="flex flex-wrap items-center gap-2.5">
+                <button id="btnPdfReport" class="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold px-3.5 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-all active:scale-95 border border-red-500/30">
+                    <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <span>Relatório PDF</span>
+                </button>
+
+                <button id="btnOpenModal" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold px-3.5 py-2 rounded-lg flex items-center gap-2 transition-all">
+                    <svg class="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7M4 7c0-2 1.5-3 3.5-3h9c2 0 3.5 1 3.5 3M4 7h16m-5 4h.01M9 11h.01M9 15h6"/>
+                    </svg>
+                    <span>Banco de Dados (<span id="headerRowCount">0</span>)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Barra de Filtros -->
+        <div class="bg-slate-900 border-t border-slate-800/80 px-4 sm:px-6 lg:px-8 py-2.5">
+            <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-xs font-semibold text-slate-400 flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            Mês:
+                        </span>
+                        <select id="filterMes" class="bg-slate-800 border border-blue-500/50 text-white text-xs font-bold rounded-md px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+                            <option value="ALL">Todos os Meses (Consolidado)</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-xs font-semibold text-slate-400">Filial:</span>
+                        <select id="filterFilial" class="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-md px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+                            <option value="ALL">Todas as Filiais</option>
+                            <option value="PAULICOMP SP">PAULICOMP SP</option>
+                            <option value="PAULICOMP SUL">PAULICOMP SUL</option>
+                            <option value="COMP TRADE">COMP TRADE</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-xs font-semibold text-slate-400">Canal:</span>
+                        <select id="filterCanal" class="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-md px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+                            <option value="ALL">Todos os Canais</option>
+                            <option value="Mercado Envios">Mercado Envios</option>
+                            <option value="Shopee Envios">Shopee Envios</option>
+                            <option value="Retirar pessoalmente">Retirar pessoalmente</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-xs font-semibold text-slate-400">Tipo:</span>
+                        <select id="filterTipo" class="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-md px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+                            <option value="ALL">B2B & B2C</option>
+                            <option value="B2C (CPF)">B2C (CPF)</option>
+                            <option value="B2B (CNPJ)">B2B (CNPJ)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="text-[11px] font-semibold text-cyan-300 bg-cyan-950/80 border border-cyan-800/60 px-2.5 py-1 rounded-full flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                    <span id="granularityText">Visão por Quinzena (Consolidado)</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Grid -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-1 w-full">
+        
+        <!-- Cards KPIs -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
+                <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 to-cyan-500"></div>
+                <div class="flex items-center justify-between text-slate-400 mb-1">
+                    <span class="text-[11px] font-bold uppercase tracking-wider">Total Embalagens</span>
+                    <span class="text-blue-400 bg-blue-950/80 px-2 py-0.5 rounded text-[10px] font-bold">1 NF = 1 Volume</span>
+                </div>
+                <div class="text-3xl font-extrabold text-white mt-1" id="kpiTotal">0</div>
+                <div class="text-xs text-slate-400 mt-2 flex items-center gap-1">
+                    <span class="text-emerald-400 font-semibold">100%</span> faturado e expedido
+                </div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
+                <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400"></div>
+                <div class="flex items-center justify-between text-slate-400 mb-1">
+                    <span class="text-[11px] font-bold uppercase tracking-wider">Média de Embalagens</span>
+                    <span class="text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded text-[10px] font-bold">Emb / Dia Útil</span>
+                </div>
+                <div class="text-3xl font-extrabold text-white mt-1" id="kpiMedia">0.0</div>
+                <div class="text-xs text-slate-400 mt-2" id="kpiDiasTxt">Em 0 dias operacionais</div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
+                <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-400"></div>
+                <div class="flex items-center justify-between text-slate-400 mb-1">
+                    <span class="text-[11px] font-bold uppercase tracking-wider">Pico Operacional</span>
+                    <span class="text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded text-[10px] font-bold">Carga Máxima</span>
+                </div>
+                <div class="text-3xl font-extrabold text-white mt-1" id="kpiPico">0</div>
+                <div class="text-xs text-slate-400 mt-2 truncate" id="kpiPicoData">-</div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
+                <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-pink-500"></div>
+                <div class="flex items-center justify-between text-slate-400 mb-1">
+                    <span class="text-[11px] font-bold uppercase tracking-wider">Perfil de Clientes</span>
+                    <span class="text-purple-400 bg-purple-950/80 px-2 py-0.5 rounded text-[10px] font-bold">B2C vs B2B</span>
+                </div>
+                <div class="text-2xl font-extrabold text-white mt-1" id="kpiMix">0% / 0%</div>
+                <div class="text-xs text-slate-400 mt-2 truncate" id="kpiMixTxt">0 B2C | 0 B2B</div>
+            </div>
+        </div>
+
+        <!-- Linha de Gráficos 1 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 lg:col-span-2 shadow-sm flex flex-col">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 mb-2 border-b border-slate-800 gap-2">
+                    <div>
+                        <h2 class="text-sm font-bold text-white uppercase tracking-wide flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 bg-blue-500 rounded-sm"></span>
+                            Evolução dos Volumes Expedidos
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-0.5" id="chart1Subtitle">Agrupado por Quinzena</p>
+                    </div>
+                    <span class="text-[11px] font-semibold text-slate-400 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700">Com Rótulos de Dados</span>
+                </div>
+                <div class="relative flex-1 min-h-[280px]">
+                    <canvas id="chartEvolucao"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm flex flex-col">
+                <div class="pb-3 mb-2 border-b border-slate-800 flex items-center justify-between">
+                    <div>
+                        <h2 class="text-sm font-bold text-white uppercase tracking-wide flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 bg-cyan-500 rounded-sm"></span>
+                            Produção por Filial
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Distribuição Percentual (%)</p>
+                    </div>
+                </div>
+                <div class="relative flex-1 min-h-[280px] flex items-center justify-center">
+                    <canvas id="chartShareFilial"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Linha de Gráficos 2 -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm flex flex-col">
+                <div class="pb-3 mb-2 border-b border-slate-800">
+                    <h2 class="text-sm font-bold text-white uppercase tracking-wide flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 bg-indigo-500 rounded-sm"></span>
+                        Ritmo por Dia da Semana
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Sazonalidade Semanal</p>
+                </div>
+                <div class="relative flex-1 min-h-[220px]">
+                    <canvas id="chartDiaSemana"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm flex flex-col">
+                <div class="pb-3 mb-2 border-b border-slate-800">
+                    <h2 class="text-sm font-bold text-white uppercase tracking-wide flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 bg-emerald-500 rounded-sm"></span>
+                        Canais Logísticos de Despacho
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Modalidades de Envio</p>
+                </div>
+                <div class="relative flex-1 min-h-[220px]">
+                    <canvas id="chartCanais"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm flex flex-col">
+                <div class="pb-3 mb-2 border-b border-slate-800">
+                    <h2 class="text-sm font-bold text-white uppercase tracking-wide flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 bg-pink-500 rounded-sm"></span>
+                        Dispersão por Região
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Macrorregiões de Destino</p>
+                </div>
+                <div class="relative flex-1 min-h-[220px]">
+                    <canvas id="chartRegioes"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabela -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+            <div class="p-4 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-slate-900/60">
+                <div>
+                    <h2 class="text-sm font-bold text-white uppercase tracking-wide">Extrato de Lotes & Emissões</h2>
+                    <p class="text-xs text-slate-400">Prévia dos registros conforme filtros aplicados</p>
+                </div>
+                <span class="text-xs font-semibold text-slate-400 bg-slate-800 px-3 py-1 rounded-full border border-slate-700" id="tableRecordCount">Mostrando 0 registros</span>
+            </div>
+            <div class="overflow-x-auto max-h-72">
+                <table class="w-full text-left text-xs text-slate-300">
+                    <thead class="bg-slate-950/80 uppercase font-bold text-slate-400 sticky top-0 border-b border-slate-800">
+                        <tr>
+                            <th class="px-4 py-3">Data</th>
+                            <th class="px-4 py-3">Filial</th>
+                            <th class="px-4 py-3">Identificação (NF)</th>
+                            <th class="px-4 py-3">Cliente</th>
+                            <th class="px-4 py-3">Tipo</th>
+                            <th class="px-4 py-3">Canal de Envio</th>
+                            <th class="px-4 py-3">Destino (Cidade/UF)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-slate-800/60"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Banco de Dados -->
+    <div id="dataModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2.5 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30">
+                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7M4 7c0-2 1.5-3 3.5-3h9c2 0 3.5 1 3.5 3M4 7h16"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white">Banco de Dados de Expedição</h3>
+                        <p class="text-xs text-slate-400">Insira, anexe e controle os dados de novos meses via planilha</p>
+                    </div>
+                </div>
+                <button id="btnCloseModal" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition text-lg">&times;</button>
+            </div>
+            <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 space-y-3">
+                <h4 class="text-xs font-bold text-slate-200 uppercase tracking-wider">Como Inserir Dados de Novos Meses:</h4>
+                <p class="text-xs text-slate-300 leading-relaxed">
+                    Importe relatórios <b>.xls</b> ou <b>.xlsx</b>. O painel sincroniza automaticamente com o banco na nuvem.
+                </p>
+                <div class="pt-2 flex flex-wrap gap-2">
+                    <!-- Botão de Upload com Estilo Verde de Destaque -->
+                    <label class="cursor-pointer bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 shadow transition active:scale-95">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        <span>Importar Planilha (.xls / .xlsx)</span>
+                        <input type="file" id="modalFileInput" accept=".xls,.xlsx,.csv" multiple class="hidden">
+                    </label>
+                    <button id="btnExportExcel" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition">Exportar Base Completa</button>
+                    <button id="btnSyncCloud" class="bg-cyan-900/60 hover:bg-cyan-800 text-cyan-300 border border-cyan-700 text-xs font-semibold px-3 py-2.5 rounded-lg transition ml-auto">Forçar Sincronização</button>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-3 text-center">
+                <div class="bg-slate-800/40 p-3 rounded-xl border border-slate-800">
+                    <span class="text-[10px] text-slate-400 uppercase font-semibold">Total Registros</span>
+                    <p class="text-lg font-bold text-white" id="modalTotalRows">0</p>
+                </div>
+                <div class="bg-slate-800/40 p-3 rounded-xl border border-slate-800">
+                    <span class="text-[10px] text-slate-400 uppercase font-semibold">Meses Carregados</span>
+                    <p class="text-lg font-bold text-cyan-400" id="modalTotalMonths">0</p>
+                </div>
+                <div class="bg-slate-800/40 p-3 rounded-xl border border-slate-800">
+                    <span class="text-[10px] text-slate-400 uppercase font-semibold">Filiais Ativas</span>
+                    <p class="text-lg font-bold text-emerald-400" id="modalTotalBranches">3</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template do Relatório PDF (A4 Portrait 1 Página) -->
+    <div id="pdfReportContainer" class="fixed -left-[9999px] top-0 z-[-100]">
+        <div id="pdfReportTemplate" style="width: 780px; height: 1100px; max-height: 1100px; background: #070b14; color: #f8fafc; padding: 6px 16px 10px 16px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;">
+            
+            <!-- Header Relatório (Subido e Compactado) -->
+            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1.5px solid #1e293b; padding-bottom: 4px; margin-top: 0;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div id="repLogoHolder" style="display: flex; align-items: center;"></div>
+                    <div style="border-left: 1.5px solid #1e293b; padding-left: 8px;">
+                        <h2 style="font-size: 11px; font-weight: 800; color: #ffffff; text-transform: uppercase; margin: 0; line-height: 1.1;">
+                            Relatório Executivo de Produtividade & Logística
+                        </h2>
+                        <span style="font-size: 8px; font-weight: 600; color: #94a3b8; display: block; margin-top: 1px;">
+                            Granularidade: 1 Nota Fiscal = 1 Embalagem Despachada
+                        </span>
+                    </div>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <div style="background: rgba(30, 58, 138, 0.4); border: 1px solid #3b82f6; border-radius: 4px; padding: 2px 7px; text-align: right;">
+                        <span style="font-size: 7px; font-weight: 700; color: #93c5fd; text-transform: uppercase; display: block;">Mês Ref.</span>
+                        <span id="repRefMes" style="font-size: 10px; font-weight: 800; color: #ffffff;">-</span>
+                    </div>
+                    <div style="background: rgba(14, 116, 144, 0.35); border: 1px solid #06b6d4; border-radius: 4px; padding: 2px 7px; text-align: right;">
+                        <span style="font-size: 7px; font-weight: 700; color: #67e8f9; text-transform: uppercase; display: block;">Filial</span>
+                        <span id="repRefFilial" style="font-size: 10px; font-weight: 800; color: #ffffff;">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPIs Relatório (Compactados) -->
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px;">
+                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 4px 8px; position: relative;">
+                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, #2563eb, #06b6d4);"></div>
+                    <span style="font-size: 7.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Total Embalagens</span>
+                    <div id="repKpiTotal" style="font-size: 14px; font-weight: 900; color: #ffffff; line-height: 1.1; margin-top: 1px;">0</div>
+                </div>
+                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 4px 8px; position: relative;">
+                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, #10b981, #14b8a6);"></div>
+                    <span style="font-size: 7.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Média de Embalagens</span>
+                    <div id="repKpiMedia" style="font-size: 14px; font-weight: 900; color: #ffffff; line-height: 1.1; margin-top: 1px;">0.0</div>
+                </div>
+                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 4px 8px; position: relative;">
+                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, #f59e0b, #ea580c);"></div>
+                    <span style="font-size: 7.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Pico Operacional</span>
+                    <div id="repKpiPico" style="font-size: 14px; font-weight: 900; color: #ffffff; line-height: 1.1; margin-top: 1px;">0</div>
+                </div>
+                <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 4px 8px; position: relative;">
+                    <div style="position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, #a855f7, #ec4899);"></div>
+                    <span style="font-size: 7.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Mix B2C / B2B</span>
+                    <div id="repKpiMix" style="font-size: 13px; font-weight: 900; color: #ffffff; line-height: 1.1; margin-top: 1px;">0% / 0%</div>
+                </div>
+            </div>
+
+            <!-- Gráficos no PDF -->
+            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px; flex: 1;">
+                
+                <!-- Linha 1: Evolução + Share -->
+                <div style="display: grid; grid-template-columns: 1.6fr 1fr; gap: 8px; height: 215px; margin-top: 0;">
+                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
+                            <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Evolução dos Volumes Expedidos</span>
+                            <span id="repChart1Sub" style="font-size: 7.5px; color: #38bdf8; font-weight: 600;">-</span>
+                        </div>
+                        <div style="flex: 1; position: relative; width: 100%; height: 180px; display: flex; align-items: center; justify-content: center;">
+                            <img id="repImgEvolucao" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
+                        </div>
+                    </div>
+
+                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column;">
+                        <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
+                            <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Produção por Filial (%)</span>
+                        </div>
+                        <div style="flex: 1; position: relative; width: 100%; height: 180px; display: flex; align-items: center; justify-content: center;">
+                            <img id="repImgShare" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Linha 2: Dia da Semana -->
+                <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; height: 165px; display: flex; flex-direction: column; margin-top: 60px;">
+                    <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
+                        <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Ritmo por Dia da Semana</span>
+                    </div>
+                    <div style="flex: 1; position: relative; width: 100%; height: 135px; display: flex; align-items: center; justify-content: center;">
+                        <img id="repImgDia" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
+                    </div>
+                </div>
+
+                <!-- Linha 3: Canais + Região -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; height: 175px; margin-top: 6px;">
+                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column;">
+                        <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
+                            <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Canais Logísticos de Despacho</span>
+                        </div>
+                        <div style="flex: 1; position: relative; width: 100%; height: 145px; display: flex; align-items: center; justify-content: center;">
+                            <img id="repImgCanais" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
+                        </div>
+                    </div>
+
+                    <div style="background: #0b1220; border: 1px solid #1e293b; border-radius: 6px; padding: 5px 8px; display: flex; flex-direction: column;">
+                        <div style="border-bottom: 1px solid #1e293b; padding-bottom: 2px; margin-bottom: 2px;">
+                            <span style="font-size: 8.5px; font-weight: 800; color: #ffffff; text-transform: uppercase;">Dispersão por Região</span>
+                        </div>
+                        <div style="flex: 1; position: relative; width: 100%; height: 145px; display: flex; align-items: center; justify-content: center;">
+                            <img id="repImgRegioes" style="max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain;">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Footer Relatório -->
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1e293b; padding-top: 4px; margin-top: 2px;">
+                <span style="font-size: 7px; color: #64748b;">Paulicomp Logística & Almoxarifado • Gestão Executiva de Expedição</span>
+                <span style="font-size: 7px; font-weight: 700; color: #38bdf8;">Página 1 de 1 (Formato Retrato A4)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 border-t border-slate-800 py-4 text-center text-xs text-slate-500">
+        Paulicomp Logística & Almoxarifado | Painel Executivo Integrado
+    </footer>
+
+    <!-- Scripts de Lógica e Renderização -->
+    <script>
+        Chart.register(ChartDataLabels);
+
+        let database = [
+            {"filial":"PAULICOMP SP","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019601","cliente":"Cliente Paulicomp 19601","tipo":"B2C (CPF)","canal":"Mercado Envios","uf":"BA","cidade":"Capital/Interior","regiao":"Nordeste","dia_semana":"Segunda-feira"},
+            {"filial":"PAULICOMP SP","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019602","cliente":"Cliente Paulicomp 19602","tipo":"B2C (CPF)","canal":"Mercado Envios","uf":"SP","cidade":"São Paulo","regiao":"Sudeste","dia_semana":"Segunda-feira"},
+            {"filial":"PAULICOMP SP","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019603","cliente":"Cliente Paulicomp 19603","tipo":"B2B (CNPJ)","canal":"Mercado Envios","uf":"RJ","cidade":"Capital/Interior","regiao":"Sudeste","dia_semana":"Segunda-feira"},
+            {"filial":"PAULICOMP SUL","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019635","cliente":"Cliente Sul 19635","tipo":"B2C (CPF)","canal":"Shopee Envios","uf":"SC","cidade":"Florianópolis","regiao":"Sul","dia_semana":"Segunda-feira"},
+            {"filial":"PAULICOMP SUL","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019636","cliente":"Cliente Sul 19636","tipo":"B2C (CPF)","canal":"Shopee Envios","uf":"MG","cidade":"Florianópolis","regiao":"Sudeste","dia_semana":"Segunda-feira"},
+            {"filial":"COMP TRADE","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019685","cliente":"Cliente Trade 19685","tipo":"B2C (CPF)","canal":"Mercado Envios","uf":"MG","cidade":"São Paulo","regiao":"Sudeste","dia_semana":"Segunda-feira"},
+            {"filial":"COMP TRADE","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019686","cliente":"Cliente Trade 19686","tipo":"B2C (CPF)","canal":"Mercado Envios","uf":"RS","cidade":"São Paulo","regiao":"Sul","dia_semana":"Segunda-feira"}
+        ];
+
+        let chartEvolucao = null, chartShareFilial = null, chartDiaSemana = null, chartCanais = null, chartRegioes = null;
+
+        const ptDays = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+        const ptMonths = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        const ufToRegion = {'SP':'Sudeste','RJ':'Sudeste','MG':'Sudeste','ES':'Sudeste','PR':'Sul','SC':'Sul','RS':'Sul','BA':'Nordeste','PE':'Nordeste','CE':'Nordeste','RN':'Nordeste','PB':'Nordeste','MA':'Nordeste','AL':'Nordeste','SE':'Nordeste','PI':'Nordeste','DF':'Centro-Oeste','GO':'Centro-Oeste','MT':'Centro-Oeste','MS':'Centro-Oeste','PA':'Norte','AM':'Norte','RO':'Norte','TO':'Norte','AC':'Norte','AP':'Norte','RR':'Norte'};
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            const toast = document.createElement('div');
+            const isSuccess = (type === 'success');
+            const isError = (type === 'error');
+            
+            toast.className = `pointer-events-auto toast-animate p-4 rounded-xl shadow-2xl border flex items-start gap-3 text-xs ${
+                isSuccess ? 'bg-slate-900/95 border-emerald-500 text-emerald-200' :
+                isError ? 'bg-slate-900/95 border-rose-500 text-rose-200' :
+                'bg-slate-900/95 border-blue-500 text-blue-200'
+            }`;
+
+            toast.innerHTML = `
+                <div class="flex-1 font-medium leading-relaxed">${message}</div>
+                <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white">&times;</button>
+            `;
+
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'transition-opacity');
+                setTimeout(() => toast.remove(), 400);
+            }, 5000);
+        }
+
+        function populateMonthFilter() {
+            const select = document.getElementById('filterMes');
+            if (!select) return;
+            const previousVal = select.value;
+            const monthSet = new Set();
+            database.forEach(d => {
+                if (d.data) {
+                    const [y, m] = d.data.split('-');
+                    monthSet.add(`${y}-${m}`);
+                }
+            });
+            const sortedMonths = Array.from(monthSet).sort().reverse();
+            select.innerHTML = '<option value="ALL">Todos os Meses (Consolidado)</option>';
+            sortedMonths.forEach(ym => {
+                const [year, month] = ym.split('-');
+                const monthName = ptMonths[parseInt(month, 10) - 1];
+                const opt = document.createElement('option');
+                opt.value = ym;
+                opt.innerText = `${monthName}/${year}`;
+                select.appendChild(opt);
+            });
+            if (sortedMonths.includes(previousVal) || previousVal === 'ALL') select.value = previousVal;
+        }
+
+        function updateModalStats() {
+            const totalEl = document.getElementById('modalTotalRows');
+            const monthEl = document.getElementById('modalTotalMonths');
+            const headEl = document.getElementById('headerRowCount');
+            if (totalEl) totalEl.innerText = database.length.toLocaleString('pt-BR');
+            if (monthEl) monthEl.innerText = new Set(database.map(d => d.data ? d.data.substring(0,7) : '')).size;
+            if (headEl) headEl.innerText = database.length.toLocaleString('pt-BR');
+        }
+
+        function updateDashboard() {
+            const fMes = document.getElementById('filterMes')?.value || 'ALL';
+            const fFilial = document.getElementById('filterFilial')?.value || 'ALL';
+            const fCanal = document.getElementById('filterCanal')?.value || 'ALL';
+            const fTipo = document.getElementById('filterTipo')?.value || 'ALL';
+
+            const isAllMonths = (fMes === 'ALL');
+            const granText = document.getElementById('granularityText');
+            const chartSub = document.getElementById('chart1Subtitle');
+            if (granText) granText.innerText = isAllMonths ? "Visão por Quinzena (Consolidado)" : "Visão Diária Detalhada";
+            if (chartSub) chartSub.innerText = isAllMonths ? "Agrupado por Quinzena" : "Detalhamento Diário";
+
+            const filtered = database.filter(d => {
+                return (fMes === 'ALL' || (d.data && d.data.startsWith(fMes))) &&
+                       (fFilial === 'ALL' || d.filial === fFilial) &&
+                       (fCanal === 'ALL' || d.canal === fCanal) &&
+                       (fTipo === 'ALL' || d.tipo === fTipo);
+            });
+
+            const total = filtered.length;
+            document.getElementById('kpiTotal').innerText = total.toLocaleString('pt-BR');
+            updateModalStats();
+
+            const dateMap = {};
+            filtered.forEach(d => { if (d.data_fmt) dateMap[d.data_fmt] = (dateMap[d.data_fmt] || 0) + 1; });
+            const uniqueDays = Object.keys(dateMap).length;
+            document.getElementById('kpiMedia').innerText = uniqueDays > 0 ? (total / uniqueDays).toFixed(1) : '0.0';
+            document.getElementById('kpiDiasTxt').innerText = `Em ${uniqueDays} dias ativos`;
+
+            let peakVal = 0, peakDate = '-';
+            for (const [dt, cnt] of Object.entries(dateMap)) {
+                if (cnt > peakVal) { peakVal = cnt; peakDate = dt; }
+            }
+            document.getElementById('kpiPico').innerText = peakVal.toLocaleString('pt-BR');
+            document.getElementById('kpiPicoData').innerText = peakDate !== '-' ? `Pico: ${peakDate}` : '-';
+
+            const b2cCount = filtered.filter(d => d.tipo && d.tipo.includes('B2C')).length;
+            const b2bCount = filtered.filter(d => d.tipo && d.tipo.includes('B2B')).length;
+            const b2cPct = total > 0 ? Math.round((b2cCount / total) * 100) : 0;
+            const b2bPct = total > 0 ? Math.round((b2bCount / total) * 100) : 0;
+            document.getElementById('kpiMix').innerText = `${b2cPct}% / ${b2bPct}%`;
+            document.getElementById('kpiMixTxt').innerText = `${b2cCount} B2C | ${b2bCount} B2B`;
+
+            // CHART 1: Evolução
+            let labels1 = [], data1 = [];
+            if (total === 0) {
+                labels1 = ['Sem Dados']; data1 = [0];
+            } else if (isAllMonths) {
+                const qMap = {};
+                filtered.forEach(d => {
+                    if (!d.data) return;
+                    const [y, m, day] = d.data.split('-').map(Number);
+                    const q = day <= 15 ? 1 : 2;
+                    const key = `${y}-${m}-${q}`;
+                    if (!qMap[key]) qMap[key] = { label: `${q}ª Q. ${ptMonths[m-1].substring(0,3)}/${String(y).slice(2)}`, count: 0 };
+                    qMap[key].count++;
+                });
+                const sortedKeys = Object.keys(qMap).sort();
+                labels1 = sortedKeys.map(k => qMap[k].label);
+                data1 = sortedKeys.map(k => qMap[k].count);
+            } else {
+                const sortedDates = Object.keys(dateMap).sort((a,b) => {
+                    const [d1,m1,y1] = a.split('/').map(Number);
+                    const [d2,m2,y2] = b.split('/').map(Number);
+                    return new Date(y1,m1-1,d1) - new Date(y2,m2-1,d2);
+                });
+                labels1 = sortedDates;
+                data1 = sortedDates.map(d => dateMap[d]);
+            }
+
+            if (chartEvolucao) chartEvolucao.destroy();
+            const ctx1 = document.getElementById('chartEvolucao');
+            if (ctx1) {
+                chartEvolucao = new Chart(ctx1.getContext('2d'), {
+                    type: isAllMonths ? 'bar' : 'line',
+                    data: {
+                        labels: labels1,
+                        datasets: [{
+                            label: 'Volumes',
+                            data: data1,
+                            borderColor: '#3b82f6',
+                            backgroundColor: isAllMonths ? 'rgba(59, 130, 246, 0.85)' : 'rgba(59, 130, 246, 0.15)',
+                            borderWidth: 2,
+                            borderRadius: isAllMonths ? 4 : 0,
+                            fill: !isAllMonths,
+                            tension: 0.25,
+                            pointRadius: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        layout: { padding: { top: 18, left: 5, right: 5 } },
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: {
+                                anchor: 'end', align: 'top', color: '#FFFFFF',
+                                font: { weight: 'bold', size: 9 },
+                                formatter: (val) => val > 0 ? val.toLocaleString('pt-BR') : ''
+                            }
+                        },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 }, maxRotation: 45 } },
+                            y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+                        }
+                    }
+                });
+            }
+
+            // CHART 2: Share Filial
+            const branchMap = { 'PAULICOMP SP': 0, 'PAULICOMP SUL': 0, 'COMP TRADE': 0 };
+            filtered.forEach(d => { if (branchMap[d.filial] !== undefined) branchMap[d.filial]++; });
+
+            if (chartShareFilial) chartShareFilial.destroy();
+            const ctx2 = document.getElementById('chartShareFilial');
+            if (ctx2) {
+                chartShareFilial = new Chart(ctx2.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(branchMap),
+                        datasets: [{
+                            data: total === 0 ? [1,1,1] : Object.values(branchMap),
+                            backgroundColor: ['#2563eb', '#06b6d4', '#f59e0b'],
+                            borderColor: '#0f172a', borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { color: '#FFFFFF', font: { size: 11, weight: '600' }, padding: 10, usePointStyle: true }
+                            },
+                            datalabels: {
+                                color: '#FFFFFF', font: { weight: 'bold', size: 11 },
+                                formatter: (val) => {
+                                    if (!val || total === 0) return '';
+                                    return `${((val / total) * 100).toFixed(1)}%`;
+                                }
+                            }
+                        },
+                        cutout: '52%'
+                    }
+                });
+            }
+
+            // CHART 3: Dia da Semana
+            const weekOrder = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
+            const weekMap = { 'Segunda-feira': 0, 'Terça-feira': 0, 'Quarta-feira': 0, 'Quinta-feira': 0, 'Sexta-feira': 0 };
+            filtered.forEach(d => { if (weekMap[d.dia_semana] !== undefined) weekMap[d.dia_semana]++; });
+
+            if (chartDiaSemana) chartDiaSemana.destroy();
+            const ctx3 = document.getElementById('chartDiaSemana');
+            if (ctx3) {
+                chartDiaSemana = new Chart(ctx3.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: weekOrder.map(d => d.replace('-feira', '')),
+                        datasets: [{ data: weekOrder.map(d => weekMap[d]), backgroundColor: '#6366f1', borderRadius: 4 }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        layout: { padding: { top: 18 } },
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: {
+                                anchor: 'end', align: 'top', color: '#FFFFFF', font: { weight: 'bold', size: 10 },
+                                formatter: (val) => val > 0 ? val.toLocaleString('pt-BR') : ''
+                            }
+                        },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+                            y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+                        }
+                    }
+                });
+            }
+
+            // CHART 4: Canais
+            const canalMap = {};
+            filtered.forEach(d => { canalMap[d.canal] = (canalMap[d.canal] || 0) + 1; });
+            const canalLabels = Object.keys(canalMap).length ? Object.keys(canalMap) : ['Sem dados'];
+            const canalValues = Object.keys(canalMap).length ? Object.values(canalMap) : [0];
+
+            if (chartCanais) chartCanais.destroy();
+            const ctx4 = document.getElementById('chartCanais');
+            if (ctx4) {
+                chartCanais = new Chart(ctx4.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: canalLabels,
+                        datasets: [{ data: canalValues, backgroundColor: '#10b981', borderRadius: 4 }]
+                    },
+                    options: {
+                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                        layout: { padding: { right: 25 } },
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: {
+                                anchor: 'end', align: 'right', color: '#FFFFFF', font: { weight: 'bold', size: 10 },
+                                formatter: (val) => val > 0 ? val.toLocaleString('pt-BR') : ''
+                            }
+                        },
+                        scales: {
+                            x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+                            y: { grid: { display: false }, ticks: { color: '#f1f5f9', font: { size: 10 } } }
+                        }
+                    }
+                });
+            }
+
+            // CHART 5: Regiões
+            const regMap = { 'Sudeste': 0, 'Sul': 0, 'Nordeste': 0, 'Centro-Oeste': 0, 'Norte': 0 };
+            filtered.forEach(d => { if (regMap[d.regiao] !== undefined) regMap[d.regiao]++; });
+
+            if (chartRegioes) chartRegioes.destroy();
+            const ctx5 = document.getElementById('chartRegioes');
+            if (ctx5) {
+                chartRegioes = new Chart(ctx5.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: Object.keys(regMap),
+                        datasets: [{ data: Object.values(regMap), backgroundColor: '#ec4899', borderRadius: 4 }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        layout: { padding: { top: 18 } },
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: {
+                                anchor: 'end', align: 'top', color: '#FFFFFF', font: { weight: 'bold', size: 10 },
+                                formatter: (val) => val > 0 ? val.toLocaleString('pt-BR') : ''
+                            }
+                        },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+                            y: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+                        }
+                    }
+                });
+            }
+
+            // Tabela
+            const tbody = document.getElementById('tableBody');
+            if (tbody) {
+                tbody.innerHTML = '';
+                document.getElementById('tableRecordCount').innerText = `Mostrando ${Math.min(50, filtered.length)} de ${filtered.length.toLocaleString('pt-BR')}`;
+                filtered.slice(0, 50).forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-800/60 transition-colors';
+                    tr.innerHTML = `
+                        <td class="px-4 py-2 font-mono text-slate-300">${row.data_fmt || '-'}</td>
+                        <td class="px-4 py-2 font-medium text-white">${row.filial || '-'}</td>
+                        <td class="px-4 py-2 font-mono text-blue-400 font-semibold">${row.nf || '-'}</td>
+                        <td class="px-4 py-2 truncate max-w-xs">${row.cliente || '-'}</td>
+                        <td class="px-4 py-2"><span class="px-2 py-0.5 rounded text-[11px] ${row.tipo && row.tipo.includes('B2B') ? 'bg-amber-900/60 text-amber-300' : 'bg-slate-800 text-slate-300'}">${row.tipo || '-'}</span></td>
+                        <td class="px-4 py-2 text-slate-200">${row.canal || '-'}</td>
+                        <td class="px-4 py-2 text-slate-400">${row.cidade || '-'}/${row.uf || '-'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        // Geração do Relatório PDF A4 Retrato
+        function gerarRelatorioPDF() {
+            showToast("Gerando relatório executivo em PDF...", "info");
+
+            const selMes = document.getElementById('filterMes');
+            const selFilial = document.getElementById('filterFilial');
+            const mesText = selMes.options[selMes.selectedIndex].text;
+            const filialText = selFilial.options[selFilial.selectedIndex].text;
+
+            document.querySelectorAll('#pdfReportTemplate #repRefMes').forEach(el => el.innerText = mesText);
+            document.querySelectorAll('#pdfReportTemplate #repRefFilial').forEach(el => el.innerText = filialText);
+
+            const repLogoHolder = document.getElementById('repLogoHolder');
+            repLogoHolder.innerHTML = '';
+            const clonedLogo = document.getElementById('logoWrapper').cloneNode(true);
+            clonedLogo.style.border = 'none'; clonedLogo.style.padding = '0';
+            repLogoHolder.appendChild(clonedLogo);
+
+            document.getElementById('repKpiTotal').innerText = document.getElementById('kpiTotal').innerText;
+            document.getElementById('repKpiMedia').innerText = document.getElementById('kpiMedia').innerText;
+            document.getElementById('repKpiPico').innerText = document.getElementById('kpiPico').innerText;
+            document.getElementById('repKpiMix').innerText = document.getElementById('kpiMix').innerText;
+            document.getElementById('repChart1Sub').innerText = document.getElementById('chart1Subtitle').innerText;
+
+            try {
+                if (chartEvolucao) document.getElementById('repImgEvolucao').src = chartEvolucao.toBase64Image('image/png', 1.0);
+                if (chartShareFilial) document.getElementById('repImgShare').src = chartShareFilial.toBase64Image('image/png', 1.0);
+                if (chartDiaSemana) document.getElementById('repImgDia').src = chartDiaSemana.toBase64Image('image/png', 1.0);
+                if (chartCanais) document.getElementById('repImgCanais').src = chartCanais.toBase64Image('image/png', 1.0);
+                if (chartRegioes) document.getElementById('repImgRegioes').src = chartRegioes.toBase64Image('image/png', 1.0);
+            } catch(e) {
+                console.warn("Erro ao capturar imagens dos gráficos:", e);
+            }
+
+            const element = document.getElementById('pdfReportTemplate');
+            element.style.display = 'flex';
+
+            const opt = {
+                margin: 0,
+                filename: `Relatorio_Paulicomp_${filialText.replace(/[^a-zA-Z0-9]/g, '_')}_${mesText.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#070b14' },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                element.style.display = 'none';
+                showToast("PDF gerado e baixado com sucesso!", "success");
+            }).catch(err => {
+                element.style.display = 'none';
+                console.error("Erro no PDF:", err);
+                showToast("Erro ao gerar PDF.", "error");
+            });
+        }
+
+        async function syncWithNeon() {
+            try {
+                const res = await fetch('/api/dispatches');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data) && data.length > 0) {
+                        database = data;
+                        localStorage.setItem('paulicomp_expedicao_db', JSON.stringify(database));
+                        populateMonthFilter();
+                        updateDashboard();
+                        showToast(`Sincronizado: ${database.length} registros da nuvem.`, "success");
+                    }
+                }
+            } catch (err) {
+                console.warn("Offline Neon:", err);
+            }
+        }
+
+        function processExcelFiles(files) {
+            if (!files || files.length === 0) return;
+
+            let filesProcessed = 0;
+            const newRecords = [];
+
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    try {
+                        const data = new Uint8Array(evt.target.result);
+                        const workbook = XLSX.read(data, { type: 'array', cellDates: false, raw: true });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+                        const fname = file.name.toUpperCase();
+                        let filial = "PAULICOMP SP";
+                        if (fname.includes("SUL")) filial = "PAULICOMP SUL";
+                        else if (fname.includes("COMP TRADE") || fname.includes("TRADE")) filial = "COMP TRADE";
+
+                        jsonRows.forEach(row => {
+                            const keys = Object.keys(row);
+                            const findKey = (candidates) => {
+                                for (const c of candidates) {
+                                    const match = keys.find(k => k.trim().toLowerCase() === c.toLowerCase());
+                                    if (match) return row[match];
+                                }
+                                return "";
+                            };
+
+                            const rawDate = findKey(['Data', 'DATA', 'Data Emissão', 'Data Emissao']);
+                            if (!rawDate && rawDate !== 0) return;
+
+                            let dataStr = "";
+                            let dataFmt = "";
+                            if (typeof rawDate === 'number') {
+                                const parsedDate = XLSX.SSF.parse_date_code(rawDate);
+                                const d = String(parsedDate.d).padStart(2, '0');
+                                const m = String(parsedDate.m).padStart(2, '0');
+                                const y = parsedDate.y;
+                                dataFmt = `${d}/${m}/${y}`;
+                                dataStr = `${y}-${m}-${d}`;
+                            } else {
+                                const str = String(rawDate).trim();
+                                if (str.includes('/')) {
+                                    const parts = str.split('/');
+                                    if (parts.length === 3) {
+                                        const d = parts[0].padStart(2, '0');
+                                        const m = parts[1].padStart(2, '0');
+                                        const y = parts[2].length === 2 ? '20' + parts[2] : parts[2];
+                                        dataFmt = `${d}/${m}/${y}`;
+                                        dataStr = `${y}-${m}-${d}`;
+                                    }
+                                }
+                            }
+
+                            if (!dataStr || dataStr.includes('undefined')) return;
+
+                            const nf = findKey(['Identificação', 'Identificacao', 'NF', 'Nota Fiscal']) || "-";
+                            const cliente = findKey(['Cliente', 'Destinatário', 'Nome']) || "-";
+                            const doc = String(findKey(['CPF / CNPJ', 'CPF/CNPJ', 'CNPJ', 'CPF']) || "").replace(/[^0-9]/g, '');
+                            const tipo = doc.length > 11 ? 'B2B (CNPJ)' : 'B2C (CPF)';
+                            const canal = findKey(['Forma de envio', 'Canal', 'Transportadora']) || "Mercado Envios";
+                            const uf = String(findKey(['UF', 'Estado']) || "SP").toUpperCase().trim();
+                            const cidade = findKey(['Cidade', 'Municipio']) || "-";
+                            const regiao = ufToRegion[uf] || 'Outros';
+
+                            const dObj = new Date(dataStr + 'T12:00:00');
+                            const diaSemana = ptDays[dObj.getDay()] || 'Segunda-feira';
+
+                            newRecords.push({
+                                filial: findKey(['Filial', 'Unidade']) || filial,
+                                data: dataStr,
+                                data_fmt: dataFmt,
+                                nf: String(nf),
+                                cliente: String(cliente),
+                                tipo: tipo,
+                                canal: String(canal),
+                                uf: uf,
+                                cidade: String(cidade),
+                                regiao: regiao,
+                                dia_semana: diaSemana
+                            });
+                        });
+                    } catch(err) {
+                        showToast(`Erro no arquivo ${file.name}`, "error");
+                    }
+
+                    filesProcessed++;
+                    if (filesProcessed === files.length) {
+                        if (newRecords.length > 0) {
+                            const existingKeys = new Set(database.map(d => `${d.filial}_${d.nf}_${d.data}`));
+                            const uniqueNew = newRecords.filter(d => !existingKeys.has(`${d.filial}_${d.nf}_${d.data}`));
+                            if (uniqueNew.length > 0) {
+                                database = [...database, ...uniqueNew];
+                                localStorage.setItem('paulicomp_expedicao_db', JSON.stringify(database));
+                                populateMonthFilter();
+                                updateDashboard();
+                                showToast(`<b>${uniqueNew.length}</b> novos registros carregados!`, "success");
+
+                                // Sincroniza com o Neon
+                                fetch('/api/dispatches', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(uniqueNew)
+                                }).catch(console.warn);
+                            } else {
+                                showToast("Registros já existentes.", "info");
+                            }
+                        }
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('paulicomp_expedicao_db');
+            if (saved) {
+                try { database = JSON.parse(saved); } catch(e){}
+            }
+
+            const savedLogo = localStorage.getItem('paulicomp_custom_logo');
+            const img = document.getElementById('logoImage');
+            if (img) {
+                img.src = savedLogo ? savedLogo : './logo-empresa.png';
+            }
+
+            populateMonthFilter();
+            updateDashboard();
+            syncWithNeon();
+
+            // Filtros
+            ['filterMes', 'filterFilial', 'filterCanal', 'filterTipo'].forEach(id => {
+                document.getElementById(id)?.addEventListener('change', updateDashboard);
+            });
+
+            // Botão PDF
+            document.getElementById('btnPdfReport')?.addEventListener('click', gerarRelatorioPDF);
+
+            // Modal
+            const modal = document.getElementById('dataModal');
+            document.getElementById('btnOpenModal')?.addEventListener('click', () => modal.classList.remove('hidden'));
+            document.getElementById('btnCloseModal')?.addEventListener('click', () => modal.classList.add('hidden'));
+
+            // Input de Planilha no Modal
+            document.getElementById('modalFileInput')?.addEventListener('change', (e) => {
+                processExcelFiles(e.target.files);
+                e.target.value = '';
+                modal.classList.add('hidden');
+            });
+
+            // Logo Upload
+            document.getElementById('logoWrapper')?.addEventListener('click', () => document.getElementById('logoUploadInput').click());
+            document.getElementById('logoUploadInput')?.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    localStorage.setItem('paulicomp_custom_logo', evt.target.result);
+                    document.getElementById('logoImage').src = evt.target.result;
+                    showToast("Logotipo alterado com sucesso!", "success");
+                };
+                reader.readAsDataURL(file);
+            });
+
+            // Exportar Excel
+            document.getElementById('btnExportExcel')?.addEventListener('click', () => {
+                const ws = XLSX.utils.json_to_sheet(database);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Base_Expedicao");
+                XLSX.writeFile(wb, "Base_Expedicao_Paulicomp.xlsx");
+            });
+
+            // Sincronizar
+            document.getElementById('btnSyncCloud')?.addEventListener('click', () => {
+                showToast("Sincronizando...", "info");
+                syncWithNeon();
+            });
+        });
+    </script>
+</body>
+</html>
