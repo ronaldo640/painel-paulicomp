@@ -2,9 +2,13 @@
   "functions": {
     "api/tiny-sync.js": {
       "maxDuration": 60
+    },
+    "api/tag-fulfillment.js": {
+      "maxDuration": 60
     }
   },
   "crons": [
-    { "path": "/api/tiny-sync", "schedule": "0 6 * * *" }
+    { "path": "/api/tiny-sync", "schedule": "0 6 * * *" },
+    { "path": "/api/tag-fulfillment", "schedule": "0 7 * * *" }
   ]
 }

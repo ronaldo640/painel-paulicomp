@@ -76,6 +76,9 @@ function mapNota(nf, filial) {
     cidade: entrega.cidade || cliente.cidade || "-",
     regiao: ufToRegion[uf] || 'Outros',
     dia_semana: ptDays[dObj.getDay()] || 'Segunda-feira',
+    // Guardado só para o processo separado de marcação de Fulfillment (api/tag-fulfillment.js)
+    // localizar o pedido correspondente depois — não é exibido no painel.
+    numero_ecommerce: nf.numero_ecommerce ? String(nf.numero_ecommerce) : null,
   };
 }
 
@@ -111,9 +114,15 @@ async function fetchFilial(token, filialNome, dataInicial, dataFinal) {
 }
 
 const INSERT_CHUNK_SIZE = 300; // registros por INSERT em lote (VALUES múltiplo), não 1 query por linha
-const DISPATCH_COLUMNS = ['filial', 'data', 'data_fmt', 'nf', 'cliente', 'tipo', 'canal', 'uf', 'cidade', 'regiao', 'dia_semana'];
+const DISPATCH_COLUMNS = ['filial', 'data', 'data_fmt', 'nf', 'cliente', 'tipo', 'canal', 'uf', 'cidade', 'regiao', 'dia_semana', 'numero_ecommerce'];
 
-async function insertRows(sql, rows) {
+export async function ensureDispatchesColumns(sql) {
+  // Coluna usada só pelo processo de marcação de Fulfillment (api/tag-fulfillment.js) para
+  // localizar o pedido correspondente a cada nota fiscal já sincronizada.
+  await sql`ALTER TABLE dispatches ADD COLUMN IF NOT EXISTS numero_ecommerce TEXT;`;
+}
+
+export async function insertRows(sql, rows) {
   let inserted = 0;
   for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
     const chunk = rows.slice(i, i + INSERT_CHUNK_SIZE);
@@ -123,6 +132,7 @@ async function insertRows(sql, rows) {
       params.push(
         item.filial, item.data, item.data_fmt, item.nf, item.cliente,
         item.tipo, item.canal, item.uf, item.cidade, item.regiao, item.dia_semana,
+        item.numero_ecommerce || null,
       );
       const placeholders = DISPATCH_COLUMNS.map((_, c) => `$${base + c + 1}`).join(', ');
       return `(${placeholders})`;
@@ -131,11 +141,11 @@ async function insertRows(sql, rows) {
     const text = `
       INSERT INTO dispatches (${DISPATCH_COLUMNS.join(', ')})
       VALUES ${valuesSql}
-      ON CONFLICT (filial, nf, data) DO NOTHING
-      RETURNING id;
+      ON CONFLICT (filial, nf, data) DO UPDATE SET numero_ecommerce = EXCLUDED.numero_ecommerce
+      RETURNING id, (xmax = 0) AS was_inserted;
     `;
     const result = await sql(text, params);
-    inserted += result.length;
+    inserted += result.filter(r => r.was_inserted).length;
   }
   return inserted;
 }
@@ -176,6 +186,7 @@ export default async function handler(req, res) {
   }
 
   const sql = neon(process.env.DATABASE_URL);
+  await ensureDispatchesColumns(sql);
 
   // Busca e grava as filiais em paralelo — a busca na API do Tiny é o gargalo,
   // não a escrita no banco (já feita em lote), então isso reduz bastante o tempo total.
