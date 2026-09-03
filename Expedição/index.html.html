@@ -608,19 +608,33 @@
         // Popula o filtro "Canal" com os valores reais que existem na base (em vez de uma
         // lista fixa) — assim, qualquer canal novo (ex: "Mercado Envios Fulfillment") aparece
         // automaticamente assim que passa a existir nos dados, sem precisar editar o código.
+        // Agrupa a dezena de variações reais de nome de transportadora (armazenadas como vieram
+        // do Tiny, sem alteração — ver mapNota() na sincronização) em 6 categorias fixas e
+        // legíveis para exibição no filtro e no gráfico "Canais Logísticos". A base em si
+        // continua guardando o valor original de cada nota (visível no Extrato).
+        const CANAIS_PRINCIPAIS = ['Mercado Envios', 'Mercado Envios Fulfillment', 'Shopee Envios', 'Retirada', 'Correios', 'Outros'];
+
+        function normalizeCanal(canalRaw) {
+            if (!canalRaw) return 'Outros';
+            const c = canalRaw.toLowerCase().trim();
+            if (c === 'mercado envios fulfillment') return 'Mercado Envios Fulfillment';
+            if (c.includes('shopee')) return 'Shopee Envios';
+            if (c.includes('mercado envio') || c.includes('mercado livre') || c.includes('ebazar') || c === 'marketplace' || c.includes('me2-cross')) return 'Mercado Envios';
+            if (c.includes('correios') || c.includes('sedex')) return 'Correios';
+            if (c.includes('retira') || c === 'coleta') return 'Retirada';
+            return 'Outros';
+        }
+
         function populateCanalFilter() {
             const select = document.getElementById('filterCanal');
             if (!select) return;
             const previousVal = select.value;
-            const canalSet = new Set();
-            database.forEach(d => { if (d.canal) canalSet.add(d.canal); });
-            const sortedCanais = Array.from(canalSet).sort((a, b) => a.localeCompare(b, 'pt-BR'));
             let html = '<option value="ALL">Todos os Canais</option>';
-            sortedCanais.forEach(canal => {
+            CANAIS_PRINCIPAIS.forEach(canal => {
                 html += `<option value="${canal}">${canal}</option>`;
             });
             select.innerHTML = html;
-            select.value = (previousVal === 'ALL' || sortedCanais.includes(previousVal)) ? previousVal : 'ALL';
+            select.value = (previousVal === 'ALL' || CANAIS_PRINCIPAIS.includes(previousVal)) ? previousVal : 'ALL';
         }
 
         function updateModalStats() {
@@ -649,7 +663,7 @@
             const filtered = database.filter(d => {
                 return (fMes === 'ALL' || (d.data && d.data.startsWith(fMes))) &&
                        (fFilial === 'ALL' || d.filial === fFilial) &&
-                       (fCanal === 'ALL' || d.canal === fCanal) &&
+                       (fCanal === 'ALL' || normalizeCanal(d.canal) === fCanal) &&
                        (fTipo === 'ALL' || d.tipo === fTipo);
             });
 
@@ -810,19 +824,14 @@
                 });
             }
 
-            // CHART 4: Canais (só exibe canais com mais de 10 envios; o restante vira "Outros")
+            // CHART 4: Canais — agrupado nas 6 categorias fixas (ver normalizeCanal), mesma
+            // lógica usada no filtro, para o gráfico e o filtro sempre baterem entre si.
             const canalMap = {};
-            filtered.forEach(d => { canalMap[d.canal] = (canalMap[d.canal] || 0) + 1; });
-            const canalEntries = Object.entries(canalMap);
-            const canalPrincipais = canalEntries.filter(([, v]) => v > 10).sort((a, b) => b[1] - a[1]);
-            const outrosTotal = canalEntries.filter(([, v]) => v <= 10).reduce((sum, [, v]) => sum + v, 0);
+            filtered.forEach(d => { const c = normalizeCanal(d.canal); canalMap[c] = (canalMap[c] || 0) + 1; });
+            const canalEntries = Object.entries(canalMap).sort((a, b) => b[1] - a[1]);
 
-            let canalLabels = canalPrincipais.map(([k]) => k);
-            let canalValues = canalPrincipais.map(([, v]) => v);
-            if (outrosTotal > 0) {
-                canalLabels.push('Outros');
-                canalValues.push(outrosTotal);
-            }
+            let canalLabels = canalEntries.map(([k]) => k);
+            let canalValues = canalEntries.map(([, v]) => v);
             if (canalLabels.length === 0) {
                 canalLabels = ['Sem dados'];
                 canalValues = [0];
