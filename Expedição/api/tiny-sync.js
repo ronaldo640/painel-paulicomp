@@ -172,6 +172,20 @@ export async function insertRows(sql, allRows) {
   return inserted;
 }
 
+// Remove do Neon qualquer nota que não apareceu na busca atual para essa filial+período —
+// ou seja, que não é mais uma nota de saída válida (foi cancelada, virou entrada, etc.).
+// Só mexe dentro da janela informada, nunca fora dela.
+async function reconcileFilial(sql, filialNome, dataInicialIso, dataFinalIso, validNfs) {
+  const result = await sql`
+    DELETE FROM dispatches
+    WHERE filial = ${filialNome}
+      AND data BETWEEN ${dataInicialIso} AND ${dataFinalIso}
+      AND NOT (nf = ANY(${validNfs}))
+    RETURNING id;
+  `;
+  return result.length;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
@@ -209,13 +223,25 @@ export default async function handler(req, res) {
 
   const sql = neon(process.env.DATABASE_URL);
 
+  // Opcional: além de inserir/atualizar, remove do Neon qualquer nota da janela que não
+  // apareceu mais na busca (não é mais saída válida). Fica fora do padrão porque é uma
+  // operação de limpeza — usar deliberadamente (?reconciliar=1), não em toda sincronização
+  // de rotina, até termos mais confiança nela.
+  const reconciliar = query.reconciliar === '1' || query.reconciliar === 'true';
+
   // Busca e grava as filiais em paralelo — a busca na API do Tiny é o gargalo,
   // não a escrita no banco (já feita em lote), então isso reduz bastante o tempo total.
   const results = await Promise.all(filiaisAtivas.map(async f => {
     try {
       const rows = await fetchFilial(process.env[f.env], f.nome, dataInicial, dataFinal);
       const inserted = await insertRows(sql, rows);
-      return { filial: f.nome, lidos: rows.length, inseridos: inserted };
+      let removidos;
+      if (reconciliar) {
+        const dataInicialIso = toIsoDate(dataInicial);
+        const dataFinalIso = toIsoDate(dataFinal);
+        removidos = await reconcileFilial(sql, f.nome, dataInicialIso, dataFinalIso, rows.map(r => r.nf));
+      }
+      return { filial: f.nome, lidos: rows.length, inseridos: inserted, removidos };
     } catch (err) {
       return { filial: f.nome, error: err.message };
     }
