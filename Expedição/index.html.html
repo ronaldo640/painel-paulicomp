@@ -137,9 +137,6 @@
                         <span class="text-xs font-semibold text-slate-400">Canal:</span>
                         <select id="filterCanal" class="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-md px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
                             <option value="ALL">Todos os Canais</option>
-                            <option value="Mercado Envios">Mercado Envios</option>
-                            <option value="Shopee Envios">Shopee Envios</option>
-                            <option value="Retirar pessoalmente">Retirar pessoalmente</option>
                         </select>
                     </div>
 
@@ -608,6 +605,24 @@
             select.value = validValues.has(previousVal) ? previousVal : 'ALL';
         }
 
+        // Popula o filtro "Canal" com os valores reais que existem na base (em vez de uma
+        // lista fixa) — assim, qualquer canal novo (ex: "Mercado Envios Fulfillment") aparece
+        // automaticamente assim que passa a existir nos dados, sem precisar editar o código.
+        function populateCanalFilter() {
+            const select = document.getElementById('filterCanal');
+            if (!select) return;
+            const previousVal = select.value;
+            const canalSet = new Set();
+            database.forEach(d => { if (d.canal) canalSet.add(d.canal); });
+            const sortedCanais = Array.from(canalSet).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+            let html = '<option value="ALL">Todos os Canais</option>';
+            sortedCanais.forEach(canal => {
+                html += `<option value="${canal}">${canal}</option>`;
+            });
+            select.innerHTML = html;
+            select.value = (previousVal === 'ALL' || sortedCanais.includes(previousVal)) ? previousVal : 'ALL';
+        }
+
         function updateModalStats() {
             const totalEl = document.getElementById('modalTotalRows');
             const monthEl = document.getElementById('modalTotalMonths');
@@ -957,6 +972,7 @@
                         database = data;
                         localStorage.setItem('paulicomp_expedicao_db', JSON.stringify(database));
                         populateMonthFilter();
+                        populateCanalFilter();
                         updateDashboard();
                         showToast(`Sincronizado: ${database.length} registros da nuvem.`, "success");
                     }
@@ -1088,6 +1104,7 @@
                 database = [...database, ...uniqueNew];
                 localStorage.setItem('paulicomp_expedicao_db', JSON.stringify(database));
                 populateMonthFilter();
+                populateCanalFilter();
                 updateDashboard();
                 updateModalStats();
                 fetch('/api/dispatches', {
@@ -1353,6 +1370,7 @@
             }
 
             populateMonthFilter();
+            populateCanalFilter();
             updateDashboard();
             syncWithNeon();
             refreshAuthUI();
