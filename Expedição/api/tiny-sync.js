@@ -121,7 +121,19 @@ async function fetchFilial(token, filialNome, dataInicial, dataFinal) {
 const INSERT_CHUNK_SIZE = 300; // registros por INSERT em lote (VALUES múltiplo), não 1 query por linha
 const DISPATCH_COLUMNS = ['filial', 'data', 'data_fmt', 'nf', 'cliente', 'tipo', 'canal', 'uf', 'cidade', 'regiao', 'dia_semana'];
 
-export async function insertRows(sql, rows) {
+export async function insertRows(sql, allRows) {
+  // O Tiny às vezes repete a mesma nota em páginas diferentes da mesma busca (paginação
+  // instável). Com ON CONFLICT DO UPDATE, duas linhas iguais no mesmo lote fazem o Postgres
+  // recusar a instrução inteira ("cannot affect row a second time") — então é preciso
+  // deduplicar por filial+nf+data antes de montar o INSERT.
+  const vistos = new Set();
+  const rows = allRows.filter(item => {
+    const chave = `${item.filial}_${item.nf}_${item.data}`;
+    if (vistos.has(chave)) return false;
+    vistos.add(chave);
+    return true;
+  });
+
   let inserted = 0;
   for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
     const chunk = rows.slice(i, i + INSERT_CHUNK_SIZE);
