@@ -25,7 +25,6 @@ const LOOKBACK_DAYS = 14; // janela padrão da rotina — histórico maior via d
 const MAX_CANDIDATOS_POR_FILIAL = 150;
 const STAGGER_MS = 300;
 const MAX_RETRIES = 3;
-const CANAL_GENERICO = 'Mercado Envios';
 const CANAL_FULFILLMENT = 'Mercado Envios Fulfillment';
 
 const TINY_FILIAIS = [
@@ -111,11 +110,16 @@ export default async function handler(req, res) {
   const results = await Promise.all(filiaisAtivas.map(async f => {
     const token = process.env[f.env];
     try {
+      // numero_ecommerce só existe em pedidos de marketplace (Mercado Livre etc.), então já
+      // restringe bem por si só — o canal de um envio Mercado Livre normal pode vir como
+      // "Mercado Envios" (nosso padrão) ou como o nome do transportador informado pelo Tiny
+      // (ex: "EBAZAR.COM.BR LTDA", a razão social do Mercado Livre), então checamos qualquer
+      // nota ainda não marcada como Fulfillment, não só a que caiu no rótulo genérico.
       const candidatos = await sql`
         SELECT nf, TO_CHAR(data, 'YYYY-MM-DD') AS data, numero_ecommerce
         FROM dispatches
         WHERE filial = ${f.nome}
-          AND canal = ${CANAL_GENERICO}
+          AND canal NOT ILIKE '%fulfillment%'
           AND numero_ecommerce IS NOT NULL
           AND data BETWEEN ${dataInicial} AND ${dataFinal}
         ORDER BY data DESC
