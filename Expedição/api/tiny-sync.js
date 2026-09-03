@@ -52,6 +52,13 @@ function mapNota(nf, filial) {
   const situacaoTexto = (nf.descricao_situacao || "").toLowerCase();
   if (situacaoTexto.includes("cancelad")) return null;
 
+  // "tipo" na nota fiscal é a direção do documento: "S" (Saída, venda/expedição) ou "E"
+  // (Entrada, compra). Notas de entrada não são despacho nenhum — descobrimos isso ao
+  // investigar notas da série 2 da SUL e da COMP TRADE marcadas incorretamente como
+  // Fulfillment: eram, na verdade, notas de entrada usando a mesma série por numeração
+  // interna do Tiny, sem relação com expedição.
+  if (nf.tipo !== "S") return null;
+
   const dataIso = toIsoDate(nf.data_emissao);
   if (!dataIso) return null;
 
@@ -64,10 +71,11 @@ function mapNota(nf, filial) {
   const uf = String(entrega.uf || cliente.uf || "SP").toUpperCase().trim();
   const dObj = new Date(dataIso + 'T12:00:00');
 
-  // Notas da série 2 são Mercado Envios Fulfillment (Full) — confirmado com dados reais de
-  // PAULICOMP SP e COMP TRADE. Não exige nenhuma chamada extra: a série já vem na própria
-  // busca de notas fiscais, ao contrário de outros indícios (ecommerce/depósito) que só
-  // aparecem no detalhe do pedido, 1 chamada por pedido.
+  // Entre as notas de saída (tipo "S", já garantido acima), série 2 é Mercado Envios
+  // Fulfillment (Full) — confirmado com dados reais de PAULICOMP SP e COMP TRADE. Não exige
+  // nenhuma chamada extra: a série já vem na própria busca de notas fiscais, ao contrário de
+  // outros indícios (ecommerce/depósito) que só aparecem no detalhe do pedido, 1 chamada por
+  // pedido.
   const canal = String(nf.serie) === "2"
     ? "Mercado Envios Fulfillment"
     : (transportador.nome && transportador.nome.trim()) || "Mercado Envios";
