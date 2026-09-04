@@ -544,6 +544,24 @@
             {"filial":"COMP TRADE","data":"2026-08-03","data_fmt":"03/08/2026","nf":"NF 019686","cliente":"Cliente Trade 19686","tipo":"B2C (CPF)","canal":"Mercado Envios","uf":"RS","cidade":"São Paulo","regiao":"Sul","dia_semana":"Segunda-feira"}
         ];
 
+        // v2: invalida caches locais antigos. A base já passa de 13MB em JSON, acima da cota
+        // de localStorage de muitos navegadores (normalmente 5-10MB por site) — se estourar,
+        // isso NUNCA pode impedir o painel de exibir os dados já carregados na memória, então
+        // a escrita no cache é isolada e silenciosamente ignorável em caso de erro.
+        const EXPEDICAO_CACHE_KEY = 'paulicomp_expedicao_db_v2';
+        function saveExpedicaoCache(db) {
+            try {
+                localStorage.setItem(EXPEDICAO_CACHE_KEY, JSON.stringify(db));
+            } catch (err) {
+                console.warn("Não foi possível salvar cache local (provável cota excedida):", err);
+            }
+        }
+        // Conta cada chamada a syncWithNeon(): como a resposta é grande, duas buscas podem
+        // ficar em voo ao mesmo tempo (carga inicial da página + sincronização manual/
+        // automática) e resolver fora de ordem. Só a última chamada disparada pode aplicar seu
+        // resultado — evita que uma busca mais lenta e antiga sobrescreva dados recém-sincronizados.
+        let expedicaoSyncSeq = 0;
+
         let chartEvolucao = null, chartShareFilial = null, chartDiaSemana = null, chartCanais = null, chartRegioes = null;
 
         const ptDays = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -976,22 +994,39 @@
             });
         }
 
-        async function syncWithNeon() {
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        // A base já passa de 13MB numa única resposta — em conexões mais lentas ou instáveis
+        // a busca pode falhar sem ser um erro real do servidor, então tenta de novo algumas
+        // vezes antes de desistir e avisar o usuário.
+        async function syncWithNeon(tentativa = 1, requestId = ++expedicaoSyncSeq) {
+            const MAX_TENTATIVAS = 3;
             try {
                 const res = await fetch('/api/dispatches');
                 if (res.ok) {
                     const data = await res.json();
+                    // Descarta a resposta se uma chamada mais recente a syncWithNeon() já foi
+                    // disparada enquanto esta estava em voo — ela venceria a corrida por engano.
+                    if (requestId !== expedicaoSyncSeq) return;
                     if (Array.isArray(data) && data.length > 0) {
                         database = data;
-                        localStorage.setItem('paulicomp_expedicao_db', JSON.stringify(database));
+                        saveExpedicaoCache(database);
                         populateMonthFilter();
                         populateCanalFilter();
                         updateDashboard();
                         showToast(`Sincronizado: ${database.length} registros da nuvem.`, "success");
                     }
+                    return;
                 }
+                throw new Error(`HTTP ${res.status}`);
             } catch (err) {
-                console.warn("Offline Neon:", err);
+                console.warn(`Falha ao sincronizar com Neon (tentativa ${tentativa}):`, err);
+                if (requestId !== expedicaoSyncSeq) return;
+                if (tentativa < MAX_TENTATIVAS) {
+                    await sleep(1500 * tentativa);
+                    return syncWithNeon(tentativa + 1, requestId);
+                }
+                showToast("Sem conexão com o Neon após várias tentativas — exibindo dados salvos localmente.", "error");
             }
         }
 
@@ -1115,7 +1150,7 @@
             const uniqueNew = newRecords.filter(d => !existingKeys.has(`${d.filial}_${d.nf}_${d.data}`));
             if (uniqueNew.length > 0) {
                 database = [...database, ...uniqueNew];
-                localStorage.setItem('paulicomp_expedicao_db', JSON.stringify(database));
+                saveExpedicaoCache(database);
                 populateMonthFilter();
                 populateCanalFilter();
                 updateDashboard();
@@ -1371,7 +1406,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            const saved = localStorage.getItem('paulicomp_expedicao_db');
+            const saved = localStorage.getItem(EXPEDICAO_CACHE_KEY);
             if (saved) {
                 try { database = JSON.parse(saved); } catch(e){}
             }
