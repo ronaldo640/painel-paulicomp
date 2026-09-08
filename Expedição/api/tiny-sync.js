@@ -227,13 +227,19 @@ export default async function handler(req, res) {
   if (query.debug === 'raw') {
     const f = filiaisAtivas[0];
     const token = process.env[f.env];
-    const params = new URLSearchParams({ token, formato: 'json', pagina: '1' });
+    const params = new URLSearchParams({ token, formato: 'json', pagina: String(query.pagina || '1') });
     if (dataInicial) params.set('dataInicial', dataInicial);
     if (dataFinal) params.set('dataFinal', dataFinal);
     const resp = await fetch(`${TINY_BASE_URL}?${params.toString()}`);
     const json = await resp.json();
-    const notas = ((json.retorno || {}).notas_fiscais || []).slice(0, 5).map(item => item.nota_fiscal);
-    return res.status(200).json({ ok: true, filial: f.nome, amostra: notas });
+    const todas = ((json.retorno || {}).notas_fiscais || []).map(item => item.nota_fiscal);
+    const comTransportador = todas.filter(n => n.transportador && n.transportador.nome && n.transportador.nome.trim());
+    const semTransportador = todas.filter(n => !n.transportador || !n.transportador.nome || !n.transportador.nome.trim());
+    return res.status(200).json({
+      ok: true, filial: f.nome, totalPagina: todas.length,
+      comTransportador: comTransportador.slice(0, 5),
+      semTransportador: semTransportador.slice(0, 5),
+    });
   }
 
   const sql = neon(process.env.DATABASE_URL);
