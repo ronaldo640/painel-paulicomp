@@ -71,6 +71,15 @@ function mapNota(nf, filial) {
   const uf = String(entrega.uf || cliente.uf || "SP").toUpperCase().trim();
   const dObj = new Date(dataIso + 'T12:00:00');
 
+  // Pedidos do Shopee chegam ao Tiny sem transportador cadastrado — sem isso, caíam todos no
+  // fallback "Mercado Envios" por engano. O jeito confiável de identificar (confirmado pelo
+  // cliente com dados reais) é o número do pedido do ecommerce: o Shopee usa uma sequência de
+  // 14 caracteres alfanuméricos (ex: "260801826HJ15H"), enquanto o Mercado Livre usa um número
+  // longo só de dígitos (ex: "2000014366252653") — por isso a checagem exige pelo menos uma
+  // letra, não só o comprimento.
+  const numeroEcommerce = String(nf.numero_ecommerce || "").trim();
+  const pareceShopee = numeroEcommerce.length === 14 && /[A-Za-z]/.test(numeroEcommerce);
+
   // Entre as notas de saída (tipo "S", já garantido acima), série 2 é Mercado Envios
   // Fulfillment (Full) — confirmado com dados reais de PAULICOMP SP e COMP TRADE. Não exige
   // nenhuma chamada extra: a série já vem na própria busca de notas fiscais, ao contrário de
@@ -78,6 +87,8 @@ function mapNota(nf, filial) {
   // pedido.
   const canal = String(nf.serie) === "2"
     ? "Mercado Envios Fulfillment"
+    : pareceShopee
+    ? "Shopee Envios"
     : (transportador.nome && transportador.nome.trim()) || "Mercado Envios";
 
   return {
@@ -218,27 +229,6 @@ export default async function handler(req, res) {
       warning: filialFiltro
         ? `Token não configurado para a filial "${filialFiltro}".`
         : 'Nenhum token do Tiny configurado nas variáveis de ambiente da Vercel (TINY_TOKEN_SP / TINY_TOKEN_SUL / TINY_TOKEN_TRADE).',
-    });
-  }
-
-  // Modo de diagnóstico temporário (?debug=raw): devolve a nota fiscal crua do Tiny sem
-  // mapear nem gravar nada — usado só pra descobrir em qual campo o Tiny expõe o número do
-  // pedido do marketplace (ex: Shopee), pra distinguir canal de venda de transportadora.
-  if (query.debug === 'raw') {
-    const f = filiaisAtivas[0];
-    const token = process.env[f.env];
-    const params = new URLSearchParams({ token, formato: 'json', pagina: String(query.pagina || '1') });
-    if (dataInicial) params.set('dataInicial', dataInicial);
-    if (dataFinal) params.set('dataFinal', dataFinal);
-    const resp = await fetch(`${TINY_BASE_URL}?${params.toString()}`);
-    const json = await resp.json();
-    const todas = ((json.retorno || {}).notas_fiscais || []).map(item => item.nota_fiscal);
-    const comTransportador = todas.filter(n => n.transportador && n.transportador.nome && n.transportador.nome.trim());
-    const semTransportador = todas.filter(n => !n.transportador || !n.transportador.nome || !n.transportador.nome.trim());
-    return res.status(200).json({
-      ok: true, filial: f.nome, totalPagina: todas.length,
-      comTransportador: comTransportador.slice(0, 5),
-      semTransportador: semTransportador.slice(0, 5),
     });
   }
 
