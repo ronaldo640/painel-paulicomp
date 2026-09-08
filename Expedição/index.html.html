@@ -675,12 +675,13 @@
             const fTipo = document.getElementById('filterTipo')?.value || 'ALL';
 
             // "ALL" (tudo) ou um ano inteiro (ex: "2026") cobrem vários meses — agrupar por mês
-            // evita um gráfico poluído com dezenas de barras quinzenais/diárias.
+            // (ou por ano, quando é "Todos os Meses") evita um gráfico poluído com dezenas de
+            // barras quinzenais/diárias.
             const isMultiMonth = (fMes === 'ALL' || fMes.length === 4);
             const granText = document.getElementById('granularityText');
             const chartSub = document.getElementById('chart1Subtitle');
-            if (granText) granText.innerText = isMultiMonth ? "Visão Mensal (Consolidado)" : "Visão Diária Detalhada";
-            if (chartSub) chartSub.innerText = isMultiMonth ? "Agrupado por Mês" : "Detalhamento Diário";
+            if (granText) granText.innerText = fMes === 'ALL' ? "Visão Anual (Consolidado)" : (isMultiMonth ? "Visão Mensal (Consolidado)" : "Visão Diária Detalhada");
+            if (chartSub) chartSub.innerText = fMes === 'ALL' ? "Agrupado por Ano" : (isMultiMonth ? "Agrupado por Mês" : "Detalhamento Diário");
 
             const filtered = database.filter(d => {
                 return (fMes === 'ALL' || (d.data && d.data.startsWith(fMes))) &&
@@ -717,6 +718,16 @@
             let labels1 = [], data1 = [];
             if (total === 0) {
                 labels1 = ['Sem Dados']; data1 = [0];
+            } else if (fMes === 'ALL') {
+                const yMap = {};
+                filtered.forEach(d => {
+                    if (!d.data) return;
+                    const y = d.data.substring(0, 4);
+                    yMap[y] = (yMap[y] || 0) + 1;
+                });
+                const sortedYears = Object.keys(yMap).sort();
+                labels1 = sortedYears;
+                data1 = sortedYears.map(y => yMap[y]);
             } else if (isMultiMonth) {
                 const mMap = {};
                 filtered.forEach(d => {
