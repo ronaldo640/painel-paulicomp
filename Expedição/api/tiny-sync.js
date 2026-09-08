@@ -221,6 +221,21 @@ export default async function handler(req, res) {
     });
   }
 
+  // Modo de diagnóstico temporário (?debug=raw): devolve a nota fiscal crua do Tiny sem
+  // mapear nem gravar nada — usado só pra descobrir em qual campo o Tiny expõe o número do
+  // pedido do marketplace (ex: Shopee), pra distinguir canal de venda de transportadora.
+  if (query.debug === 'raw') {
+    const f = filiaisAtivas[0];
+    const token = process.env[f.env];
+    const params = new URLSearchParams({ token, formato: 'json', pagina: '1' });
+    if (dataInicial) params.set('dataInicial', dataInicial);
+    if (dataFinal) params.set('dataFinal', dataFinal);
+    const resp = await fetch(`${TINY_BASE_URL}?${params.toString()}`);
+    const json = await resp.json();
+    const notas = ((json.retorno || {}).notas_fiscais || []).slice(0, 5).map(item => item.nota_fiscal);
+    return res.status(200).json({ ok: true, filial: f.nome, amostra: notas });
+  }
+
   const sql = neon(process.env.DATABASE_URL);
 
   // Opcional: além de inserir/atualizar, remove do Neon qualquer nota da janela que não
