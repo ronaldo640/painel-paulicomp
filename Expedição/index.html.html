@@ -345,7 +345,7 @@
                         <span>Importar Planilha (.xls / .xlsx)</span>
                         <input type="file" id="modalFileInput" accept=".xls,.xlsx,.csv" multiple class="hidden">
                     </label>
-                    <button id="btnExportExcel" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition">Exportar Base Completa</button>
+                    <button id="btnExportExcel" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition">Exportar Base (Filtro Atual)</button>
                     <button id="btnSyncCloud" class="bg-cyan-900/60 hover:bg-cyan-800 text-cyan-300 border border-cyan-700 text-xs font-semibold px-3 py-2.5 rounded-lg transition ml-auto">Forçar Sincronização</button>
                 </div>
             </div>
@@ -563,6 +563,7 @@
         let expedicaoSyncSeq = 0;
 
         let chartEvolucao = null, chartShareFilial = null, chartDiaSemana = null, chartCanais = null, chartRegioes = null;
+        let lastFilteredData = []; // último conjunto filtrado (Mês/Filial/Canal/Tipo), reaproveitado na exportação Excel
 
         const ptDays = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
         const ptMonths = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -689,6 +690,7 @@
                        (fCanal === 'ALL' || normalizeCanal(d.canal) === fCanal) &&
                        (fTipo === 'ALL' || d.tipo === fTipo);
             });
+            lastFilteredData = filtered; // reaproveitado na exportação Excel, pra exportar só o que está filtrado na tela
 
             const total = filtered.length;
             document.getElementById('kpiTotal').innerText = total.toLocaleString('pt-BR');
@@ -1490,9 +1492,14 @@
                 reader.readAsDataURL(file);
             });
 
-            // Exportar Excel
+            // Exportar Excel — só o que está filtrado na tela (Mês/Filial/Canal/Tipo), igual ao
+            // painel de Separação.
             document.getElementById('btnExportExcel')?.addEventListener('click', () => {
-                const ws = XLSX.utils.json_to_sheet(database);
+                if (lastFilteredData.length === 0) {
+                    showToast("Nenhum registro para exportar com os filtros atuais.", "error");
+                    return;
+                }
+                const ws = XLSX.utils.json_to_sheet(lastFilteredData);
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, "Base_Expedicao");
                 XLSX.writeFile(wb, "Base_Expedicao_Paulicomp.xlsx");
