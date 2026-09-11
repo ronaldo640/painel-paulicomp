@@ -418,9 +418,15 @@
                         <input type="number" min="1" step="1" id="cxRegraQtdMax" placeholder="3">
                     </div>
                 </div>
-                <div class="cx-field">
-                    <label>Caixa usada</label>
-                    <select id="cxRegraModelo"></select>
+                <div style="display:flex;gap:10px;">
+                    <div class="cx-field" style="flex:2;">
+                        <label>Caixa usada</label>
+                        <select id="cxRegraModelo"></select>
+                    </div>
+                    <div class="cx-field" style="flex:1;">
+                        <label>Qtd. de caixas</label>
+                        <input type="number" min="1" step="1" id="cxRegraQtdCaixas" value="1">
+                    </div>
                 </div>
                 <div class="cx-field">
                     <label>Cliente (opcional)</label>
@@ -959,7 +965,7 @@
                         </td>
                         <td class="num">${faixa}</td>
                         <td>${r.cliente || '<span class="cx-box-sub">qualquer cliente</span>'}</td>
-                        <td>${r.modelo_nome}</td>
+                        <td>${r.modelo_nome}${r.qtd_caixas > 1 ? ` <span class="cx-box-sub">(${r.qtd_caixas}x)</span>` : ''}</td>
                         <td style="white-space:nowrap;">
                             <button class="cx-icon-btn" data-edit-regra="${r.id}" title="Editar regra">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -1077,6 +1083,7 @@
             document.getElementById('cxRegraQtdMin').value = regra?.qtd_min ?? '';
             document.getElementById('cxRegraQtdMax').value = regra?.qtd_max ?? '';
             document.getElementById('cxRegraModelo').value = regra ? regra.modelo_id : document.getElementById('cxRegraModelo').options[0]?.value;
+            document.getElementById('cxRegraQtdCaixas').value = regra?.qtd_caixas ?? 1;
             document.getElementById('cxRegraCliente').value = regra?.cliente ?? '';
             document.getElementById('cxRegraObs').value = regra?.observacao ?? '';
             document.getElementById('cxRegraModalTitle').textContent = regra ? 'Editar regra de embalagem' : 'Nova regra de embalagem';
@@ -1089,6 +1096,7 @@
             const qtdMin = document.getElementById('cxRegraQtdMin').value ? Number(document.getElementById('cxRegraQtdMin').value) : null;
             const qtdMax = document.getElementById('cxRegraQtdMax').value ? Number(document.getElementById('cxRegraQtdMax').value) : null;
             const modeloId = Number(document.getElementById('cxRegraModelo').value);
+            const qtdCaixas = Number(document.getElementById('cxRegraQtdCaixas').value) || 1;
             const cliente = document.getElementById('cxRegraCliente').value.trim();
             const observacao = document.getElementById('cxRegraObs').value.trim();
 
@@ -1110,7 +1118,7 @@
                     body: JSON.stringify({
                         id: cxRegraEditingId,
                         skus: cxRegraSkus.map(p => p.sku),
-                        qtd_min: qtdMin, qtd_max: qtdMax, modelo_id: modeloId,
+                        qtd_min: qtdMin, qtd_max: qtdMax, modelo_id: modeloId, qtd_caixas: qtdCaixas,
                         cliente: cliente || null, observacao: observacao || null,
                     }),
                 });

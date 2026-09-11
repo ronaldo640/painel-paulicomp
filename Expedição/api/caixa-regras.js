@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     try {
       const regras = await sql`
         SELECT r.id, r.descricao, r.qtd_min, r.qtd_max, r.modelo_id, cm.nome AS modelo_nome,
-               r.cliente, r.observacao, r.ativa
+               r.qtd_caixas, r.cliente, r.observacao, r.ativa
         FROM caixa_regras r
         JOIN caixa_modelos cm ON cm.id = r.modelo_id
         ORDER BY r.created_at DESC
@@ -46,7 +46,7 @@ export default async function handler(req, res) {
 
   if (req.method === 'POST') {
     try {
-      const { skus, qtd_min, qtd_max, modelo_id, cliente, observacao, descricao } = req.body || {};
+      const { skus, qtd_min, qtd_max, modelo_id, qtd_caixas, cliente, observacao, descricao } = req.body || {};
       const skuList = Array.isArray(skus) ? skus.filter(Boolean) : [];
       if (skuList.length === 0) {
         return res.status(400).json({ error: 'Selecione pelo menos um SKU.' });
@@ -54,12 +54,13 @@ export default async function handler(req, res) {
       if (!modelo_id) return res.status(400).json({ error: 'Campo "modelo_id" é obrigatório.' });
 
       const [regra] = await sql`
-        INSERT INTO caixa_regras (descricao, qtd_min, qtd_max, modelo_id, cliente, observacao)
+        INSERT INTO caixa_regras (descricao, qtd_min, qtd_max, modelo_id, qtd_caixas, cliente, observacao)
         VALUES (
           ${descricao ? String(descricao).trim() : null},
           ${qtd_min ?? null},
           ${qtd_max ?? null},
           ${modelo_id},
+          ${qtd_caixas ?? 1},
           ${cliente || null},
           ${observacao || null}
         )
@@ -79,7 +80,7 @@ export default async function handler(req, res) {
 
   if (req.method === 'PUT') {
     try {
-      const { id, skus, qtd_min, qtd_max, modelo_id, cliente, observacao, descricao } = req.body || {};
+      const { id, skus, qtd_min, qtd_max, modelo_id, qtd_caixas, cliente, observacao, descricao } = req.body || {};
       if (!id) return res.status(400).json({ error: 'Campo "id" é obrigatório.' });
       const skuList = Array.isArray(skus) ? skus.filter(Boolean) : [];
       if (skuList.length === 0) {
@@ -93,6 +94,7 @@ export default async function handler(req, res) {
           qtd_min = ${qtd_min ?? null},
           qtd_max = ${qtd_max ?? null},
           modelo_id = ${modelo_id},
+          qtd_caixas = ${qtd_caixas ?? 1},
           cliente = ${cliente || null},
           observacao = ${observacao || null}
         WHERE id = ${id}
