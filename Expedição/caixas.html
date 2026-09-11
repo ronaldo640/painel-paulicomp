@@ -400,7 +400,7 @@
             </div>
             <div class="cx-modal-body">
                 <div class="cx-field">
-                    <label>Produto(s) — busque por SKU ou nome</label>
+                    <label>Produto(s) — digite e clique no resultado (ou Enter) pra adicionar</label>
                     <input type="text" id="cxRegraSkuSearch" placeholder="ex: SC10P42352 ou Tela...">
                     <div class="cx-sku-results" id="cxRegraSkuResults" style="display:none;"></div>
                     <div class="cx-sku-chips" id="cxRegraSkuChips"></div>
@@ -919,6 +919,8 @@
         // ---------------------------------------------------------------
         let cxProdutos = []; // cache de /api/produto-caixa pra busca client-side
         let cxRegraSkus = []; // SKUs escolhidos no modal aberto no momento
+        let cxRegrasCache = []; // última lista de regras carregada, pra abrir o modal de edição sem refetch
+        let cxRegraEditingId = null; // null = criando regra nova; caso contrário, id da regra em edição
 
         async function cxLoadProdutos() {
             try {
@@ -955,7 +957,10 @@
                         <td class="num">${faixa}</td>
                         <td>${r.cliente || '<span class="cx-box-sub">qualquer cliente</span>'}</td>
                         <td>${r.modelo_nome}</td>
-                        <td>
+                        <td style="white-space:nowrap;">
+                            <button class="cx-icon-btn" data-edit-regra="${r.id}" title="Editar regra">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
                             <button class="cx-icon-btn" data-del-regra="${r.id}" title="Excluir regra">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9.5 7V4a1 1 0 011-1h3a1 1 0 011 1v3M4 7h16"/></svg>
                             </button>
@@ -963,6 +968,12 @@
                     </tr>`;
             }).join('');
 
+            tbody.querySelectorAll('[data-edit-regra]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const regra = cxRegrasCache.find(r => r.id === Number(btn.dataset.editRegra));
+                    if (regra) cxOpenRegraModal(regra);
+                });
+            });
             tbody.querySelectorAll('[data-del-regra]').forEach(btn => {
                 btn.addEventListener('click', () => cxDeleteRegra(btn.dataset.delRegra));
             });
@@ -973,6 +984,7 @@
                 const resp = await fetch('/api/caixa-regras');
                 const regras = await resp.json();
                 if (!resp.ok) throw new Error(regras.error || 'Erro ao carregar regras.');
+                cxRegrasCache = regras;
                 cxRenderRegras(regras);
             } catch (err) {
                 cxToast('Erro ao carregar regras de embalagem: ' + err.message, 'error');
@@ -994,15 +1006,32 @@
             });
         }
 
-        function cxSearchSkus(query) {
+        function cxAddSku(p) {
+            if (!p) return;
+            if (cxRegraSkus.some(x => x.sku === p.sku)) return;
+            cxRegraSkus.push(p);
+            cxRenderSkuChips();
             const results = document.getElementById('cxRegraSkuResults');
-            const q = query.trim().toLowerCase();
-            if (!q) { results.style.display = 'none'; results.innerHTML = ''; return; }
+            document.getElementById('cxRegraSkuSearch').value = '';
+            results.style.display = 'none';
+            results.innerHTML = '';
+        }
 
+        function cxFindSkuMatches(query) {
+            const q = query.trim().toLowerCase();
+            if (!q) return [];
             const jaEscolhidos = new Set(cxRegraSkus.map(p => p.sku));
-            const matches = cxProdutos
+            return cxProdutos
                 .filter(p => !jaEscolhidos.has(p.sku) && (p.sku.toLowerCase().includes(q) || p.produto.toLowerCase().includes(q)))
                 .slice(0, 8);
+        }
+
+        function cxSearchSkus(query) {
+            const results = document.getElementById('cxRegraSkuResults');
+            const q = query.trim();
+            if (!q) { results.style.display = 'none'; results.innerHTML = ''; return; }
+
+            const matches = cxFindSkuMatches(q);
 
             if (matches.length === 0) {
                 results.style.display = 'block';
@@ -1013,24 +1042,24 @@
             results.innerHTML = matches.map(p => `<div data-pick-sku="${p.sku}"><span class="sku">${p.sku}</span>${p.produto}</div>`).join('');
             results.querySelectorAll('[data-pick-sku]').forEach(el => {
                 el.addEventListener('click', () => {
-                    const p = cxProdutos.find(x => x.sku === el.dataset.pickSku);
-                    if (p) { cxRegraSkus.push(p); cxRenderSkuChips(); }
-                    document.getElementById('cxRegraSkuSearch').value = '';
-                    results.style.display = 'none';
-                    results.innerHTML = '';
+                    cxAddSku(cxProdutos.find(x => x.sku === el.dataset.pickSku));
                 });
             });
         }
 
-        function cxOpenRegraModal() {
-            cxRegraSkus = [];
+        function cxOpenRegraModal(regra) {
+            cxRegraEditingId = regra ? regra.id : null;
+            cxRegraSkus = regra ? regra.produtos.map(p => ({ sku: p.sku, produto: p.produto })) : [];
             cxRenderSkuChips();
             document.getElementById('cxRegraSkuSearch').value = '';
             document.getElementById('cxRegraSkuResults').style.display = 'none';
-            document.getElementById('cxRegraQtdMin').value = '';
-            document.getElementById('cxRegraQtdMax').value = '';
-            document.getElementById('cxRegraCliente').value = '';
-            document.getElementById('cxRegraObs').value = '';
+            document.getElementById('cxRegraQtdMin').value = regra?.qtd_min ?? '';
+            document.getElementById('cxRegraQtdMax').value = regra?.qtd_max ?? '';
+            document.getElementById('cxRegraModelo').value = regra ? regra.modelo_id : document.getElementById('cxRegraModelo').options[0]?.value;
+            document.getElementById('cxRegraCliente').value = regra?.cliente ?? '';
+            document.getElementById('cxRegraObs').value = regra?.observacao ?? '';
+            document.getElementById('cxRegraModalTitle').textContent = regra ? 'Editar regra de embalagem' : 'Nova regra de embalagem';
+            document.getElementById('cxBtnSaveRegra').textContent = regra ? 'Salvar alterações' : 'Salvar regra';
             document.getElementById('cxRegraModal').hidden = false;
         }
         function cxCloseRegraModal() { document.getElementById('cxRegraModal').hidden = true; }
@@ -1045,13 +1074,15 @@
             if (cxRegraSkus.length === 0) return cxToast('Selecione pelo menos um SKU.', 'error');
             if (!modeloId) return cxToast('Escolha a caixa usada.', 'error');
 
+            const isEditing = cxRegraEditingId !== null;
             const btn = document.getElementById('cxBtnSaveRegra');
             btn.disabled = true;
             try {
                 const resp = await fetch('/api/caixa-regras', {
-                    method: 'POST',
+                    method: isEditing ? 'PUT' : 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        id: cxRegraEditingId,
                         skus: cxRegraSkus.map(p => p.sku),
                         qtd_min: qtdMin, qtd_max: qtdMax, modelo_id: modeloId,
                         cliente: cliente || null, observacao: observacao || null,
@@ -1059,7 +1090,7 @@
                 });
                 const json = await resp.json();
                 if (!resp.ok) throw new Error(json.error || 'Erro ao salvar.');
-                cxToast('Regra cadastrada.', 'success');
+                cxToast(isEditing ? 'Regra atualizada.' : 'Regra cadastrada.', 'success');
                 cxCloseRegraModal();
                 await cxLoadRegras();
             } catch (err) {
@@ -1101,12 +1132,23 @@
         document.getElementById('cxBtnSaveCadastro').addEventListener('click', cxSaveCadastro);
         document.getElementById('cxCadastroModal').addEventListener('click', e => { if (e.target.id === 'cxCadastroModal') cxCloseCadastroModal(); });
 
-        document.getElementById('cxBtnOpenRegra').addEventListener('click', cxOpenRegraModal);
+        document.getElementById('cxBtnOpenRegra').addEventListener('click', () => cxOpenRegraModal());
         document.getElementById('cxBtnCloseRegra').addEventListener('click', cxCloseRegraModal);
         document.getElementById('cxBtnCancelRegra').addEventListener('click', cxCloseRegraModal);
         document.getElementById('cxBtnSaveRegra').addEventListener('click', cxSaveRegra);
         document.getElementById('cxRegraModal').addEventListener('click', e => { if (e.target.id === 'cxRegraModal') cxCloseRegraModal(); });
         document.getElementById('cxRegraSkuSearch').addEventListener('input', e => cxSearchSkus(e.target.value));
+        document.getElementById('cxRegraSkuSearch').addEventListener('keydown', e => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault(); // não deixa o Enter "enviar" o modal sem querer
+            const q = e.target.value.trim();
+            if (!q) return;
+            const matches = cxFindSkuMatches(q);
+            if (matches.length === 0) return;
+            // se digitou o SKU certinho, prioriza o match exato; senão pega o primeiro da lista
+            const exato = matches.find(p => p.sku.toLowerCase() === q.toLowerCase());
+            cxAddSku(exato || matches[0]);
+        });
 
         document.addEventListener('keydown', e => {
             if (e.key !== 'Escape') return;

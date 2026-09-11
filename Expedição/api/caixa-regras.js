@@ -2,15 +2,15 @@
 // quantidade/combinação que usam uma caixa diferente da padrão, ex:
 // "até 3 telas desmontadas do mesmo SKU cabem na caixa de 1 tela").
 // Cada regra referencia um ou mais SKUs reais (produto_caixa), não uma
-// descrição livre. GET lista, POST cria, DELETE remove. É só um
-// repositório por enquanto — não calcula nada sozinho, alimenta a
-// automação de consumo mais pra frente.
+// descrição livre. GET lista, POST cria, PUT edita (substitui a lista de
+// SKUs inteira), DELETE remove. É só um repositório por enquanto — não
+// calcula nada sozinho, alimenta a automação de consumo mais pra frente.
 
 import { neon } from '@neondatabase/serverless';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -73,6 +73,43 @@ export default async function handler(req, res) {
       return res.status(201).json({ id: regra.id, skus: skuList });
     } catch (error) {
       console.error('Erro POST caixa_regras:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
+  if (req.method === 'PUT') {
+    try {
+      const { id, skus, qtd_min, qtd_max, modelo_id, cliente, observacao, descricao } = req.body || {};
+      if (!id) return res.status(400).json({ error: 'Campo "id" é obrigatório.' });
+      const skuList = Array.isArray(skus) ? skus.filter(Boolean) : [];
+      if (skuList.length === 0) {
+        return res.status(400).json({ error: 'Selecione pelo menos um SKU.' });
+      }
+      if (!modelo_id) return res.status(400).json({ error: 'Campo "modelo_id" é obrigatório.' });
+
+      const rows = await sql`
+        UPDATE caixa_regras SET
+          descricao = ${descricao ? String(descricao).trim() : null},
+          qtd_min = ${qtd_min ?? null},
+          qtd_max = ${qtd_max ?? null},
+          modelo_id = ${modelo_id},
+          cliente = ${cliente || null},
+          observacao = ${observacao || null}
+        WHERE id = ${id}
+        RETURNING id
+      `;
+      if (rows.length === 0) return res.status(404).json({ error: 'Regra não encontrada.' });
+
+      // Substitui a lista de SKUs inteira (mais simples e previsível do que
+      // calcular um diff de quais entraram/saíram).
+      await sql`DELETE FROM caixa_regra_produtos WHERE regra_id = ${id}`;
+      await Promise.all(skuList.map(sku => sql`
+        INSERT INTO caixa_regra_produtos (regra_id, sku) VALUES (${id}, ${sku})
+      `));
+
+      return res.status(200).json({ id, skus: skuList });
+    } catch (error) {
+      console.error('Erro PUT caixa_regras:', error);
       return res.status(500).json({ error: error.message });
     }
   }
