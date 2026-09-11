@@ -400,8 +400,11 @@
             </div>
             <div class="cx-modal-body">
                 <div class="cx-field">
-                    <label>Produto(s) — digite e clique no resultado (ou Enter) pra adicionar</label>
-                    <input type="text" id="cxRegraSkuSearch" placeholder="ex: SC10P42352 ou Tela...">
+                    <label>Produto(s) — digite e clique em "+ Adicionar" (ou clique num resultado da lista)</label>
+                    <div style="display:flex;gap:8px;">
+                        <input type="text" id="cxRegraSkuSearch" placeholder="ex: SC10P42352 ou Tela..." style="flex:1;">
+                        <button type="button" class="cx-btn" id="cxBtnAddSku" style="white-space:nowrap;">+ Adicionar</button>
+                    </div>
                     <div class="cx-sku-results" id="cxRegraSkuResults" style="display:none;"></div>
                     <div class="cx-sku-chips" id="cxRegraSkuChips"></div>
                 </div>
@@ -1017,6 +1020,24 @@
             results.innerHTML = '';
         }
 
+        // Pega o SKU digitado na busca e adiciona como escolhido: prioriza um
+        // match exato de SKU, senão usa o primeiro resultado da lista. Usado
+        // pelo botão "+ Adicionar", pela tecla Enter, e como reforço dentro
+        // de Salvar (pra não perder um SKU que ficou só digitado).
+        function cxAddTopMatch(avisarSeVazio) {
+            const input = document.getElementById('cxRegraSkuSearch');
+            const q = input.value.trim();
+            if (!q) return false;
+            const matches = cxFindSkuMatches(q);
+            if (matches.length === 0) {
+                if (avisarSeVazio) cxToast('Nenhum produto encontrado com esse termo.', 'error');
+                return false;
+            }
+            const exato = matches.find(p => p.sku.toLowerCase() === q.toLowerCase());
+            cxAddSku(exato || matches[0]);
+            return true;
+        }
+
         function cxFindSkuMatches(query) {
             const q = query.trim().toLowerCase();
             if (!q) return [];
@@ -1071,7 +1092,12 @@
             const cliente = document.getElementById('cxRegraCliente').value.trim();
             const observacao = document.getElementById('cxRegraObs').value.trim();
 
-            if (cxRegraSkus.length === 0) return cxToast('Selecione pelo menos um SKU.', 'error');
+            // Reforço: se sobrou um termo digitado na busca sem ter sido
+            // adicionado (esqueceu de clicar/Enter), tenta resgatar antes de
+            // reclamar que não tem SKU nenhum.
+            if (cxRegraSkus.length === 0) cxAddTopMatch();
+
+            if (cxRegraSkus.length === 0) return cxToast('Selecione pelo menos um SKU (digite e clique em "+ Adicionar").', 'error');
             if (!modeloId) return cxToast('Escolha a caixa usada.', 'error');
 
             const isEditing = cxRegraEditingId !== null;
@@ -1141,14 +1167,9 @@
         document.getElementById('cxRegraSkuSearch').addEventListener('keydown', e => {
             if (e.key !== 'Enter') return;
             e.preventDefault(); // não deixa o Enter "enviar" o modal sem querer
-            const q = e.target.value.trim();
-            if (!q) return;
-            const matches = cxFindSkuMatches(q);
-            if (matches.length === 0) return;
-            // se digitou o SKU certinho, prioriza o match exato; senão pega o primeiro da lista
-            const exato = matches.find(p => p.sku.toLowerCase() === q.toLowerCase());
-            cxAddSku(exato || matches[0]);
+            cxAddTopMatch();
         });
+        document.getElementById('cxBtnAddSku').addEventListener('click', () => cxAddTopMatch(true));
 
         document.addEventListener('keydown', e => {
             if (e.key !== 'Escape') return;
