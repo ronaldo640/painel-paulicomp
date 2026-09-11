@@ -1,8 +1,10 @@
 // Vercel Serverless Function — regras de embalagem (casos especiais de
 // quantidade/combinação que usam uma caixa diferente da padrão, ex:
-// "até 3 telas desmontadas cabem na caixa de 1 tela"). GET lista, POST
-// cria, DELETE remove. É só um repositório por enquanto — não calcula
-// nada sozinho, alimenta a automação de consumo mais pra frente.
+// "até 3 telas desmontadas do mesmo SKU cabem na caixa de 1 tela").
+// Cada regra referencia um ou mais SKUs reais (produto_caixa), não uma
+// descrição livre. GET lista, POST cria, DELETE remove. É só um
+// repositório por enquanto — não calcula nada sozinho, alimenta a
+// automação de consumo mais pra frente.
 
 import { neon } from '@neondatabase/serverless';
 
@@ -17,14 +19,25 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
-      const rows = await sql`
+      const regras = await sql`
         SELECT r.id, r.descricao, r.qtd_min, r.qtd_max, r.modelo_id, cm.nome AS modelo_nome,
                r.cliente, r.observacao, r.ativa
         FROM caixa_regras r
         JOIN caixa_modelos cm ON cm.id = r.modelo_id
         ORDER BY r.created_at DESC
       `;
-      return res.status(200).json(rows);
+      const produtos = await sql`
+        SELECT rp.regra_id, rp.sku, pc.produto
+        FROM caixa_regra_produtos rp
+        JOIN produto_caixa pc ON pc.sku = rp.sku
+      `;
+      const produtosPorRegra = new Map();
+      for (const p of produtos) {
+        if (!produtosPorRegra.has(p.regra_id)) produtosPorRegra.set(p.regra_id, []);
+        produtosPorRegra.get(p.regra_id).push({ sku: p.sku, produto: p.produto });
+      }
+      const result = regras.map(r => ({ ...r, produtos: produtosPorRegra.get(r.id) || [] }));
+      return res.status(200).json(result);
     } catch (error) {
       console.error('Erro GET caixa_regras:', error);
       return res.status(500).json({ error: error.message });
@@ -33,25 +46,31 @@ export default async function handler(req, res) {
 
   if (req.method === 'POST') {
     try {
-      const { descricao, qtd_min, qtd_max, modelo_id, cliente, observacao } = req.body || {};
-      if (!descricao || !String(descricao).trim()) {
-        return res.status(400).json({ error: 'Campo "descricao" é obrigatório.' });
+      const { skus, qtd_min, qtd_max, modelo_id, cliente, observacao, descricao } = req.body || {};
+      const skuList = Array.isArray(skus) ? skus.filter(Boolean) : [];
+      if (skuList.length === 0) {
+        return res.status(400).json({ error: 'Selecione pelo menos um SKU.' });
       }
       if (!modelo_id) return res.status(400).json({ error: 'Campo "modelo_id" é obrigatório.' });
 
-      const rows = await sql`
+      const [regra] = await sql`
         INSERT INTO caixa_regras (descricao, qtd_min, qtd_max, modelo_id, cliente, observacao)
         VALUES (
-          ${String(descricao).trim()},
+          ${descricao ? String(descricao).trim() : null},
           ${qtd_min ?? null},
           ${qtd_max ?? null},
           ${modelo_id},
           ${cliente || null},
           ${observacao || null}
         )
-        RETURNING id, descricao, qtd_min, qtd_max, modelo_id, cliente, observacao, ativa
+        RETURNING id
       `;
-      return res.status(201).json(rows[0]);
+
+      await Promise.all(skuList.map(sku => sql`
+        INSERT INTO caixa_regra_produtos (regra_id, sku) VALUES (${regra.id}, ${sku})
+      `));
+
+      return res.status(201).json({ id: regra.id, skus: skuList });
     } catch (error) {
       console.error('Erro POST caixa_regras:', error);
       return res.status(500).json({ error: error.message });
@@ -62,7 +81,7 @@ export default async function handler(req, res) {
     try {
       const id = req.query.id || (req.body && req.body.id);
       if (!id) return res.status(400).json({ error: 'Parâmetro "id" é obrigatório.' });
-      await sql`DELETE FROM caixa_regras WHERE id = ${id}`;
+      await sql`DELETE FROM caixa_regras WHERE id = ${id}`; // cascata remove caixa_regra_produtos junto
       return res.status(200).json({ ok: true });
     } catch (error) {
       console.error('Erro DELETE caixa_regras:', error);

@@ -140,6 +140,16 @@
         .cx-cadastro-table input:focus, .cx-cadastro-table select:focus { outline: none; border-color: #3b82f6; }
         .cx-cadastro-table td, .cx-cadastro-table th { padding: 7px 10px; font-size: 12px; }
 
+        .cx-sku-results { max-height: 170px; overflow-y: auto; border: 1px solid #1e293b; border-radius: 8px; margin-top: 6px; background: #151f34; }
+        .cx-sku-results div { padding: 7px 10px; font-size: 12px; cursor: pointer; color: #cbd5e1; }
+        .cx-sku-results div:hover { background: #1e293b; }
+        .cx-sku-results div .sku { font-family: ui-monospace, monospace; color: #93c5fd; margin-right: 6px; }
+        .cx-sku-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .cx-sku-chip { display: inline-flex; align-items: center; gap: 6px; background: #1e293b; border: 1px solid #334155; border-radius: 99px; padding: 4px 10px; font-size: 11.5px; color: #f1f5f9; }
+        .cx-sku-chip .sku { font-family: ui-monospace, monospace; color: #93c5fd; }
+        .cx-sku-chip button { background: none; border: none; color: #64748b; cursor: pointer; font-size: 15px; line-height: 1; padding: 0; }
+        .cx-sku-chip button:hover { color: #fda4af; }
+
         .cx-tab-caixas { display: flex; flex-direction: column; gap: 20px; }
         .cx-tab-caixas[hidden] { display: none; }
 
@@ -382,7 +392,7 @@
             <div class="cx-modal-head">
                 <div>
                     <h2 id="cxRegraModalTitle">Nova regra de embalagem</h2>
-                    <p>Descreva o caso especial e qual caixa ele usa</p>
+                    <p>Escolha o(s) SKU(s) envolvidos e qual caixa a regra usa</p>
                 </div>
                 <button class="cx-modal-close" id="cxBtnCloseRegra" aria-label="Fechar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -390,8 +400,10 @@
             </div>
             <div class="cx-modal-body">
                 <div class="cx-field">
-                    <label>Descrição</label>
-                    <input type="text" id="cxRegraDescricao" placeholder="ex: Telas desmontadas do mesmo modelo">
+                    <label>Produto(s) — busque por SKU ou nome</label>
+                    <input type="text" id="cxRegraSkuSearch" placeholder="ex: SC10P42352 ou Tela...">
+                    <div class="cx-sku-results" id="cxRegraSkuResults" style="display:none;"></div>
+                    <div class="cx-sku-chips" id="cxRegraSkuChips"></div>
                 </div>
                 <div style="display:flex;gap:10px;">
                     <div class="cx-field" style="flex:1;">
@@ -905,6 +917,19 @@
         // ---------------------------------------------------------------
         // Regras de Embalagem
         // ---------------------------------------------------------------
+        let cxProdutos = []; // cache de /api/produto-caixa pra busca client-side
+        let cxRegraSkus = []; // SKUs escolhidos no modal aberto no momento
+
+        async function cxLoadProdutos() {
+            try {
+                const resp = await fetch('/api/produto-caixa');
+                cxProdutos = await resp.json();
+                if (!resp.ok) throw new Error(cxProdutos.error || 'Erro ao carregar produtos.');
+            } catch (err) {
+                cxToast('Erro ao carregar lista de produtos: ' + err.message, 'error');
+            }
+        }
+
         function cxRenderRegras(regras) {
             const tbody = document.getElementById('cxRegrasBody');
             if (regras.length === 0) {
@@ -917,10 +942,14 @@
                 const faixa = (r.qtd_min || r.qtd_max)
                     ? `${r.qtd_min ?? '?'}–${r.qtd_max ?? '?'}`
                     : '—';
+                const produtosTxt = (r.produtos && r.produtos.length)
+                    ? r.produtos.map(p => `<div><span style="font-family:ui-monospace,monospace;color:#93c5fd;">${p.sku}</span> — ${p.produto}</div>`).join('')
+                    : '<span class="cx-box-sub">nenhum SKU vinculado</span>';
                 return `
                     <tr>
                         <td>
-                            <div class="cx-box-name">${r.descricao}</div>
+                            <div class="cx-box-name">${produtosTxt}</div>
+                            ${r.descricao ? `<div class="cx-box-sub">${r.descricao}</div>` : ''}
                             ${r.observacao ? `<div class="cx-box-sub">${r.observacao}</div>` : ''}
                         </td>
                         <td class="num">${faixa}</td>
@@ -950,8 +979,54 @@
             }
         }
 
+        function cxRenderSkuChips() {
+            document.getElementById('cxRegraSkuChips').innerHTML = cxRegraSkus.map(p => `
+                <span class="cx-sku-chip">
+                    <span class="sku">${p.sku}</span> ${p.produto.length > 36 ? p.produto.slice(0, 36) + '…' : p.produto}
+                    <button type="button" data-remove-sku="${p.sku}" aria-label="Remover">&times;</button>
+                </span>
+            `).join('');
+            document.getElementById('cxRegraSkuChips').querySelectorAll('[data-remove-sku]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    cxRegraSkus = cxRegraSkus.filter(p => p.sku !== btn.dataset.removeSku);
+                    cxRenderSkuChips();
+                });
+            });
+        }
+
+        function cxSearchSkus(query) {
+            const results = document.getElementById('cxRegraSkuResults');
+            const q = query.trim().toLowerCase();
+            if (!q) { results.style.display = 'none'; results.innerHTML = ''; return; }
+
+            const jaEscolhidos = new Set(cxRegraSkus.map(p => p.sku));
+            const matches = cxProdutos
+                .filter(p => !jaEscolhidos.has(p.sku) && (p.sku.toLowerCase().includes(q) || p.produto.toLowerCase().includes(q)))
+                .slice(0, 8);
+
+            if (matches.length === 0) {
+                results.style.display = 'block';
+                results.innerHTML = '<div style="cursor:default;color:#64748b;">Nenhum produto encontrado.</div>';
+                return;
+            }
+            results.style.display = 'block';
+            results.innerHTML = matches.map(p => `<div data-pick-sku="${p.sku}"><span class="sku">${p.sku}</span>${p.produto}</div>`).join('');
+            results.querySelectorAll('[data-pick-sku]').forEach(el => {
+                el.addEventListener('click', () => {
+                    const p = cxProdutos.find(x => x.sku === el.dataset.pickSku);
+                    if (p) { cxRegraSkus.push(p); cxRenderSkuChips(); }
+                    document.getElementById('cxRegraSkuSearch').value = '';
+                    results.style.display = 'none';
+                    results.innerHTML = '';
+                });
+            });
+        }
+
         function cxOpenRegraModal() {
-            document.getElementById('cxRegraDescricao').value = '';
+            cxRegraSkus = [];
+            cxRenderSkuChips();
+            document.getElementById('cxRegraSkuSearch').value = '';
+            document.getElementById('cxRegraSkuResults').style.display = 'none';
             document.getElementById('cxRegraQtdMin').value = '';
             document.getElementById('cxRegraQtdMax').value = '';
             document.getElementById('cxRegraCliente').value = '';
@@ -961,14 +1036,13 @@
         function cxCloseRegraModal() { document.getElementById('cxRegraModal').hidden = true; }
 
         async function cxSaveRegra() {
-            const descricao = document.getElementById('cxRegraDescricao').value.trim();
             const qtdMin = document.getElementById('cxRegraQtdMin').value ? Number(document.getElementById('cxRegraQtdMin').value) : null;
             const qtdMax = document.getElementById('cxRegraQtdMax').value ? Number(document.getElementById('cxRegraQtdMax').value) : null;
             const modeloId = Number(document.getElementById('cxRegraModelo').value);
             const cliente = document.getElementById('cxRegraCliente').value.trim();
             const observacao = document.getElementById('cxRegraObs').value.trim();
 
-            if (!descricao) return cxToast('Descreva a regra.', 'error');
+            if (cxRegraSkus.length === 0) return cxToast('Selecione pelo menos um SKU.', 'error');
             if (!modeloId) return cxToast('Escolha a caixa usada.', 'error');
 
             const btn = document.getElementById('cxBtnSaveRegra');
@@ -977,7 +1051,11 @@
                 const resp = await fetch('/api/caixa-regras', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ descricao, qtd_min: qtdMin, qtd_max: qtdMax, modelo_id: modeloId, cliente: cliente || null, observacao: observacao || null }),
+                    body: JSON.stringify({
+                        skus: cxRegraSkus.map(p => p.sku),
+                        qtd_min: qtdMin, qtd_max: qtdMax, modelo_id: modeloId,
+                        cliente: cliente || null, observacao: observacao || null,
+                    }),
                 });
                 const json = await resp.json();
                 if (!resp.ok) throw new Error(json.error || 'Erro ao salvar.');
@@ -1028,6 +1106,7 @@
         document.getElementById('cxBtnCancelRegra').addEventListener('click', cxCloseRegraModal);
         document.getElementById('cxBtnSaveRegra').addEventListener('click', cxSaveRegra);
         document.getElementById('cxRegraModal').addEventListener('click', e => { if (e.target.id === 'cxRegraModal') cxCloseRegraModal(); });
+        document.getElementById('cxRegraSkuSearch').addEventListener('input', e => cxSearchSkus(e.target.value));
 
         document.addEventListener('keydown', e => {
             if (e.key !== 'Escape') return;
@@ -1038,6 +1117,7 @@
 
         cxRefreshAll();
         cxLoadRegras();
+        cxLoadProdutos();
     })();
     </script>
 </body>
