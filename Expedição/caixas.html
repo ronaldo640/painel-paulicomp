@@ -683,7 +683,7 @@
         async function cxLoadConsumoModelos(dias) {
             let payload;
             try {
-                const resp = await fetch(`/api/caixa-consumo-modelos?filial=${CX_FILIAL}&dias=${dias}`);
+                const resp = await fetch(`/api/caixa-consumo?modo=modelos&filial=${CX_FILIAL}&dias=${dias}`);
                 payload = await resp.json();
                 if (!resp.ok) throw new Error(payload.error || 'Erro ao carregar consumo por modelo.');
             } catch (err) {
@@ -712,7 +712,7 @@
         async function cxLoadConsumoDia(dataIso) {
             let payload;
             try {
-                const resp = await fetch(`/api/caixa-consumo-dia?filial=${CX_FILIAL}&data=${dataIso}`);
+                const resp = await fetch(`/api/caixa-consumo?modo=dia&filial=${CX_FILIAL}&data=${dataIso}`);
                 payload = await resp.json();
                 if (!resp.ok) throw new Error(payload.error || 'Erro ao carregar consumo do dia.');
             } catch (err) {
