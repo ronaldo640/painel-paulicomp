@@ -786,6 +786,41 @@
             }
         }
 
+        // ---------------------------------------------------------------
+        // Baixa automática "ao vivo" — igual ao painel de Expedição (busca
+        // ao abrir a página + periodicamente enquanto ela fica aberta), mas
+        // sempre olhando só o dia de hoje (nunca uma janela de 60 dias como
+        // o tiny-sync do Expedição, pra não pesar na cota da API do Tiny).
+        // Só roda com a aba visível, pra não gastar cota em segundo plano.
+        // ---------------------------------------------------------------
+        const CX_AUTO_INTERVALO_MS = 60 * 60 * 1000; // 60 min
+
+        // Roda a baixa automática de hoje e devolve quantas notas novas foram
+        // processadas (0 se a aba não estava visível, se deu erro, ou se não
+        // tinha nada novo). Quem chama decide se vale a pena atualizar a tela.
+        async function cxAutoDeducaoHoje() {
+            if (document.hidden) return 0;
+            try {
+                const resp = await fetch(`/api/caixa-auto-executar?filial=${CX_FILIAL}&data=${cxTodayIso()}`);
+                const json = await resp.json();
+                if (!resp.ok) throw new Error(json.error || 'Erro na baixa automática.');
+                return json.notas_novas_processadas || 0;
+            } catch (err) {
+                console.error('Erro na baixa automática periódica:', err);
+                return 0;
+            }
+        }
+
+        // Versão usada no intervalo/visibilidade: só incomoda com toast e
+        // recarrega a tela quando realmente processou algo novo.
+        async function cxAutoDeducaoPeriodica() {
+            const n = await cxAutoDeducaoHoje();
+            if (n > 0) {
+                cxToast(`${n} nota(s) nova(s) processada(s) automaticamente.`, 'success');
+                await cxRefreshAll();
+            }
+        }
+
         function cxSetTipo(tipo) {
             cxMovTipo = tipo;
             document.getElementById('cxTipoEntrada').classList.toggle('on', tipo === 'entrada');
@@ -1176,9 +1211,12 @@
 
         document.getElementById('cxDiaSelect').value = cxTodayIso();
 
-        cxRefreshAll();
+        cxAutoDeducaoHoje().then(() => cxRefreshAll());
         cxLoadRegras();
         cxLoadProdutos();
+
+        setInterval(cxAutoDeducaoPeriodica, CX_AUTO_INTERVALO_MS);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) cxAutoDeducaoPeriodica(); });
     })();
     </script>
 </body>
