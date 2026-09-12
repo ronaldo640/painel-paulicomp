@@ -8,9 +8,13 @@
     },
     "api/caixa-auto-teste.js": {
       "maxDuration": 60
+    },
+    "api/caixa-auto-executar.js": {
+      "maxDuration": 60
     }
   },
   "crons": [
-    { "path": "/api/tiny-sync", "schedule": "0 6 * * *" }
+    { "path": "/api/tiny-sync", "schedule": "0 6 * * *" },
+    { "path": "/api/caixa-auto-executar?filial=SP", "schedule": "0 8 * * *" }
   ]
 }
