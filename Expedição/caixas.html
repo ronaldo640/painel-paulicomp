@@ -294,6 +294,9 @@
                     Nova regra
                 </button>
             </div>
+            <div style="padding:14px 18px 0;">
+                <input type="text" id="cxRegrasFiltro" placeholder="Filtrar por SKU, produto, caixa ou cliente..." style="width:100%;background:#151f34;border:1px solid #1e293b;color:#f1f5f9;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;">
+            </div>
             <div class="cx-scroll-x">
                 <table class="cx-table" style="min-width:760px;">
                     <thead>
@@ -941,14 +944,18 @@
             }
         }
 
-        function cxRenderRegras(regras) {
+        function cxRenderRegras(regras, filtroAtivo) {
             const tbody = document.getElementById('cxRegrasBody');
             if (regras.length === 0) {
                 tbody.innerHTML = '';
-                document.getElementById('cxRegrasNote').textContent = 'Nenhuma regra cadastrada ainda — vá adicionando conforme for mapeando com a equipe.';
+                document.getElementById('cxRegrasNote').textContent = filtroAtivo
+                    ? `Nenhuma regra encontrada para "${filtroAtivo}".`
+                    : 'Nenhuma regra cadastrada ainda — vá adicionando conforme for mapeando com a equipe.';
                 return;
             }
-            document.getElementById('cxRegrasNote').textContent = '';
+            document.getElementById('cxRegrasNote').textContent = filtroAtivo
+                ? `${regras.length} de ${cxRegrasCache.length} regras (filtrado por "${filtroAtivo}")`
+                : '';
             tbody.innerHTML = regras.map(r => {
                 const faixa = (r.qtd_min || r.qtd_max)
                     ? `${r.qtd_min ?? '?'}–${r.qtd_max ?? '?'}`
@@ -988,13 +995,26 @@
             });
         }
 
+        function cxAplicarFiltroRegras() {
+            const q = (document.getElementById('cxRegrasFiltro').value || '').trim().toLowerCase();
+            if (!q) { cxRenderRegras(cxRegrasCache); return; }
+            const filtradas = cxRegrasCache.filter(r => {
+                const alvo = [
+                    r.modelo_nome, r.cliente, r.descricao, r.observacao,
+                    ...(r.produtos || []).flatMap(p => [p.sku, p.produto]),
+                ].filter(Boolean).join(' ').toLowerCase();
+                return alvo.includes(q);
+            });
+            cxRenderRegras(filtradas, q);
+        }
+
         async function cxLoadRegras() {
             try {
                 const resp = await fetch('/api/caixa-regras');
                 const regras = await resp.json();
                 if (!resp.ok) throw new Error(regras.error || 'Erro ao carregar regras.');
                 cxRegrasCache = regras;
-                cxRenderRegras(regras);
+                cxAplicarFiltroRegras();
             } catch (err) {
                 cxToast('Erro ao carregar regras de embalagem: ' + err.message, 'error');
             }
@@ -1167,6 +1187,7 @@
         document.getElementById('cxCadastroModal').addEventListener('click', e => { if (e.target.id === 'cxCadastroModal') cxCloseCadastroModal(); });
 
         document.getElementById('cxBtnOpenRegra').addEventListener('click', () => cxOpenRegraModal());
+        document.getElementById('cxRegrasFiltro').addEventListener('input', cxAplicarFiltroRegras);
         document.getElementById('cxBtnCloseRegra').addEventListener('click', cxCloseRegraModal);
         document.getElementById('cxBtnCancelRegra').addEventListener('click', cxCloseRegraModal);
         document.getElementById('cxBtnSaveRegra').addEventListener('click', cxSaveRegra);

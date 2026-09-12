@@ -2,6 +2,9 @@
   "functions": {
     "api/tiny-sync.js": {
       "maxDuration": 60
+    },
+    "api/caixa-regras-bulk.js": {
+      "maxDuration": 60
     }
   },
   "crons": [
