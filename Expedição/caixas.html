@@ -63,7 +63,8 @@
         .cx-card-head { padding: 15px 18px; border-bottom: 1px solid #1e293b; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
         .cx-card-head h2 { font-size: 13.5px; font-weight: 700; margin: 0; color: #f1f5f9; }
         .cx-card-head p { font-size: 11.5px; color: #64748b; margin: 2px 0 0; }
-        .cx-card-head select { background: #151f34; border: 1px solid #1e293b; color: #f1f5f9; font-size: 12px; font-weight: 600; font-family: inherit; padding: 7px 10px; border-radius: 7px; cursor: pointer; }
+        .cx-card-head select, .cx-card-head input[type="date"] { background: #151f34; border: 1px solid #1e293b; color: #f1f5f9; font-size: 12px; font-weight: 600; font-family: inherit; padding: 7px 10px; border-radius: 7px; cursor: pointer; }
+        .cx-card-head input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
 
         .cx-scroll-x { overflow-x: auto; }
         .cx-table { width: 100%; border-collapse: collapse; min-width: 880px; }
@@ -222,26 +223,28 @@
         <div class="cx-card">
             <div class="cx-card-head">
                 <div>
-                    <h2>Consumo diário por modelo de caixa</h2>
-                    <p>Últimos 30 dias · unidades usadas na embalagem, por dia</p>
+                    <h2>Consumo do dia</h2>
+                    <p>Todos os modelos, num dia específico — do maior pro menor consumo</p>
                 </div>
-                <select id="cxModelSelect"></select>
+                <input type="date" id="cxDiaSelect">
             </div>
             <div class="cx-chart-stats">
-                <div class="cx-chart-stat"><div class="l">Média 30 dias</div><div class="v" id="cxStatAvg30">—</div></div>
-                <div class="cx-chart-stat"><div class="l">Média últimos 7 dias</div><div class="v" id="cxStatAvg7">—</div></div>
-                <div class="cx-chart-stat"><div class="l">Tendência (7d vs 7d anteriores)</div><div class="v" id="cxStatTrend">—</div></div>
+                <div class="cx-chart-stat"><div class="l">Total de caixas no dia</div><div class="v" id="cxStatTotalDia">—</div></div>
             </div>
-            <div class="cx-chart-wrap"><canvas id="cxConsumoChart"></canvas></div>
+            <div class="cx-chart-wrap tall"><canvas id="cxConsumoChart"></canvas></div>
         </div>
 
         <div class="cx-card">
             <div class="cx-card-head">
                 <div>
-                    <h2>Top 10 caixas mais utilizadas</h2>
-                    <p>Média de consumo diário · últimos 30 dias</p>
+                    <h2>Consumo por modelo de caixa</h2>
+                    <p>Média de consumo diário — todos os 15 modelos</p>
                 </div>
-                <span class="cx-rank-hint">clique numa barra pra detalhar ↓</span>
+                <select id="cxPeriodoSelect">
+                    <option value="30">Últimos 30 dias</option>
+                    <option value="60">Últimos 60 dias</option>
+                    <option value="90">Últimos 90 dias</option>
+                </select>
             </div>
             <div class="cx-chart-wrap tall"><canvas id="cxRankingChart"></canvas></div>
         </div>
@@ -531,13 +534,6 @@
             return json;
         }
 
-        async function cxFetchSerie(modeloId) {
-            const resp = await fetch(`/api/caixa-serie?modelo_id=${modeloId}&filial=${CX_FILIAL}&dias=30`);
-            const json = await resp.json();
-            if (!resp.ok) throw new Error(json.error || 'Falha ao carregar série de consumo.');
-            return json;
-        }
-
         async function cxFetchMovimentacoes() {
             const resp = await fetch(`/api/caixa-movimentacoes?filial=${CX_FILIAL}&limit=6`);
             const json = await resp.json();
@@ -649,131 +645,104 @@
             `).join('');
         }
 
-        function cxRenderRanking(modelos) {
-            const top10 = [...modelos].sort((a, b) => b.consumo_30d - a.consumo_30d).slice(0, 10);
-            const colors = top10.map((_, i) => {
-                const t = top10.length > 1 ? i / (top10.length - 1) : 0;
-                return `hsl(217, 91%, ${55 + t * 20}%)`;
-            });
+        function cxCorEscala(i, total) {
+            const t = total > 1 ? i / (total - 1) : 0;
+            return `hsl(217, 91%, ${55 + t * 20}%)`;
+        }
 
+        function cxBarraHorizontalOptions(unidadeEixo) {
+            return {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#151f34', borderColor: '#1e293b', borderWidth: 1,
+                        titleColor: '#f1f5f9', bodyColor: '#94a3b8', padding: 10, displayColors: false,
+                        callbacks: { label: c => c.parsed.x.toFixed(unidadeEixo === 'un/dia' ? 1 : 0) + ' ' + unidadeEixo },
+                    },
+                    datalabels: {
+                        anchor: 'end', align: 'end', color: '#94a3b8',
+                        font: { size: 11, weight: '600' },
+                        formatter: v => unidadeEixo === 'un/dia' ? v.toFixed(1) : v,
+                    },
+                },
+                layout: { padding: { right: 34 } },
+                scales: {
+                    x: {
+                        beginAtZero: true, grid: { color: '#1e293b' },
+                        ticks: { color: '#64748b', font: { size: 10 } },
+                        title: { display: true, text: unidadeEixo, color: '#64748b', font: { size: 10.5 } },
+                    },
+                    y: { grid: { display: false }, ticks: { color: '#cbd5e1', font: { size: 12, weight: '600' } } },
+                },
+            };
+        }
+
+        async function cxLoadConsumoModelos(dias) {
+            let payload;
+            try {
+                const resp = await fetch(`/api/caixa-consumo-modelos?filial=${CX_FILIAL}&dias=${dias}`);
+                payload = await resp.json();
+                if (!resp.ok) throw new Error(payload.error || 'Erro ao carregar consumo por modelo.');
+            } catch (err) {
+                cxToast('Erro: ' + err.message, 'error');
+                return;
+            }
+            const modelos = payload.modelos;
             const ctx = document.getElementById('cxRankingChart').getContext('2d');
             if (cxRankingChart) cxRankingChart.destroy();
             cxRankingChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: top10.map(m => m.nome),
+                    labels: modelos.map(m => m.modelo_nome),
                     datasets: [{
                         label: 'Média diária',
-                        data: top10.map(m => m.consumo_30d),
-                        backgroundColor: colors,
+                        data: modelos.map(m => m.media_diaria),
+                        backgroundColor: modelos.map((_, i) => cxCorEscala(i, modelos.length)),
                         borderRadius: 4,
                         maxBarThickness: 20,
                     }],
                 },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    onClick: (evt, elements) => {
-                        if (!elements.length) return;
-                        const modelo = top10[elements[0].index];
-                        document.getElementById('cxModelSelect').value = modelo.id;
-                        cxLoadSerie(modelo.id);
-                    },
-                    onHover: (evt, elements) => { evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: '#151f34', borderColor: '#1e293b', borderWidth: 1,
-                            titleColor: '#f1f5f9', bodyColor: '#94a3b8', padding: 10, displayColors: false,
-                            callbacks: { label: c => c.parsed.x.toFixed(1) + ' un/dia' },
-                        },
-                        datalabels: {
-                            anchor: 'end', align: 'end', color: '#94a3b8',
-                            font: { size: 11, weight: '600' },
-                            formatter: v => v.toFixed(1),
-                        },
-                    },
-                    layout: { padding: { right: 34 } },
-                    scales: {
-                        x: {
-                            beginAtZero: true, grid: { color: '#1e293b' },
-                            ticks: { color: '#64748b', font: { size: 10 } },
-                            title: { display: true, text: 'un/dia', color: '#64748b', font: { size: 10.5 } },
-                        },
-                        y: { grid: { display: false }, ticks: { color: '#cbd5e1', font: { size: 12, weight: '600' } } },
-                    },
-                },
+                options: cxBarraHorizontalOptions('un/dia'),
             });
         }
 
-        function cxEnsureConsumoChart() {
-            if (cxConsumoChart) return cxConsumoChart;
+        async function cxLoadConsumoDia(dataIso) {
+            let payload;
+            try {
+                const resp = await fetch(`/api/caixa-consumo-dia?filial=${CX_FILIAL}&data=${dataIso}`);
+                payload = await resp.json();
+                if (!resp.ok) throw new Error(payload.error || 'Erro ao carregar consumo do dia.');
+            } catch (err) {
+                cxToast('Erro: ' + err.message, 'error');
+                return;
+            }
+            const modelos = payload.modelos;
+            document.getElementById('cxStatTotalDia').innerHTML = payload.total + ' <span class="unit">caixas</span>';
+
             const ctx = document.getElementById('cxConsumoChart').getContext('2d');
+            if (cxConsumoChart) cxConsumoChart.destroy();
             cxConsumoChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: [],
-                    datasets: [
-                        { label: 'Consumo diário', data: [], backgroundColor: '#3b82f6cc', borderRadius: 3, maxBarThickness: 18, order: 2 },
-                        { label: 'Média 30 dias', type: 'line', data: [], borderColor: '#94a3b8', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, fill: false, order: 1 },
-                    ],
+                    labels: modelos.map(m => m.modelo_nome),
+                    datasets: [{
+                        label: 'Consumo do dia',
+                        data: modelos.map(m => m.quantidade),
+                        backgroundColor: modelos.map((_, i) => cxCorEscala(i, modelos.length)),
+                        borderRadius: 4,
+                        maxBarThickness: 20,
+                    }],
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: { mode: 'index', intersect: false },
-                    plugins: {
-                        legend: { display: false },
-                        datalabels: { display: false },
-                        tooltip: {
-                            backgroundColor: '#151f34', borderColor: '#1e293b', borderWidth: 1,
-                            titleColor: '#f1f5f9', bodyColor: '#94a3b8', padding: 10, displayColors: false,
-                            callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y + ' un' },
-                        },
-                    },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } },
-                        y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 10 } } },
-                    },
-                },
+                options: cxBarraHorizontalOptions('un'),
             });
-            return cxConsumoChart;
-        }
-
-        async function cxLoadSerie(modeloId) {
-            let serie;
-            try {
-                serie = await cxFetchSerie(modeloId);
-            } catch (err) {
-                cxToast('Erro ao carregar série de consumo: ' + err.message, 'error');
-                return;
-            }
-            const values = serie.map(d => d.quantidade);
-            const labels = serie.map(d => { const p = d.data.split('-'); return p[2] + '/' + p[1]; });
-
-            const avg30 = values.reduce((a, b) => a + b, 0) / (values.length || 1);
-            const last7 = values.slice(-7);
-            const prev7 = values.slice(-14, -7);
-            const avg7 = last7.reduce((a, b) => a + b, 0) / (last7.length || 1);
-            const avgPrev7 = prev7.reduce((a, b) => a + b, 0) / (prev7.length || 1);
-            const deltaPct = avgPrev7 > 0 ? ((avg7 - avgPrev7) / avgPrev7) * 100 : null;
-
-            const chart = cxEnsureConsumoChart();
-            chart.data.labels = labels;
-            chart.data.datasets[0].data = values;
-            chart.data.datasets[1].data = values.map(() => avg30);
-            chart.update();
-
-            document.getElementById('cxStatAvg30').innerHTML = avg30.toFixed(1) + ' <span class="unit">un/dia</span>';
-            document.getElementById('cxStatAvg7').innerHTML = avg7.toFixed(1) + ' <span class="unit">un/dia</span>';
-            document.getElementById('cxStatTrend').innerHTML = deltaPct === null ? '—' : cxTrendBadge(Math.round(deltaPct));
         }
 
         function cxPopulateSelects(modelos) {
             const sorted = [...modelos].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
             const options = sorted.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
-            document.getElementById('cxModelSelect').innerHTML = options;
             document.getElementById('cxMovModelo').innerHTML = options;
             document.getElementById('cxRegraModelo').innerHTML = options;
         }
@@ -806,15 +775,12 @@
                 cxRenderAlert(resumo.modelos);
                 cxRenderFreshness(resumo.ultima_saida);
                 cxRenderTable(resumo.modelos);
-                cxRenderRanking(resumo.modelos);
                 cxRenderMovList(movs);
                 cxPopulateSelects(resumo.modelos);
 
-                const top = [...resumo.modelos].sort((a, b) => b.consumo_30d - a.consumo_30d)[0];
-                if (top) {
-                    document.getElementById('cxModelSelect').value = top.id;
-                    await cxLoadSerie(top.id);
-                }
+                const dias = Number(document.getElementById('cxPeriodoSelect').value) || 30;
+                const dataDia = document.getElementById('cxDiaSelect').value;
+                await Promise.all([cxLoadConsumoModelos(dias), cxLoadConsumoDia(dataDia)]);
             } catch (err) {
                 cxToast('Erro ao carregar Controle de Caixas: ' + err.message, 'error');
             }
@@ -1170,7 +1136,8 @@
         // ---------------------------------------------------------------
         // Wiring
         // ---------------------------------------------------------------
-        document.getElementById('cxModelSelect').addEventListener('change', e => cxLoadSerie(Number(e.target.value)));
+        document.getElementById('cxPeriodoSelect').addEventListener('change', e => cxLoadConsumoModelos(Number(e.target.value)));
+        document.getElementById('cxDiaSelect').addEventListener('change', e => cxLoadConsumoDia(e.target.value));
 
         document.getElementById('cxBtnOpenMov').addEventListener('click', cxOpenMovModal);
         document.getElementById('cxBtnCloseMov').addEventListener('click', cxCloseMovModal);
@@ -1206,6 +1173,8 @@
             if (!document.getElementById('cxCadastroModal').hidden) cxCloseCadastroModal();
             if (!document.getElementById('cxRegraModal').hidden) cxCloseRegraModal();
         });
+
+        document.getElementById('cxDiaSelect').value = cxTodayIso();
 
         cxRefreshAll();
         cxLoadRegras();
