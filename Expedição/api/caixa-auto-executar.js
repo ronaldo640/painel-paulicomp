@@ -83,11 +83,12 @@ export default async function handler(req, res) {
   const filial = req.query.filial ? String(req.query.filial).toUpperCase() : 'SP';
 
   // Padrão: ontem (dia anterior completo) — pensado pra rodar de madrugada
-  // cobrindo o dia que acabou de fechar. Aceita ?data=DD/MM/AAAA pra rodar
-  // manualmente num dia específico (ex: hoje, no primeiro dia ligado).
+  // cobrindo o dia que acabou de fechar. Aceita ?data=AAAA-MM-DD (ISO, igual
+  // ao <input type="date"> do caixas.html) pra rodar manualmente num dia
+  // específico (ex: hoje, ou quando o caixas.html chama isso sozinho).
   let dataAlvo;
   if (req.query.data) {
-    const [dd, mm, yyyy] = String(req.query.data).split('/').map(Number);
+    const [yyyy, mm, dd] = String(req.query.data).split('-').map(Number);
     dataAlvo = new Date(yyyy, mm - 1, dd, 12, 0, 0);
   } else {
     dataAlvo = new Date();
