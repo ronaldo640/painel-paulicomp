@@ -5,6 +5,9 @@
     },
     "api/caixa-regras-bulk.js": {
       "maxDuration": 60
+    },
+    "api/caixa-auto-teste.js": {
+      "maxDuration": 60
     }
   },
   "crons": [
