@@ -44,7 +44,7 @@ async function buscarNotasDoDia(token, dataBr) {
       if (situacao.includes('cancelad')) return;
       if (nf.tipo !== 'S') return; // só saída (despacho), igual ao sync principal
       if (!nf.id) return;
-      notas.push({ id: nf.id, numero: nf.numero, serie: nf.serie, cliente: (nf.cliente || {}).nome || null });
+      notas.push({ id: nf.id, numero: nf.numero, cliente: (nf.cliente || {}).nome || null });
     });
     pagina++;
   } while (pagina <= totalPaginas && notas.length < MAX_NOTAS_POR_TESTE);
@@ -162,7 +162,7 @@ export default async function handler(req, res) {
         consumoPorModelo.set(resolucao.modelo_id, atual + resolucao.qtd_caixas);
         linhasNota.push({ sku: item.sku, quantidade: item.quantidade, modelo_id: resolucao.modelo_id, modelo_nome: modeloNomeMap.get(resolucao.modelo_id), qtd_caixas: resolucao.qtd_caixas, origem: resolucao.origem });
       }
-      detalhePorNota.push({ nota: nota.numero, serie: nota.serie, cliente: nota.cliente, itens: linhasNota });
+      detalhePorNota.push({ nota: nota.numero, cliente: nota.cliente, itens: linhasNota });
     }
 
     const resumo = [...consumoPorModelo.entries()].map(([modelo_id, total]) => ({
