@@ -113,6 +113,9 @@
         .cx-modal-overlay[hidden] { display: none; }
         .cx-modal-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 14px; width: 100%; max-width: 440px; box-shadow: 0 20px 60px -12px #000000b3; }
         .cx-modal-card.wide { max-width: 640px; }
+        .cx-modal-card.xwide { max-width: 920px; }
+        .cx-modal-section-title { font-size: 12px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 8px; }
+        .cx-modal-divider { border: none; border-top: 1px solid #1e293b; margin: 4px 0; }
         .cx-modal-head { padding: 16px 18px; border-bottom: 1px solid #1e293b; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
         .cx-modal-head h2 { font-size: 14.5px; font-weight: 700; margin: 0; color: #f1f5f9; }
         .cx-modal-head p { font-size: 11.5px; color: #64748b; margin: 3px 0 0; }
@@ -307,34 +310,6 @@
             <div class="cx-movlist" id="cxMovList"></div>
         </div>
 
-        <!-- Regras de Embalagem -->
-        <div class="cx-card">
-            <div class="cx-card-head">
-                <div>
-                    <h2>Regras de Embalagem</h2>
-                    <p>Casos especiais onde uma faixa de quantidade (ou combinação) usa uma caixa diferente da padrão</p>
-                </div>
-            </div>
-            <div style="padding:14px 18px 0;">
-                <input type="text" id="cxRegrasFiltro" placeholder="Filtrar por SKU, produto, caixa ou cliente..." style="width:100%;background:#151f34;border:1px solid #1e293b;color:#f1f5f9;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;">
-            </div>
-            <div class="cx-scroll-x">
-                <table class="cx-table" style="min-width:760px;">
-                    <thead>
-                        <tr>
-                            <th>Descrição</th>
-                            <th class="num">Faixa (qtd)</th>
-                            <th>Cliente</th>
-                            <th>Caixa usada</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody id="cxRegrasBody"></tbody>
-                </table>
-            </div>
-            <div class="cx-note" id="cxRegrasNote">Vá cadastrando aqui conforme for mapeando os casos com a equipe — não precisa vir tudo de uma vez.</div>
-        </div>
-
     </div>
     </main>
 
@@ -412,17 +387,39 @@
 
     <!-- Modal: Nova regra de embalagem -->
     <div class="cx-modal-overlay" id="cxRegraModal" hidden>
-        <div class="cx-modal-card" role="dialog" aria-modal="true" aria-labelledby="cxRegraModalTitle">
+        <div class="cx-modal-card xwide" role="dialog" aria-modal="true" aria-labelledby="cxRegraModalHeading">
             <div class="cx-modal-head">
                 <div>
-                    <h2 id="cxRegraModalTitle">Nova regra de embalagem</h2>
-                    <p>Escolha o(s) SKU(s) envolvidos e qual caixa a regra usa</p>
+                    <h2 id="cxRegraModalHeading">Regras de Embalagem</h2>
+                    <p>Casos especiais onde uma faixa de quantidade (ou combinação) usa uma caixa diferente da padrão</p>
                 </div>
                 <button class="cx-modal-close" id="cxBtnCloseRegra" aria-label="Fechar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
             </div>
             <div class="cx-modal-body">
+                <div>
+                    <input type="text" id="cxRegrasFiltro" placeholder="Filtrar por SKU, produto, caixa ou cliente..." style="width:100%;background:#151f34;border:1px solid #1e293b;color:#f1f5f9;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;">
+                    <div class="cx-scroll-x" style="margin-top:10px;">
+                        <table class="cx-table" style="min-width:760px;">
+                            <thead>
+                                <tr>
+                                    <th>Descrição</th>
+                                    <th class="num">Faixa (qtd)</th>
+                                    <th>Cliente</th>
+                                    <th>Caixa usada</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="cxRegrasBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="cx-note" id="cxRegrasNote">Vá cadastrando aqui conforme for mapeando os casos com a equipe — não precisa vir tudo de uma vez.</div>
+                </div>
+
+                <hr class="cx-modal-divider">
+
+                <p class="cx-modal-section-title" id="cxRegraModalTitle">Nova regra de embalagem</p>
                 <div class="cx-field">
                     <label>Produto(s) — digite e clique em "+ Adicionar" (ou clique num resultado da lista)</label>
                     <div style="display:flex;gap:8px;">
