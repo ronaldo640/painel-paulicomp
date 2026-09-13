@@ -106,6 +106,7 @@
         .cx-chart-stat .v .unit { font-size: 11px; font-weight: 600; color: #94a3b8; }
         .cx-chart-wrap { padding: 6px 18px 18px; height: 230px; position: relative; }
         .cx-chart-wrap.tall { height: 460px; }
+        .cx-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
         .cx-rank-hint { font-size: 11px; color: #64748b; }
 
         .cx-modal-overlay { position: fixed; inset: 0; background: #02061799; backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 50; }
@@ -160,6 +161,7 @@
 
         @media (max-width: 920px) {
             .cx-kpis { grid-template-columns: repeat(2,1fr); }
+            .cx-row-2 { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -220,18 +222,38 @@
 
         <div id="cxAlertWrap"></div>
 
-        <div class="cx-card">
-            <div class="cx-card-head">
-                <div>
-                    <h2>Consumo do dia</h2>
-                    <p>Todos os modelos, num dia específico — do maior pro menor consumo</p>
+        <div class="cx-row-2">
+            <div class="cx-card">
+                <div class="cx-card-head">
+                    <div>
+                        <h2>Consumo do dia</h2>
+                        <p>Todos os modelos, num dia específico — do maior pro menor consumo</p>
+                    </div>
+                    <input type="date" id="cxDiaSelect">
                 </div>
-                <input type="date" id="cxDiaSelect">
+                <div class="cx-chart-stats">
+                    <div class="cx-chart-stat"><div class="l">Total de caixas no dia</div><div class="v" id="cxStatTotalDia">—</div></div>
+                </div>
+                <div class="cx-chart-wrap tall"><canvas id="cxConsumoChart"></canvas></div>
             </div>
-            <div class="cx-chart-stats">
-                <div class="cx-chart-stat"><div class="l">Total de caixas no dia</div><div class="v" id="cxStatTotalDia">—</div></div>
+
+            <div class="cx-card">
+                <div class="cx-card-head">
+                    <div>
+                        <h2>Embalagens via Fulfillment <span class="cx-chip" style="margin-left:6px;">informativo</span></h2>
+                        <p>Baseado nas vendas individuais (nota série 2) — não debita o estoque real. O empacotamento físico acontece antes, no envio em lote pro Ebazar, evento que ainda não conseguimos identificar no Tiny.</p>
+                    </div>
+                    <select id="cxFulfillmentPeriodoSelect">
+                        <option value="30">Últimos 30 dias</option>
+                        <option value="60">Últimos 60 dias</option>
+                        <option value="90">Últimos 90 dias</option>
+                    </select>
+                </div>
+                <div class="cx-chart-stats">
+                    <div class="cx-chart-stat"><div class="l">Total no período</div><div class="v" id="cxStatTotalFulfillment">—</div></div>
+                </div>
+                <div class="cx-chart-wrap tall"><canvas id="cxFulfillmentChart"></canvas></div>
             </div>
-            <div class="cx-chart-wrap tall"><canvas id="cxConsumoChart"></canvas></div>
         </div>
 
         <div class="cx-card">
@@ -247,24 +269,6 @@
                 </select>
             </div>
             <div class="cx-chart-wrap tall"><canvas id="cxRankingChart"></canvas></div>
-        </div>
-
-        <div class="cx-card">
-            <div class="cx-card-head">
-                <div>
-                    <h2>Embalagens via Fulfillment <span class="cx-chip" style="margin-left:6px;">informativo</span></h2>
-                    <p>Baseado nas vendas individuais (nota série 2) — não debita o estoque real. O empacotamento físico acontece antes, no envio em lote pro Ebazar, evento que ainda não conseguimos identificar no Tiny.</p>
-                </div>
-                <select id="cxFulfillmentPeriodoSelect">
-                    <option value="30">Últimos 30 dias</option>
-                    <option value="60">Últimos 60 dias</option>
-                    <option value="90">Últimos 90 dias</option>
-                </select>
-            </div>
-            <div class="cx-chart-stats">
-                <div class="cx-chart-stat"><div class="l">Total no período</div><div class="v" id="cxStatTotalFulfillment">—</div></div>
-            </div>
-            <div class="cx-chart-wrap tall"><canvas id="cxFulfillmentChart"></canvas></div>
         </div>
 
         <div class="cx-card">
