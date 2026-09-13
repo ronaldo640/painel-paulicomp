@@ -186,13 +186,24 @@ export default async function handler(req, res) {
         consumoDaNota.set(resolucao.modelo_id, (consumoDaNota.get(resolucao.modelo_id) || 0) + resolucao.qtd_caixas);
       }
 
+      // Fulfillment é gravado só como informação (conta_estoque = false): o
+      // empacotamento físico de verdade já aconteceu bem antes, no envio em
+      // lote pro Ebazar — um evento que ainda não sabemos identificar no
+      // Tiny. Contar a nota de venda como baixa real ficaria sempre
+      // defasado, então até acharmos (ou lançarmos à mão) o evento certo,
+      // isso não mexe no estoque nem no ponto de reposição.
+      const contaEstoque = !nota.isFulfillment;
+      const observacaoBase = nota.isFulfillment
+        ? 'Auto (Fulfillment, informativo) — NF ' + nota.numero
+        : 'Auto — NF ' + nota.numero;
+
       for (const [modeloId, qtdCaixas] of consumoDaNota) {
         const [mov] = await sql`
-          INSERT INTO caixa_movimentacoes (modelo_id, filial, tipo, quantidade, data, observacao, automatica)
-          VALUES (${modeloId}, ${filial}, 'saida', ${qtdCaixas}, ${dataIso}, ${'Auto — NF ' + nota.numero}, true)
+          INSERT INTO caixa_movimentacoes (modelo_id, filial, tipo, quantidade, data, observacao, automatica, conta_estoque)
+          VALUES (${modeloId}, ${filial}, 'saida', ${qtdCaixas}, ${dataIso}, ${observacaoBase}, true, ${contaEstoque})
           RETURNING id
         `;
-        movimentosGravados.push({ id: mov.id, nota: nota.numero, modelo_id: modeloId, qtd_caixas: qtdCaixas });
+        movimentosGravados.push({ id: mov.id, nota: nota.numero, modelo_id: modeloId, qtd_caixas: qtdCaixas, conta_estoque: contaEstoque });
       }
 
       await sql`

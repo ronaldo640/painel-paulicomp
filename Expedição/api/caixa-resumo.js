@@ -28,25 +28,25 @@ export default async function handler(req, res) {
         SELECT modelo_id,
           SUM(CASE WHEN tipo = 'entrada' THEN quantidade ELSE -quantidade END) AS estoque_atual
         FROM caixa_movimentacoes
-        WHERE filial = ${filial}
+        WHERE filial = ${filial} AND conta_estoque = true
         GROUP BY modelo_id
       ),
       consumo30 AS (
         SELECT modelo_id, SUM(quantidade)::numeric / 30 AS consumo_30d
         FROM caixa_movimentacoes
-        WHERE filial = ${filial} AND tipo = 'saida' AND data >= current_date - interval '30 days'
+        WHERE filial = ${filial} AND tipo = 'saida' AND conta_estoque = true AND data >= current_date - interval '30 days'
         GROUP BY modelo_id
       ),
       consumo7 AS (
         SELECT modelo_id, SUM(quantidade)::numeric / 7 AS consumo_7d
         FROM caixa_movimentacoes
-        WHERE filial = ${filial} AND tipo = 'saida' AND data >= current_date - interval '7 days'
+        WHERE filial = ${filial} AND tipo = 'saida' AND conta_estoque = true AND data >= current_date - interval '7 days'
         GROUP BY modelo_id
       ),
       consumo_prev7 AS (
         SELECT modelo_id, SUM(quantidade)::numeric / 7 AS consumo_prev7d
         FROM caixa_movimentacoes
-        WHERE filial = ${filial} AND tipo = 'saida'
+        WHERE filial = ${filial} AND tipo = 'saida' AND conta_estoque = true
           AND data >= current_date - interval '14 days' AND data < current_date - interval '7 days'
         GROUP BY modelo_id
       )
@@ -67,7 +67,7 @@ export default async function handler(req, res) {
     const [{ ultima_saida }] = await sql`
       SELECT TO_CHAR(MAX(data), 'YYYY-MM-DD') AS ultima_saida
       FROM caixa_movimentacoes
-      WHERE filial = ${filial} AND tipo = 'saida'
+      WHERE filial = ${filial} AND tipo = 'saida' AND conta_estoque = true
     `;
 
     const modelos = rows.map(r => {
