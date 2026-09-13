@@ -9,11 +9,12 @@
 //   ?modo=dia&data=YYYY-MM-DD     -> consumo real de TODOS os modelos num
 //                                    dia específico. Alimenta "Consumo do
 //                                    dia".
-//   ?modo=fulfillment&dias=30|60|90 -> consumo INFORMATIVO gerado via
-//                                    Fulfillment (conta_estoque = false) —
-//                                    não afeta estoque nem ponto de
-//                                    reposição, é só visibilidade até
-//                                    acharmos como debitar isso de verdade.
+//   ?modo=fulfillment&data=YYYY-MM-DD -> mesmo formato de "Consumo do dia",
+//                                    mas INFORMATIVO, gerado via Fulfillment
+//                                    (conta_estoque = false) — não afeta
+//                                    estoque nem ponto de reposição, é só
+//                                    visibilidade até acharmos como debitar
+//                                    isso de verdade.
 
 import { neon } from '@neondatabase/serverless';
 
@@ -62,15 +63,16 @@ async function responderDia(sql, res, filial, req) {
 }
 
 async function responderFulfillment(sql, res, filial, req) {
-  const diasPermitidos = [30, 60, 90];
-  const dias = diasPermitidos.includes(Number(req.query.dias)) ? Number(req.query.dias) : 30;
+  const data = req.query.data; // YYYY-MM-DD
+  if (!data || !/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+    return res.status(400).json({ error: 'Parâmetro "data" é obrigatório no formato YYYY-MM-DD.' });
+  }
 
   const rows = await sql`
     WITH consumo AS (
       SELECT modelo_id, SUM(quantidade)::int AS quantidade
       FROM caixa_movimentacoes
-      WHERE filial = ${filial} AND tipo = 'saida' AND conta_estoque = false
-        AND data >= current_date - (${dias - 1} * interval '1 day')
+      WHERE filial = ${filial} AND tipo = 'saida' AND conta_estoque = false AND data = ${data}
       GROUP BY modelo_id
     )
     SELECT cm.id AS modelo_id, cm.nome AS modelo_nome, COALESCE(c.quantidade, 0)::int AS quantidade
@@ -80,7 +82,7 @@ async function responderFulfillment(sql, res, filial, req) {
     ORDER BY quantidade DESC
   `;
   const total = rows.reduce((acc, r) => acc + r.quantidade, 0);
-  return res.status(200).json({ filial, dias, total, modelos: rows });
+  return res.status(200).json({ filial, data, total, modelos: rows });
 }
 
 export default async function handler(req, res) {

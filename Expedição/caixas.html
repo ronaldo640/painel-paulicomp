@@ -243,14 +243,10 @@
                         <h2>Embalagens via Fulfillment <span class="cx-chip" style="margin-left:6px;">informativo</span></h2>
                         <p>Baseado nas vendas individuais (nota série 2) — não debita o estoque real. O empacotamento físico acontece antes, no envio em lote pro Ebazar, evento que ainda não conseguimos identificar no Tiny.</p>
                     </div>
-                    <select id="cxFulfillmentPeriodoSelect">
-                        <option value="30">Últimos 30 dias</option>
-                        <option value="60">Últimos 60 dias</option>
-                        <option value="90">Últimos 90 dias</option>
-                    </select>
+                    <input type="date" id="cxFulfillmentDiaSelect">
                 </div>
                 <div class="cx-chart-stats">
-                    <div class="cx-chart-stat"><div class="l">Total no período</div><div class="v" id="cxStatTotalFulfillment">—</div></div>
+                    <div class="cx-chart-stat"><div class="l">Total de caixas no dia</div><div class="v" id="cxStatTotalFulfillment">—</div></div>
                 </div>
                 <div class="cx-chart-wrap tall"><canvas id="cxFulfillmentChart"></canvas></div>
             </div>
@@ -732,10 +728,10 @@
             });
         }
 
-        async function cxLoadFulfillment(dias) {
+        async function cxLoadFulfillment(dataIso) {
             let payload;
             try {
-                const resp = await fetch(`/api/caixa-consumo?modo=fulfillment&filial=${CX_FILIAL}&dias=${dias}`);
+                const resp = await fetch(`/api/caixa-consumo?modo=fulfillment&filial=${CX_FILIAL}&data=${dataIso}`);
                 payload = await resp.json();
                 if (!resp.ok) throw new Error(payload.error || 'Erro ao carregar consumo de Fulfillment.');
             } catch (err) {
@@ -833,12 +829,12 @@
                 cxPopulateSelects(resumo.modelos);
 
                 const dias = Number(document.getElementById('cxPeriodoSelect').value) || 30;
-                const diasFulfillment = Number(document.getElementById('cxFulfillmentPeriodoSelect').value) || 30;
                 const dataDia = document.getElementById('cxDiaSelect').value;
+                const dataDiaFulfillment = document.getElementById('cxFulfillmentDiaSelect').value;
                 await Promise.all([
                     cxLoadConsumoModelos(dias),
                     cxLoadConsumoDia(dataDia),
-                    cxLoadFulfillment(diasFulfillment),
+                    cxLoadFulfillment(dataDiaFulfillment),
                 ]);
             } catch (err) {
                 cxToast('Erro ao carregar Controle de Caixas: ' + err.message, 'error');
@@ -1231,7 +1227,7 @@
         // Wiring
         // ---------------------------------------------------------------
         document.getElementById('cxPeriodoSelect').addEventListener('change', e => cxLoadConsumoModelos(Number(e.target.value)));
-        document.getElementById('cxFulfillmentPeriodoSelect').addEventListener('change', e => cxLoadFulfillment(Number(e.target.value)));
+        document.getElementById('cxFulfillmentDiaSelect').addEventListener('change', e => cxLoadFulfillment(e.target.value));
         document.getElementById('cxDiaSelect').addEventListener('change', e => cxLoadConsumoDia(e.target.value));
 
         document.getElementById('cxBtnOpenMov').addEventListener('click', cxOpenMovModal);
@@ -1270,6 +1266,7 @@
         });
 
         document.getElementById('cxDiaSelect').value = cxTodayIso();
+        document.getElementById('cxFulfillmentDiaSelect').value = cxTodayIso();
 
         cxAutoDeducaoHoje().then(() => cxRefreshAll());
         cxLoadRegras();
