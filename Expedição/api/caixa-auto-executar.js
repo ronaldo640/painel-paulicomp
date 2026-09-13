@@ -49,7 +49,12 @@ async function buscarNotasDoDia(token, dataBr) {
       if (situacao.includes('cancelad')) return;
       if (nf.tipo !== 'S') return;
       if (!nf.id) return;
-      notas.push({ id: nf.id, numero: nf.numero, cliente: (nf.cliente || {}).nome || null });
+      // Série 2 = Mercado Envios Fulfillment (mesmo critério do tiny-sync.js).
+      // Fulfillment é sempre embalado unidade a unidade antes de ir pro
+      // depósito do Ebazar, então nunca entra nas regras de consolidação por
+      // faixa de quantidade — é sempre 1 produto = 1 embalagem.
+      const isFulfillment = String(nf.serie) === '2';
+      notas.push({ id: nf.id, numero: nf.numero, cliente: (nf.cliente || {}).nome || null, isFulfillment });
     });
     pagina++;
   } while (pagina <= totalPaginas && notas.length < MAX_NOTAS_POR_EXECUCAO);
@@ -125,7 +130,13 @@ export default async function handler(req, res) {
       regrasPorSku.get(r.sku).push(r);
     }
 
-    function resolverCaixa(sku, qtd, clienteNota) {
+    function resolverCaixa(sku, qtd, clienteNota, isFulfillment) {
+      // Fulfillment ignora qualquer regra de consolidação — sempre 1:1.
+      if (isFulfillment) {
+        const modeloFulfillment = produtoCaixaMap.get(sku);
+        if (modeloFulfillment) return { modelo_id: modeloFulfillment, qtd_caixas: qtd, regra_id: null, origem: 'fulfillment_1x1' };
+        return null;
+      }
       const candidatas = regrasPorSku.get(sku) || [];
       if (candidatas.length > 0) {
         const emFaixa = candidatas.filter(r =>
@@ -163,7 +174,7 @@ export default async function handler(req, res) {
       let algumaPendencia = false;
 
       for (const item of itens) {
-        const resolucao = resolverCaixa(item.sku, item.quantidade, nota.cliente);
+        const resolucao = resolverCaixa(item.sku, item.quantidade, nota.cliente, nota.isFulfillment);
         if (!resolucao || resolucao.fora_da_faixa) {
           algumaPendencia = true;
           pendencias.push({
