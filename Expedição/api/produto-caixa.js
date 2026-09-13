@@ -14,19 +14,6 @@ export default async function handler(req, res) {
 
   const sql = neon(process.env.DATABASE_URL);
 
-  // Diagnóstico pontual: semear pendências de teste pra validar visualmente
-  // o alerta em caixas.html. Uso único, remover depois. ?seedPendencia=1
-  if (req.query.seedPendencia === '1') {
-    const rows = await sql`
-      INSERT INTO caixa_auto_pendencias (filial, nota_id, nota_numero, sku, descricao, quantidade, motivo, data)
-      VALUES
-        ('SP', 999901, '999901', 'SX10TESTE001', 'Produto de teste (sem mapeamento)', 5, 'sem_mapeamento', current_date),
-        ('SP', 999902, '999902', 'SH40R82941', 'Teclado Lenovo KUS0866 USB (fora da faixa de teste)', 12, 'fora_da_faixa', current_date)
-      RETURNING id
-    `;
-    return res.status(200).json({ seeded: rows });
-  }
-
   try {
     const rows = await sql`
       SELECT p.sku, p.produto, p.modelo_id, cm.nome AS modelo_nome
