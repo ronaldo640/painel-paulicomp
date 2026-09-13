@@ -14,6 +14,22 @@ export default async function handler(req, res) {
 
   const sql = neon(process.env.DATABASE_URL);
 
+  // Correção pontual: notas série 2 (Fulfillment) processadas antes do split
+  // conta_estoque existir, gravadas como baixa real. Uso único, remover
+  // depois de rodar. ?fixFulfillment=1&notas=024333,024335,024347
+  if (req.query.fixFulfillment === '1') {
+    const numeros = String(req.query.notas || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (numeros.length === 0) return res.status(400).json({ error: 'Parâmetro "notas" é obrigatório.' });
+    const rows = await sql`
+      UPDATE caixa_movimentacoes
+      SET conta_estoque = false,
+          observacao = REPLACE(observacao, 'Auto — NF', 'Auto (Fulfillment, informativo) — NF')
+      WHERE observacao ~ ('NF (' || ${numeros.join('|')} || ')$')
+      RETURNING id, modelo_id, data, observacao, conta_estoque
+    `;
+    return res.status(200).json({ corrigidas: rows });
+  }
+
   try {
     const rows = await sql`
       SELECT p.sku, p.produto, p.modelo_id, cm.nome AS modelo_nome
