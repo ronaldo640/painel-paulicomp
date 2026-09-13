@@ -226,8 +226,8 @@
             <div class="cx-card">
                 <div class="cx-card-head">
                     <div>
-                        <h2>Consumo do dia</h2>
-                        <p>Todos os modelos, num dia específico — do maior pro menor consumo</p>
+                        <h2>Consumo Diário</h2>
+                        <p>Consumo diário Mercado envios e outros</p>
                     </div>
                     <input type="date" id="cxDiaSelect">
                 </div>
@@ -779,7 +779,7 @@
                 data: {
                     labels: modelos.map(m => m.modelo_nome),
                     datasets: [{
-                        label: 'Consumo do dia',
+                        label: 'Consumo Diário',
                         data: modelos.map(m => m.quantidade),
                         backgroundColor: modelos.map((_, i) => cxCorEscala(i, modelos.length)),
                         borderRadius: 4,
