@@ -177,10 +177,20 @@ export default async function handler(req, res) {
         const resolucao = resolverCaixa(item.sku, item.quantidade, nota.cliente, nota.isFulfillment);
         if (!resolucao || resolucao.fora_da_faixa) {
           algumaPendencia = true;
-          pendencias.push({
-            nota: nota.numero, sku: item.sku, descricao: item.descricao, quantidade: item.quantidade,
-            motivo: resolucao?.fora_da_faixa ? 'fora_da_faixa' : 'sem_mapeamento',
-          });
+          const motivo = resolucao?.fora_da_faixa ? 'fora_da_faixa' : 'sem_mapeamento';
+          pendencias.push({ nota: nota.numero, sku: item.sku, descricao: item.descricao, quantidade: item.quantidade, motivo });
+          // Persiste pra virar alerta no dashboard — sem isso, a pendência só
+          // existia na resposta JSON efêmera desta chamada. Isolado num
+          // try/catch: se a tabela não existir ainda, isso não pode
+          // atrapalhar a baixa real das outras caixas da mesma nota.
+          try {
+            await sql`
+              INSERT INTO caixa_auto_pendencias (filial, nota_id, nota_numero, sku, descricao, quantidade, motivo, data)
+              VALUES (${filial}, ${nota.id}, ${nota.numero}, ${item.sku}, ${item.descricao}, ${item.quantidade}, ${motivo}, ${dataIso})
+            `;
+          } catch (err) {
+            console.error('Falha ao gravar pendência (migração 007 pendente?):', err.message);
+          }
           continue;
         }
         consumoDaNota.set(resolucao.modelo_id, (consumoDaNota.get(resolucao.modelo_id) || 0) + resolucao.qtd_caixas);

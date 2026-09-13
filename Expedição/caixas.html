@@ -59,6 +59,18 @@
         .cx-alert.info strong { color: #93c5fd; }
         .cx-alert span.cx-txt { font-size: 12.5px; color: #cbd5e1; }
 
+        .cx-alert.warn { background: linear-gradient(180deg,#f59e0b14,#f59e0b08); border-color: #f59e0b3d; align-items: flex-start; flex-direction: column; gap: 8px; }
+        .cx-alert.warn .dot { background: #f59e0b; box-shadow: 0 0 0 4px #f59e0b22; }
+        .cx-alert.warn strong { color: #fcd34d; }
+        .cx-pendencia-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 6px 0; border-top: 1px solid #f59e0b22; }
+        .cx-pendencia-row:first-of-type { border-top: none; padding-top: 0; }
+        .cx-pendencia-row .actions { display: flex; gap: 8px; flex-shrink: 0; }
+        .cx-pendencia-row button { font-size: 11.5px; font-weight: 600; padding: 5px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+        .cx-pendencia-row .btn-criar { background: #f59e0b1a; border: 1px solid #f59e0b4d; color: #fcd34d; }
+        .cx-pendencia-row .btn-criar:hover { background: #f59e0b2d; }
+        .cx-pendencia-row .btn-dispensar { background: transparent; border: 1px solid #334155; color: #94a3b8; }
+        .cx-pendencia-row .btn-dispensar:hover { background: #1e293b; }
+
         .cx-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; }
         .cx-card-head { padding: 15px 18px; border-bottom: 1px solid #1e293b; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
         .cx-card-head h2 { font-size: 13.5px; font-weight: 700; margin: 0; color: #f1f5f9; }
@@ -228,6 +240,7 @@
         <div class="cx-kpis" id="cxKpis"></div>
 
         <div id="cxAlertWrap"></div>
+        <div id="cxPendenciaAlertWrap"></div>
 
         <div class="cx-row-2">
             <div class="cx-card">
@@ -616,6 +629,70 @@
             }
         }
 
+        // Itens que a baixa automática encontrou sem regra de embalagem que
+        // cubra o caso (nem mapeamento padrão, nem faixa de qtd cadastrada) —
+        // ficaram sem debitar caixa nenhuma. Alerta persistente convidando a
+        // criar a regra que falta, com atalho direto pro modal já com o SKU
+        // selecionado.
+        let cxPendenciasRegra = [];
+        function cxRenderPendenciasRegra(pendencias) {
+            cxPendenciasRegra = pendencias || [];
+            const wrap = document.getElementById('cxPendenciaAlertWrap');
+            if (cxPendenciasRegra.length === 0) { wrap.innerHTML = ''; return; }
+
+            const linhas = cxPendenciasRegra.map(p => {
+                const motivoTxt = p.motivo === 'fora_da_faixa' ? 'quantidade fora da faixa das regras existentes' : 'sem mapeamento de caixa';
+                return `
+                    <div class="cx-pendencia-row">
+                        <span class="cx-txt"><span style="font-family:ui-monospace,monospace;color:#fcd34d;">${p.sku}</span> — ${p.descricao || 'produto'} (qtd ${p.quantidade}, NF ${p.nota_numero}) — ${motivoTxt}</span>
+                        <span class="actions">
+                            <button type="button" class="btn-criar" data-criar-regra-sku="${p.sku}">Criar regra</button>
+                            <button type="button" class="btn-dispensar" data-dispensar-pendencia="${p.id}">Dispensar</button>
+                        </span>
+                    </div>`;
+            }).join('');
+
+            wrap.innerHTML = `
+                <div class="cx-alert warn">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span class="dot"></span>
+                        <span class="cx-txt"><strong>${cxPendenciasRegra.length} ite${cxPendenciasRegra.length > 1 ? 'ns' : 'm'} sem regra de embalagem:</strong> não foi debitada caixa pra ${cxPendenciasRegra.length > 1 ? 'esses itens' : 'esse item'} — crie a regra que falta.</span>
+                    </div>
+                    ${linhas}
+                </div>`;
+
+            wrap.querySelectorAll('[data-criar-regra-sku]').forEach(btn => {
+                btn.addEventListener('click', () => cxCriarRegraDePendencia(btn.dataset.criarRegraSku));
+            });
+            wrap.querySelectorAll('[data-dispensar-pendencia]').forEach(btn => {
+                btn.addEventListener('click', () => cxDispensarPendencia(Number(btn.dataset.dispensarPendencia)));
+            });
+        }
+
+        function cxCriarRegraDePendencia(sku) {
+            cxOpenRegraModal();
+            const produto = cxProdutos.find(p => p.sku === sku);
+            if (produto) {
+                cxAddSku(produto);
+            } else {
+                document.getElementById('cxRegraSkuSearch').value = sku;
+            }
+        }
+
+        async function cxDispensarPendencia(id) {
+            try {
+                const resp = await fetch('/api/caixa-resumo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id }),
+                });
+                if (!resp.ok) throw new Error((await resp.json()).error || 'Erro ao dispensar.');
+                cxRenderPendenciasRegra(cxPendenciasRegra.filter(p => p.id !== id));
+            } catch (err) {
+                cxToast('Erro: ' + err.message, 'error');
+            }
+        }
+
         function cxRenderFreshness(ultimaSaida) {
             const chip = document.getElementById('cxFreshnessChip');
             const text = document.getElementById('cxFreshnessText');
@@ -820,6 +897,7 @@
                 cxResumo = resumo;
                 cxRenderKpis(resumo.modelos);
                 cxRenderAlert(resumo.modelos);
+                cxRenderPendenciasRegra(resumo.pendencias_regra);
                 cxRenderFreshness(resumo.ultima_saida);
                 cxRenderTable(resumo.modelos);
                 cxRenderMovList(movs);

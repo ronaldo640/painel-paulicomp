@@ -8,13 +8,29 @@ import { neon } from '@neondatabase/serverless';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Método não permitido.' });
 
   const sql = neon(process.env.DATABASE_URL);
+
+  // Marca uma pendência de regra (item sem regra de embalagem) como
+  // resolvida, depois que o usuário cria a regra que faltava.
+  if (req.method === 'POST') {
+    try {
+      const { id } = req.body || {};
+      if (!id) return res.status(400).json({ error: 'Campo "id" é obrigatório.' });
+      await sql`UPDATE caixa_auto_pendencias SET resolvida = true WHERE id = ${id}`;
+      return res.status(200).json({ ok: true });
+    } catch (error) {
+      console.error('Erro POST caixa-resumo (resolver pendência):', error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Método não permitido.' });
+
   const filial = req.query.filial ? String(req.query.filial).toUpperCase() : 'SP';
 
   try {
@@ -70,6 +86,24 @@ export default async function handler(req, res) {
       WHERE filial = ${filial} AND tipo = 'saida' AND conta_estoque = true
     `;
 
+    // Itens de notas processadas pela baixa automática que caíram sem
+    // regra de embalagem (nem mapeamento padrão, nem faixa de qtd que
+    // cubra o caso) — cada um vira um alerta convidando a criar a regra.
+    // Try/catch isolado: se a tabela ainda não existir (migração 007 não
+    // rodada), o resumo inteiro não pode quebrar por causa disso.
+    let pendenciasRegra = [];
+    try {
+      pendenciasRegra = await sql`
+        SELECT id, nota_numero, sku, descricao, quantidade, motivo, TO_CHAR(data, 'YYYY-MM-DD') AS data
+        FROM caixa_auto_pendencias
+        WHERE filial = ${filial} AND resolvida = false
+        ORDER BY data DESC, id DESC
+        LIMIT 50
+      `;
+    } catch (err) {
+      console.error('Tabela caixa_auto_pendencias indisponível (migração 007 pendente?):', err.message);
+    }
+
     const modelos = rows.map(r => {
       const estoqueSeguranca = r.consumo_30d * (r.lead_time_dias || 0) * Number(r.estoque_seguranca_pct);
       const pontoReposicao = r.lead_time_dias
@@ -114,7 +148,7 @@ export default async function handler(req, res) {
       return a.cobertura_dias - b.cobertura_dias;
     });
 
-    return res.status(200).json({ filial, ultima_saida, modelos });
+    return res.status(200).json({ filial, ultima_saida, modelos, pendencias_regra: pendenciasRegra });
   } catch (error) {
     console.error('Erro GET caixa-resumo:', error);
     return res.status(500).json({ error: error.message });
