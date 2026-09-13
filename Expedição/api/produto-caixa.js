@@ -4,7 +4,41 @@
 
 import { neon } from '@neondatabase/serverless';
 
+// ============================================================
+// TEMPORÁRIO — checa a série das notas de um dia específico, pra ver
+// se alguma das já processadas antes da separação do Fulfillment (2026-
+// 09-12) era série 2. REMOVER depois de usar.
+// ============================================================
+const TINY_FILIAIS_DEBUG = { SP: 'TINY_TOKEN_SP', SUL: 'TINY_TOKEN_SUL', TRADE: 'TINY_TOKEN_TRADE' };
+async function debugSerie(req, res) {
+  const filial = req.query.filial ? String(req.query.filial).toUpperCase() : 'SP';
+  const data = req.query.data; // DD/MM/AAAA
+  const tokenEnv = TINY_FILIAIS_DEBUG[filial];
+  if (!tokenEnv || !process.env[tokenEnv]) return res.status(400).json({ error: 'token' });
+  const token = process.env[tokenEnv];
+  const notas = [];
+  let pagina = 1, totalPaginas = 1;
+  do {
+    const params = new URLSearchParams({ token, formato: 'json', pagina: String(pagina), dataInicial: data, dataFinal: data });
+    const resp = await fetch(`https://api.tiny.com.br/api2/notas.fiscais.pesquisa.php?${params.toString()}`);
+    const json = await resp.json();
+    const retorno = json.retorno || {};
+    if (retorno.status === 'Erro' || retorno.status === 'erro') return res.status(500).json({ error: (retorno.erros || []).map(e => e.erro).join('; ') });
+    totalPaginas = Number(retorno.numero_paginas || 1);
+    (retorno.notas_fiscais || []).forEach(item => {
+      const nf = item.nota_fiscal || {};
+      if (nf.tipo !== 'S') return;
+      if ((nf.descricao_situacao || '').toLowerCase().includes('cancelad')) return;
+      notas.push({ numero: nf.numero, serie: nf.serie, isFulfillment: String(nf.serie) === '2' });
+    });
+    pagina++;
+  } while (pagina <= totalPaginas);
+  return res.status(200).json({ filial, data, notas });
+}
+// ============================================================ fim do bloco temporário
+
 export default async function handler(req, res) {
+  if (req.query.debugSerie) return debugSerie(req, res); // TEMPORÁRIO — remover depois
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
