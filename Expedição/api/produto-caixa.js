@@ -5,6 +5,30 @@
 import { neon } from '@neondatabase/serverless';
 
 // ============================================================
+// TEMPORÁRIO — corrige retroativamente movimentos automáticos gravados
+// como estoque real que na verdade eram de notas Fulfillment (série 2),
+// de antes da separação conta_estoque existir. REMOVER depois de usar.
+// ============================================================
+async function fixFulfillment(req, res) {
+  const filial = req.query.filial ? String(req.query.filial).toUpperCase() : 'SP';
+  const numeros = String(req.query.notas || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (numeros.length === 0) return res.status(400).json({ error: 'Parâmetro "notas" (números separados por vírgula) é obrigatório.' });
+
+  const sql = neon(process.env.DATABASE_URL);
+  const observacoesAlvo = numeros.map(n => `Auto — NF ${n}`);
+
+  const rows = await sql`
+    UPDATE caixa_movimentacoes
+    SET conta_estoque = false,
+        observacao = REPLACE(observacao, 'Auto — NF', 'Auto (Fulfillment, informativo) — NF')
+    WHERE filial = ${filial} AND automatica = true AND observacao = ANY(${observacoesAlvo})
+    RETURNING id, modelo_id, quantidade, data, observacao, conta_estoque
+  `;
+  return res.status(200).json({ filial, notas_alvo: numeros, corrigidos: rows });
+}
+// ============================================================ fim do bloco temporário
+
+// ============================================================
 // TEMPORÁRIO — checa a série das notas de um dia específico, pra ver
 // se alguma das já processadas antes da separação do Fulfillment (2026-
 // 09-12) era série 2. REMOVER depois de usar.
@@ -39,6 +63,7 @@ async function debugSerie(req, res) {
 
 export default async function handler(req, res) {
   if (req.query.debugSerie) return debugSerie(req, res); // TEMPORÁRIO — remover depois
+  if (req.query.fixFulfillment) return fixFulfillment(req, res); // TEMPORÁRIO — remover depois
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
