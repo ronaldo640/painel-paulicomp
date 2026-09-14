@@ -8,6 +8,34 @@
 
 import { neon } from '@neondatabase/serverless';
 
+// Aceita tanto strings ("SKU123") quanto objetos ({sku, produto}) — o
+// frontend manda objetos desde que passou a permitir cadastrar, na hora,
+// um SKU que ainda não existe em produto_caixa (ex: item vindo do alerta
+// de "sem regra de embalagem").
+function normalizarSkus(skus) {
+  if (!Array.isArray(skus)) return [];
+  return skus
+    .map(s => (typeof s === 'string' ? { sku: s, produto: s } : s))
+    .filter(s => s && s.sku);
+}
+
+// caixa_regra_produtos.sku tem FK pra produto_caixa.sku — pra permitir criar
+// uma regra com um SKU novo (sem cadastro ainda), cadastra ele primeiro com
+// a caixa da própria regra como mapeamento padrão (ON CONFLICT DO NOTHING
+// pra nunca sobrescrever um cadastro já existente).
+async function vincularSkus(sql, regraId, skuList, modeloIdPadrao) {
+  for (const { sku, produto } of skuList) {
+    await sql`
+      INSERT INTO produto_caixa (sku, produto, modelo_id)
+      VALUES (${sku}, ${produto || sku}, ${modeloIdPadrao})
+      ON CONFLICT (sku) DO NOTHING
+    `;
+  }
+  await Promise.all(skuList.map(({ sku }) => sql`
+    INSERT INTO caixa_regra_produtos (regra_id, sku) VALUES (${regraId}, ${sku})
+  `));
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
@@ -47,7 +75,7 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     try {
       const { skus, qtd_min, qtd_max, modelo_id, qtd_caixas, cliente, observacao, descricao } = req.body || {};
-      const skuList = Array.isArray(skus) ? skus.filter(Boolean) : [];
+      const skuList = normalizarSkus(skus);
       if (skuList.length === 0) {
         return res.status(400).json({ error: 'Selecione pelo menos um SKU.' });
       }
@@ -67,11 +95,9 @@ export default async function handler(req, res) {
         RETURNING id
       `;
 
-      await Promise.all(skuList.map(sku => sql`
-        INSERT INTO caixa_regra_produtos (regra_id, sku) VALUES (${regra.id}, ${sku})
-      `));
+      await vincularSkus(sql, regra.id, skuList, modelo_id);
 
-      return res.status(201).json({ id: regra.id, skus: skuList });
+      return res.status(201).json({ id: regra.id, skus: skuList.map(s => s.sku) });
     } catch (error) {
       console.error('Erro POST caixa_regras:', error);
       return res.status(500).json({ error: error.message });
@@ -82,7 +108,7 @@ export default async function handler(req, res) {
     try {
       const { id, skus, qtd_min, qtd_max, modelo_id, qtd_caixas, cliente, observacao, descricao } = req.body || {};
       if (!id) return res.status(400).json({ error: 'Campo "id" é obrigatório.' });
-      const skuList = Array.isArray(skus) ? skus.filter(Boolean) : [];
+      const skuList = normalizarSkus(skus);
       if (skuList.length === 0) {
         return res.status(400).json({ error: 'Selecione pelo menos um SKU.' });
       }
@@ -105,11 +131,9 @@ export default async function handler(req, res) {
       // Substitui a lista de SKUs inteira (mais simples e previsível do que
       // calcular um diff de quais entraram/saíram).
       await sql`DELETE FROM caixa_regra_produtos WHERE regra_id = ${id}`;
-      await Promise.all(skuList.map(sku => sql`
-        INSERT INTO caixa_regra_produtos (regra_id, sku) VALUES (${id}, ${sku})
-      `));
+      await vincularSkus(sql, id, skuList, modelo_id);
 
-      return res.status(200).json({ id, skus: skuList });
+      return res.status(200).json({ id, skus: skuList.map(s => s.sku) });
     } catch (error) {
       console.error('Erro PUT caixa_regras:', error);
       return res.status(500).json({ error: error.message });

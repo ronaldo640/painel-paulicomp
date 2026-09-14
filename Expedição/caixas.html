@@ -646,7 +646,7 @@
                     <div class="cx-pendencia-row">
                         <span class="cx-txt"><span style="font-family:ui-monospace,monospace;color:#fcd34d;">${p.sku}</span> — ${p.descricao || 'produto'} (qtd ${p.quantidade}, NF ${p.nota_numero}) — ${motivoTxt}</span>
                         <span class="actions">
-                            <button type="button" class="btn-criar" data-criar-regra-sku="${p.sku}">Criar regra</button>
+                            <button type="button" class="btn-criar" data-criar-regra-id="${p.id}">Criar regra</button>
                             <button type="button" class="btn-dispensar" data-dispensar-pendencia="${p.id}">Dispensar</button>
                         </span>
                     </div>`;
@@ -661,22 +661,26 @@
                     ${linhas}
                 </div>`;
 
-            wrap.querySelectorAll('[data-criar-regra-sku]').forEach(btn => {
-                btn.addEventListener('click', () => cxCriarRegraDePendencia(btn.dataset.criarRegraSku));
+            wrap.querySelectorAll('[data-criar-regra-id]').forEach(btn => {
+                btn.addEventListener('click', () => cxCriarRegraDePendencia(Number(btn.dataset.criarRegraId)));
             });
             wrap.querySelectorAll('[data-dispensar-pendencia]').forEach(btn => {
                 btn.addEventListener('click', () => cxDispensarPendencia(Number(btn.dataset.dispensarPendencia)));
             });
         }
 
-        function cxCriarRegraDePendencia(sku) {
+        // Os itens do alerta são exatamente os que NÃO têm cadastro em
+        // produto_caixa (por isso a automação não conseguiu resolver a
+        // caixa) — não adianta tentar achá-los na busca de SKU, que só
+        // procura ali. Usa o SKU/descrição que a própria pendência já trouxe
+        // da nota, e adiciona direto como chip (preferindo o cadastro
+        // existente, se por acaso já houver um).
+        function cxCriarRegraDePendencia(pendenciaId) {
+            const p = cxPendenciasRegra.find(x => x.id === pendenciaId);
+            if (!p) return;
             cxOpenRegraModal();
-            const produto = cxProdutos.find(p => p.sku === sku);
-            if (produto) {
-                cxAddSku(produto);
-            } else {
-                document.getElementById('cxRegraSkuSearch').value = sku;
-            }
+            const produto = cxProdutos.find(x => x.sku === p.sku);
+            cxAddSku(produto || { sku: p.sku, produto: p.descricao || p.sku });
         }
 
         async function cxDispensarPendencia(id) {
@@ -1180,15 +1184,19 @@
         // Pega o SKU digitado na busca e adiciona como escolhido: prioriza um
         // match exato de SKU, senão usa o primeiro resultado da lista. Usado
         // pelo botão "+ Adicionar", pela tecla Enter, e como reforço dentro
-        // de Salvar (pra não perder um SKU que ficou só digitado).
-        function cxAddTopMatch(avisarSeVazio) {
+        // de Salvar (pra não perder um SKU que ficou só digitado). Se o SKU
+        // não tiver cadastro em produto_caixa ainda (produto novo, ou vindo
+        // do alerta de "sem regra"), adiciona mesmo assim usando o texto
+        // digitado — a busca só existe pra facilitar achar o que já existe,
+        // não pra travar a criação da regra.
+        function cxAddTopMatch() {
             const input = document.getElementById('cxRegraSkuSearch');
             const q = input.value.trim();
             if (!q) return false;
             const matches = cxFindSkuMatches(q);
             if (matches.length === 0) {
-                if (avisarSeVazio) cxToast('Nenhum produto encontrado com esse termo.', 'error');
-                return false;
+                cxAddSku({ sku: q, produto: q });
+                return true;
             }
             const exato = matches.find(p => p.sku.toLowerCase() === q.toLowerCase());
             cxAddSku(exato || matches[0]);
@@ -1213,7 +1221,7 @@
 
             if (matches.length === 0) {
                 results.style.display = 'block';
-                results.innerHTML = '<div style="cursor:default;color:#64748b;">Nenhum produto encontrado.</div>';
+                results.innerHTML = '<div style="cursor:default;color:#64748b;">Nenhum produto cadastrado com esse termo — clique em "+ Adicionar" pra usar esse SKU mesmo assim.</div>';
                 return;
             }
             results.style.display = 'block';
@@ -1268,7 +1276,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         id: cxRegraEditingId,
-                        skus: cxRegraSkus.map(p => p.sku),
+                        skus: cxRegraSkus.map(p => ({ sku: p.sku, produto: p.produto })),
                         qtd_min: qtdMin, qtd_max: qtdMax, modelo_id: modeloId, qtd_caixas: qtdCaixas,
                         cliente: cliente || null, observacao: observacao || null,
                     }),
@@ -1331,7 +1339,7 @@
             e.preventDefault(); // não deixa o Enter "enviar" o modal sem querer
             cxAddTopMatch();
         });
-        document.getElementById('cxBtnAddSku').addEventListener('click', () => cxAddTopMatch(true));
+        document.getElementById('cxBtnAddSku').addEventListener('click', () => cxAddTopMatch());
 
         document.addEventListener('keydown', e => {
             if (e.key !== 'Escape') return;
