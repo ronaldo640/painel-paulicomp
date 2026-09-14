@@ -113,6 +113,23 @@ export default async function handler(req, res) {
         WHERE filial = ${filial} AND resolvida = false AND motivo = 'sem_mapeamento'
           AND sku IN (SELECT sku FROM produto_caixa)
       `;
+      // Mesma ideia pra "fora da faixa": uma regra nova pode ter vindo a
+      // cobrir uma quantidade que antes não tinha faixa nenhuma pra ela —
+      // aqui não basta existir mapeamento, tem que existir uma regra ATIVA
+      // pro SKU cuja faixa realmente inclua a quantidade daquela venda.
+      await sql`
+        UPDATE caixa_auto_pendencias p
+        SET resolvida = true
+        WHERE p.filial = ${filial} AND p.resolvida = false AND p.motivo = 'fora_da_faixa'
+          AND EXISTS (
+            SELECT 1
+            FROM caixa_regra_produtos rp
+            JOIN caixa_regras r ON r.id = rp.regra_id
+            WHERE rp.sku = p.sku AND r.ativa = true
+              AND (r.qtd_min IS NULL OR p.quantidade >= r.qtd_min)
+              AND (r.qtd_max IS NULL OR p.quantidade <= r.qtd_max)
+          )
+      `;
       pendenciasRegra = await sql`
         WITH abertas AS (
           SELECT * FROM caixa_auto_pendencias
