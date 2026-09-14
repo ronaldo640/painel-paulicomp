@@ -1,14 +1,19 @@
 // Vercel Serverless Function — baixa automática REAL de estoque de caixa.
-// Busca as notas fiscais de UM dia no Tiny, pega os itens de cada nota,
-// resolve a caixa (caixa_regras, com fallback pro mapeamento padrão em
-// produto_caixa) e GRAVA a saída em caixa_movimentacoes — uma vez só por
-// nota, mesmo que o job rode de novo (caixa_auto_log garante isso).
+// Busca as notas fiscais de um dia (ou período) no Tiny, pega os itens de
+// cada nota, resolve a caixa (caixa_regras, com fallback pro mapeamento
+// padrão em produto_caixa) e GRAVA a saída em caixa_movimentacoes — uma
+// vez só por nota, mesmo que o job rode de novo (caixa_auto_log garante
+// isso).
 //
-// Sem retroativo: só processa a data pedida (padrão: ontem, pensado pra
-// rodar 1x por dia via cron cobrindo o dia anterior inteiro). Escopo
-// inicial: filial SP.
-//
+// Uso diário (cron): sem retroativo, só processa a data pedida (padrão:
+// ontem). Escopo inicial: filial SP.
 // GET /api/caixa-auto-executar?filial=SP&data=12/09/2026
+//
+// Uso pontual (importação histórica): aceita um período — cada nota usa
+// sua própria data de emissão, não a data da chamada. Chame em lotes (o
+// limite por execução é MAX_NOTAS_POR_EXECUCAO) até notas_novas_processadas
+// voltar 0 — idempotente via caixa_auto_log.
+// GET /api/caixa-auto-executar?filial=SP&dataInicial=2026-08-15&dataFinal=2026-09-12
 
 import { neon } from '@neondatabase/serverless';
 
@@ -23,18 +28,20 @@ const MAX_NOTAS_POR_EXECUCAO = 200; // trava de segurança pra não estourar cot
 function toBrDate(d) {
   return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
 }
-function toIsoDate(d) {
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+
+function brParaIso(dataBr) {
+  const [dd, mm, yyyy] = dataBr.split('/');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
-async function buscarNotasDoDia(token, dataBr) {
+async function buscarNotasPeriodo(token, dataInicialBr, dataFinalBr) {
   const notas = [];
   let pagina = 1;
   let totalPaginas = 1;
   do {
     const params = new URLSearchParams({
       token, formato: 'json', pagina: String(pagina),
-      dataInicial: dataBr, dataFinal: dataBr,
+      dataInicial: dataInicialBr, dataFinal: dataFinalBr,
     });
     const resp = await fetch(`${TINY_BASE_URL}/notas.fiscais.pesquisa.php?${params.toString()}`);
     const json = await resp.json();
@@ -49,12 +56,13 @@ async function buscarNotasDoDia(token, dataBr) {
       if (situacao.includes('cancelad')) return;
       if (nf.tipo !== 'S') return;
       if (!nf.id) return;
-      // Série 2 = Mercado Envios Fulfillment (mesmo critério do tiny-sync.js).
-      // Fulfillment é sempre embalado unidade a unidade antes de ir pro
-      // depósito do Ebazar, então nunca entra nas regras de consolidação por
-      // faixa de quantidade — é sempre 1 produto = 1 embalagem.
+      // Série real vinda da API — nunca inferir pelo prefixo do número (já
+      // vimos que série 2 pode ser tanto "023" quanto "024").
       const isFulfillment = String(nf.serie) === '2';
-      notas.push({ id: nf.id, numero: nf.numero, cliente: (nf.cliente || {}).nome || null, isFulfillment });
+      notas.push({
+        id: nf.id, numero: nf.numero, cliente: (nf.cliente || {}).nome || null, isFulfillment,
+        dataIso: brParaIso(nf.data_emissao),
+      });
     });
     pagina++;
   } while (pagina <= totalPaginas && notas.length < MAX_NOTAS_POR_EXECUCAO);
@@ -91,16 +99,29 @@ export default async function handler(req, res) {
   // cobrindo o dia que acabou de fechar. Aceita ?data=AAAA-MM-DD (ISO, igual
   // ao <input type="date"> do caixas.html) pra rodar manualmente num dia
   // específico (ex: hoje, ou quando o caixas.html chama isso sozinho).
-  let dataAlvo;
-  if (req.query.data) {
-    const [yyyy, mm, dd] = String(req.query.data).split('-').map(Number);
-    dataAlvo = new Date(yyyy, mm - 1, dd, 12, 0, 0);
+  //
+  // Também aceita ?dataInicial=AAAA-MM-DD&dataFinal=AAAA-MM-DD (ISO) pra
+  // importação histórica pontual — cada nota usa sua própria data de
+  // emissão (não faz sentido gravar tudo num dia só). Idempotente igual ao
+  // resto: caixa_auto_log evita reprocessar, então dá pra chamar de novo
+  // em lotes até não sobrar nota nova.
+  let dataInicialBr, dataFinalBr;
+  if (req.query.dataInicial && req.query.dataFinal) {
+    const [yi, mi, di] = String(req.query.dataInicial).split('-').map(Number);
+    const [yf, mf, df] = String(req.query.dataFinal).split('-').map(Number);
+    dataInicialBr = toBrDate(new Date(yi, mi - 1, di, 12, 0, 0));
+    dataFinalBr = toBrDate(new Date(yf, mf - 1, df, 12, 0, 0));
   } else {
-    dataAlvo = new Date();
-    dataAlvo.setDate(dataAlvo.getDate() - 1);
+    let dataAlvo;
+    if (req.query.data) {
+      const [yyyy, mm, dd] = String(req.query.data).split('-').map(Number);
+      dataAlvo = new Date(yyyy, mm - 1, dd, 12, 0, 0);
+    } else {
+      dataAlvo = new Date();
+      dataAlvo.setDate(dataAlvo.getDate() - 1);
+    }
+    dataInicialBr = dataFinalBr = toBrDate(dataAlvo);
   }
-  const dataBr = toBrDate(dataAlvo);
-  const dataIso = toIsoDate(dataAlvo);
 
   const tokenEnv = TINY_FILIAIS[filial];
   if (!tokenEnv || !process.env[tokenEnv]) {
@@ -111,7 +132,7 @@ export default async function handler(req, res) {
   const sql = neon(process.env.DATABASE_URL);
 
   try {
-    const notas = await buscarNotasDoDia(token, dataBr);
+    const notas = await buscarNotasPeriodo(token, dataInicialBr, dataFinalBr);
 
     const produtoCaixaRows = await sql`SELECT sku, modelo_id FROM produto_caixa`;
     const produtoCaixaMap = new Map(produtoCaixaRows.map(r => [r.sku, r.modelo_id]));
@@ -186,7 +207,7 @@ export default async function handler(req, res) {
           try {
             await sql`
               INSERT INTO caixa_auto_pendencias (filial, nota_id, nota_numero, sku, descricao, quantidade, motivo, data)
-              VALUES (${filial}, ${nota.id}, ${nota.numero}, ${item.sku}, ${item.descricao}, ${item.quantidade}, ${motivo}, ${dataIso})
+              VALUES (${filial}, ${nota.id}, ${nota.numero}, ${item.sku}, ${item.descricao}, ${item.quantidade}, ${motivo}, ${nota.dataIso})
             `;
           } catch (err) {
             console.error('Falha ao gravar pendência (migração 007 pendente?):', err.message);
@@ -210,7 +231,7 @@ export default async function handler(req, res) {
       for (const [modeloId, qtdCaixas] of consumoDaNota) {
         const [mov] = await sql`
           INSERT INTO caixa_movimentacoes (modelo_id, filial, tipo, quantidade, data, observacao, automatica, conta_estoque)
-          VALUES (${modeloId}, ${filial}, 'saida', ${qtdCaixas}, ${dataIso}, ${observacaoBase}, true, ${contaEstoque})
+          VALUES (${modeloId}, ${filial}, 'saida', ${qtdCaixas}, ${nota.dataIso}, ${observacaoBase}, true, ${contaEstoque})
           RETURNING id
         `;
         movimentosGravados.push({ id: mov.id, nota: nota.numero, modelo_id: modeloId, qtd_caixas: qtdCaixas, conta_estoque: contaEstoque });
@@ -225,7 +246,7 @@ export default async function handler(req, res) {
     }
 
     return res.status(200).json({
-      filial, data: dataBr,
+      filial, dataInicial: dataInicialBr, dataFinal: dataFinalBr,
       notas_encontradas: notas.length,
       notas_novas_processadas: notasNovas,
       notas_ja_processadas_antes: notasJaProcessadas,
