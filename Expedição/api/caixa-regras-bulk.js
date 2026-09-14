@@ -24,7 +24,11 @@ export default async function handler(req, res) {
   const sql = neon(process.env.DATABASE_URL);
 
   async function processarRegra(r, index) {
-    const skuList = Array.isArray(r.skus) ? r.skus.filter(Boolean) : [];
+    // Aceita tanto strings quanto {sku, produto} — mesma convenção do
+    // api/caixa-regras.js, pra quem chamar o bulk com descrição já em mãos.
+    const skuList = (Array.isArray(r.skus) ? r.skus : [])
+      .map(s => (typeof s === 'string' ? { sku: s, produto: s } : s))
+      .filter(s => s && s.sku);
     try {
       if (skuList.length === 0) throw new Error('sem SKU');
       if (!r.modelo_id) throw new Error('sem modelo_id');
@@ -42,12 +46,31 @@ export default async function handler(req, res) {
         )
         RETURNING id
       `;
-      await Promise.all(skuList.map(sku => sql`
+      // caixa_regra_produtos.sku tem FK pra produto_caixa.sku — cadastra o
+      // SKU primeiro (mesma lógica de api/caixa-regras.js) se ele ainda não
+      // existir, senão a importação de um SKU novo falha com FK violation.
+      for (const { sku, produto } of skuList) {
+        await sql`
+          INSERT INTO produto_caixa (sku, produto, modelo_id)
+          VALUES (${sku}, ${produto || sku}, ${r.modelo_id})
+          ON CONFLICT (sku) DO NOTHING
+        `;
+      }
+      await Promise.all(skuList.map(({ sku }) => sql`
         INSERT INTO caixa_regra_produtos (regra_id, sku) VALUES (${regra.id}, ${sku})
       `));
+      try {
+        await Promise.all(skuList.map(({ sku }) => sql`
+          UPDATE caixa_auto_pendencias
+          SET resolvida = true
+          WHERE sku = ${sku} AND resolvida = false AND motivo = 'sem_mapeamento'
+        `));
+      } catch (err) {
+        console.error('Falha ao resolver pendências automaticamente:', err.message);
+      }
       return { index, id: regra.id, ok: true };
     } catch (error) {
-      return { index, ok: false, error: error.message, skus: skuList };
+      return { index, ok: false, error: error.message, skus: skuList.map(s => s.sku) };
     }
   }
 
