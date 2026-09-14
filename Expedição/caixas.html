@@ -1201,9 +1201,28 @@
             });
         }
 
+        // Acha, se existir, uma OUTRA regra ativa que já usa esse SKU (ignora
+        // a própria regra em edição, senão editar uma regra sempre bateria
+        // com ela mesma). Um SKU cair em duas regras diferentes ao mesmo
+        // tempo é ambíguo pra resolverCaixa (qual delas vale?), então isso
+        // vira bloqueio, não só aviso.
+        function cxRegraExistenteParaSku(sku) {
+            return cxRegrasCache.find(r =>
+                r.id !== cxRegraEditingId &&
+                r.ativa !== false &&
+                (r.produtos || []).some(p => p.sku === sku)
+            ) || null;
+        }
+
         function cxAddSku(p) {
             if (!p) return;
             if (cxRegraSkus.some(x => x.sku === p.sku)) return;
+            const conflito = cxRegraExistenteParaSku(p.sku);
+            if (conflito) {
+                const faixa = (conflito.qtd_min || conflito.qtd_max) ? ` (faixa ${conflito.qtd_min ?? '?'}–${conflito.qtd_max ?? '?'})` : '';
+                cxToast(`${p.sku} já está numa regra existente${faixa}, pra "${conflito.modelo_nome}". Edite essa regra em vez de criar outra — filtre por "${p.sku}" na lista abaixo.`, 'error');
+                return;
+            }
             cxRegraSkus.push(p);
             cxRenderSkuChips();
             const results = document.getElementById('cxRegraSkuResults');
