@@ -100,6 +100,19 @@ export default async function handler(req, res) {
     const limitePendencias = Math.min(Number(req.query.limitePendencias) || 50, 5000);
     let pendenciasRegra = [];
     try {
+      // Limpeza defensiva: um SKU pode ter ganhado mapeamento por um
+      // caminho que não passou pelo auto-resolve de api/caixa-regras.js
+      // (ex: regra criada antes dessa lógica existir, ou um ajuste manual
+      // direto no banco) — nesse caso a pendência "sem mapeamento" ficaria
+      // presa pra sempre. Roda toda vez que o resumo é pedido: barato
+      // (poucas linhas, índice em sku) e garante que o alerta nunca mostra
+      // um SKU que já está mapeado.
+      await sql`
+        UPDATE caixa_auto_pendencias
+        SET resolvida = true
+        WHERE filial = ${filial} AND resolvida = false AND motivo = 'sem_mapeamento'
+          AND sku IN (SELECT sku FROM produto_caixa)
+      `;
       pendenciasRegra = await sql`
         WITH abertas AS (
           SELECT * FROM caixa_auto_pendencias

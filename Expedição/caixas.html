@@ -59,17 +59,21 @@
         .cx-alert.info strong { color: #93c5fd; }
         .cx-alert span.cx-txt { font-size: 12.5px; color: #cbd5e1; }
 
-        .cx-alert.warn { background: linear-gradient(180deg,#f59e0b14,#f59e0b08); border-color: #f59e0b3d; align-items: flex-start; flex-direction: column; gap: 8px; }
+        .cx-alert.warn { background: linear-gradient(180deg,#f59e0b14,#f59e0b08); border-color: #f59e0b3d; align-items: flex-start; flex-direction: column; gap: 10px; }
         .cx-alert.warn .dot { background: #f59e0b; box-shadow: 0 0 0 4px #f59e0b22; }
         .cx-alert.warn strong { color: #fcd34d; }
-        .cx-pendencia-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 6px 0; border-top: 1px solid #f59e0b22; }
-        .cx-pendencia-row:first-of-type { border-top: none; padding-top: 0; }
-        .cx-pendencia-row .actions { display: flex; gap: 8px; flex-shrink: 0; }
-        .cx-pendencia-row button { font-size: 11.5px; font-weight: 600; padding: 5px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
-        .cx-pendencia-row .btn-criar { background: #f59e0b1a; border: 1px solid #f59e0b4d; color: #fcd34d; }
-        .cx-pendencia-row .btn-criar:hover { background: #f59e0b2d; }
-        .cx-pendencia-row .btn-dispensar { background: transparent; border: 1px solid #334155; color: #94a3b8; }
-        .cx-pendencia-row .btn-dispensar:hover { background: #1e293b; }
+        .cx-pendencia-table { width: 100%; border-collapse: collapse; }
+        .cx-pendencia-table thead th { text-align: left; font-size: 10px; font-weight: 700; color: #b98a2e; text-transform: uppercase; letter-spacing: .05em; padding: 0 10px 6px; white-space: nowrap; }
+        .cx-pendencia-table thead th.num { text-align: right; }
+        .cx-pendencia-table tbody td { padding: 7px 10px; border-top: 1px solid #f59e0b22; font-size: 12.5px; color: #cbd5e1; vertical-align: middle; }
+        .cx-pendencia-table tbody td.num { text-align: right; white-space: nowrap; }
+        .cx-pendencia-table tbody tr:first-child td { border-top: none; }
+        .cx-pendencia-table .actions { display: flex; gap: 8px; justify-content: flex-end; }
+        .cx-pendencia-table button { font-size: 11.5px; font-weight: 600; padding: 5px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+        .cx-pendencia-table .btn-criar { background: #f59e0b1a; border: 1px solid #f59e0b4d; color: #fcd34d; }
+        .cx-pendencia-table .btn-criar:hover { background: #f59e0b2d; }
+        .cx-pendencia-table .btn-dispensar { background: transparent; border: 1px solid #334155; color: #94a3b8; }
+        .cx-pendencia-table .btn-dispensar:hover { background: #1e293b; }
 
         .cx-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; }
         .cx-card-head { padding: 15px 18px; border-bottom: 1px solid #1e293b; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
@@ -646,18 +650,23 @@
             if (cxPendenciasRegra.length === 0) { wrap.innerHTML = ''; return; }
 
             const linhas = cxPendenciasRegra.map(p => {
-                const motivoTxt = p.motivos === 'fora_da_faixa' ? 'quantidade fora da faixa das regras existentes'
-                    : p.motivos === 'sem_mapeamento' ? 'sem mapeamento de caixa'
-                    : 'sem mapeamento de caixa / quantidade fora da faixa';
-                const ocorrenciasTxt = p.ocorrencias > 1 ? ` — ${p.ocorrencias}x, ${p.quantidade_total} un. no total` : ` (qtd ${p.quantidade_total})`;
+                const motivoTxt = p.motivos === 'fora_da_faixa' ? 'Fora da faixa'
+                    : p.motivos === 'sem_mapeamento' ? 'Sem mapeamento'
+                    : 'Sem mapeamento / fora da faixa';
                 return `
-                    <div class="cx-pendencia-row">
-                        <span class="cx-txt"><span style="font-family:ui-monospace,monospace;color:#fcd34d;">${p.sku}</span> — ${p.descricao || 'produto'}${ocorrenciasTxt}, última NF ${p.ultima_nf} — ${motivoTxt}</span>
-                        <span class="actions">
-                            <button type="button" class="btn-criar" data-criar-regra-sku="${p.sku}">Criar regra</button>
-                            <button type="button" class="btn-dispensar" data-dispensar-sku="${p.sku}">Dispensar</button>
-                        </span>
-                    </div>`;
+                    <tr>
+                        <td class="num">${p.ocorrencias}</td>
+                        <td><span style="font-family:ui-monospace,monospace;color:#fcd34d;">${p.sku}</span></td>
+                        <td>${p.descricao || 'produto'}</td>
+                        <td class="num">${p.quantidade_total}</td>
+                        <td>${motivoTxt}</td>
+                        <td>
+                            <div class="actions">
+                                <button type="button" class="btn-criar" data-criar-regra-sku="${p.sku}">Criar regra</button>
+                                <button type="button" class="btn-dispensar" data-dispensar-sku="${p.sku}">Dispensar</button>
+                            </div>
+                        </td>
+                    </tr>`;
             }).join('');
 
             wrap.innerHTML = `
@@ -666,7 +675,21 @@
                         <span class="dot"></span>
                         <span class="cx-txt"><strong>${cxPendenciasRegra.length} produto${cxPendenciasRegra.length > 1 ? 's' : ''} sem regra de embalagem:</strong> não foi debitada caixa pra ${cxPendenciasRegra.length > 1 ? 'esses itens' : 'esse item'} — crie a regra que falta.</span>
                     </div>
-                    ${linhas}
+                    <div class="cx-scroll-x" style="width:100%;">
+                        <table class="cx-pendencia-table">
+                            <thead>
+                                <tr>
+                                    <th class="num">Ocorrências</th>
+                                    <th>SKU</th>
+                                    <th>Descrição</th>
+                                    <th class="num">Quantidade</th>
+                                    <th>Motivo</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>${linhas}</tbody>
+                        </table>
+                    </div>
                 </div>`;
 
             wrap.querySelectorAll('[data-criar-regra-sku]').forEach(btn => {
