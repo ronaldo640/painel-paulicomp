@@ -14,6 +14,12 @@ export default async function handler(req, res) {
 
   const sql = neon(process.env.DATABASE_URL);
 
+  // Limpeza pontual: remove um SKU de teste. Uso único, remover depois.
+  if (req.query.deleteSku) {
+    await sql`DELETE FROM produto_caixa WHERE sku = ${req.query.deleteSku}`;
+    return res.status(200).json({ deleted: req.query.deleteSku });
+  }
+
   try {
     const rows = await sql`
       SELECT p.sku, p.produto, p.modelo_id, cm.nome AS modelo_nome
