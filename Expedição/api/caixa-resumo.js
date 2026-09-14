@@ -91,6 +91,7 @@ export default async function handler(req, res) {
     // cubra o caso) — cada um vira um alerta convidando a criar a regra.
     // Try/catch isolado: se a tabela ainda não existir (migração 007 não
     // rodada), o resumo inteiro não pode quebrar por causa disso.
+    const limitePendencias = Math.min(Number(req.query.limitePendencias) || 50, 5000);
     let pendenciasRegra = [];
     try {
       pendenciasRegra = await sql`
@@ -98,7 +99,7 @@ export default async function handler(req, res) {
         FROM caixa_auto_pendencias
         WHERE filial = ${filial} AND resolvida = false
         ORDER BY data DESC, id DESC
-        LIMIT 50
+        LIMIT ${limitePendencias}
       `;
     } catch (err) {
       console.error('Tabela caixa_auto_pendencias indisponível (migração 007 pendente?):', err.message);
