@@ -21,42 +21,6 @@ function toBrDateHoje() {
   const d = new Date();
   return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
 }
-function toBrDate(d) {
-  return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
-}
-
-// Diagnóstico pontual: conferir quantas notas de um período são série 2
-// (Fulfillment) vs série 1 (normal), pra validar o histórico antes de
-// importar um relatório manual. Uso único, remover depois.
-// GET ?diagSerie=1&dias=30
-async function buscarNotasPeriodo(token, dataInicialBr, dataFinalBr) {
-  const notas = [];
-  let pagina = 1;
-  let totalPaginas = 1;
-  do {
-    const params = new URLSearchParams({
-      token, formato: 'json', pagina: String(pagina),
-      dataInicial: dataInicialBr, dataFinal: dataFinalBr,
-    });
-    const resp = await fetch(`${TINY_BASE_URL}/notas.fiscais.pesquisa.php?${params.toString()}`);
-    const json = await resp.json();
-    const retorno = json.retorno || {};
-    if (retorno.status === 'Erro' || retorno.status === 'erro') {
-      throw new Error((retorno.erros || []).map(e => e.erro).join('; ') || 'Erro na busca de notas.');
-    }
-    totalPaginas = Number(retorno.numero_paginas || 1);
-    (retorno.notas_fiscais || []).forEach(item => {
-      const nf = item.nota_fiscal || {};
-      const situacao = (nf.descricao_situacao || '').toLowerCase();
-      if (situacao.includes('cancelad')) return;
-      if (nf.tipo !== 'S') return;
-      if (!nf.id) return;
-      notas.push({ id: nf.id, numero: nf.numero, serie: nf.serie, data: nf.data_emissao });
-    });
-    pagina++;
-  } while (pagina <= totalPaginas && pagina <= 50);
-  return notas;
-}
 
 async function buscarNotasDoDia(token, dataBr) {
   const notas = [];
@@ -120,34 +84,6 @@ export default async function handler(req, res) {
   const token = process.env[tokenEnv];
 
   const sql = neon(process.env.DATABASE_URL);
-
-  if (req.query.diagSerie === '1') {
-    try {
-      const dias = Number(req.query.dias) || 30;
-      const hoje = new Date();
-      const inicio = new Date(hoje);
-      inicio.setDate(inicio.getDate() - dias);
-      const dataInicialBr = toBrDate(inicio);
-      const dataFinalBr = toBrDate(hoje);
-      const notas = await buscarNotasPeriodo(token, dataInicialBr, dataFinalBr);
-      const porSerie = {};
-      const prefixoPorSerie = {};
-      notas.forEach(n => {
-        const s = String(n.serie);
-        porSerie[s] = (porSerie[s] || 0) + 1;
-        const prefixo = String(n.numero).slice(0, 3);
-        prefixoPorSerie[s] = prefixoPorSerie[s] || {};
-        prefixoPorSerie[s][prefixo] = (prefixoPorSerie[s][prefixo] || 0) + 1;
-      });
-      return res.status(200).json({
-        filial, dataInicial: dataInicialBr, dataFinal: dataFinalBr,
-        total_notas: notas.length, por_serie: porSerie, prefixo_numero_por_serie: prefixoPorSerie,
-      });
-    } catch (error) {
-      console.error('Erro diagSerie:', error);
-      return res.status(500).json({ error: error.message });
-    }
-  }
 
   try {
     const notas = await buscarNotasDoDia(token, dataBr);
