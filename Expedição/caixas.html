@@ -1181,25 +1181,21 @@
             results.innerHTML = '';
         }
 
-        // Pega o SKU digitado na busca e adiciona como escolhido: prioriza um
-        // match exato de SKU, senão usa o primeiro resultado da lista. Usado
-        // pelo botão "+ Adicionar", pela tecla Enter, e como reforço dentro
-        // de Salvar (pra não perder um SKU que ficou só digitado). Se o SKU
-        // não tiver cadastro em produto_caixa ainda (produto novo, ou vindo
-        // do alerta de "sem regra"), adiciona mesmo assim usando o texto
-        // digitado — a busca só existe pra facilitar achar o que já existe,
-        // não pra travar a criação da regra.
+        // Pega o SKU digitado na busca e adiciona como escolhido. Usado pelo
+        // botão "+ Adicionar", pela tecla Enter, e como reforço dentro de
+        // Salvar (pra não perder um SKU que ficou só digitado). Só usa um
+        // produto já cadastrado se o SKU digitado bater EXATO — nunca troca
+        // silenciosamente pelo primeiro resultado parecido (ex: digitar
+        // "5D11C68081C" não pode virar "5D11C68081C-SC" só porque esse
+        // existe e contém o texto digitado). Sem match exato, adiciona
+        // exatamente o que foi digitado — a busca/lista serve só pra ajudar
+        // a achar e clicar num produto já existente, não pra adivinhar.
         function cxAddTopMatch() {
             const input = document.getElementById('cxRegraSkuSearch');
             const q = input.value.trim();
             if (!q) return false;
-            const matches = cxFindSkuMatches(q);
-            if (matches.length === 0) {
-                cxAddSku({ sku: q, produto: q });
-                return true;
-            }
-            const exato = matches.find(p => p.sku.toLowerCase() === q.toLowerCase());
-            cxAddSku(exato || matches[0]);
+            const exato = cxProdutos.find(p => p.sku.toLowerCase() === q.toLowerCase());
+            cxAddSku(exato || { sku: q, produto: q });
             return true;
         }
 
