@@ -386,10 +386,16 @@
                 </button>
             </div>
             <div class="cx-modal-body">
+                <div style="display:flex;justify-content:flex-end;">
+                    <button type="button" class="cx-btn" id="cxBtnNovoModelo">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                        Novo modelo
+                    </button>
+                </div>
                 <div class="cx-scroll-x">
                     <table class="cx-table cx-cadastro-table" style="min-width:520px;">
                         <thead>
-                            <tr><th>Modelo</th><th>Medida (mm)</th><th class="num">Lead time (dias)</th><th class="num">Segurança (%)</th></tr>
+                            <tr><th>Modelo</th><th>Medida (mm)</th><th class="num">Lead time (dias)</th><th class="num">Segurança (%)</th><th></th></tr>
                         </thead>
                         <tbody id="cxCadastroBody"></tbody>
                     </table>
@@ -1034,7 +1040,7 @@
         async function cxOpenCadastroModal() {
             document.getElementById('cxCadastroModal').hidden = false;
             const tbody = document.getElementById('cxCadastroBody');
-            tbody.innerHTML = '<tr><td colspan="4" class="cx-note">Carregando...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="cx-note">Carregando...</td></tr>';
             try {
                 const resp = await fetch('/api/caixa-modelos');
                 const modelos = await resp.json();
@@ -1049,11 +1055,36 @@
                             <td class="cx-box-sub">${m.medida_mm || '—'}</td>
                             <td class="num"><input type="number" min="1" class="cx-lead-input" value="${m.lead_time_dias ?? ''}" style="text-align:right;"></td>
                             <td class="num"><input type="number" min="0" max="100" class="cx-pct-input" value="${pct}" style="text-align:right;"></td>
+                            <td></td>
                         </tr>`;
                 }).join('');
             } catch (err) {
-                tbody.innerHTML = `<tr><td colspan="4" class="cx-note">Erro ao carregar: ${err.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5" class="cx-note">Erro ao carregar: ${err.message}</td></tr>`;
             }
+        }
+
+        // Adiciona uma linha em branco e editável no fim da tabela pra
+        // cadastrar um modelo novo (ex: surgiu uma 16ª embalagem). Sem
+        // data-id numérico — cxSaveCadastro reconhece isso e faz POST em
+        // vez de PUT. O "×" só existe nessa linha nova, pra desfazer antes
+        // de salvar; remover um modelo já existente não é o objetivo aqui.
+        function cxAddNovoModeloRow() {
+            const tbody = document.getElementById('cxCadastroBody');
+            const tr = document.createElement('tr');
+            tr.dataset.novo = '1';
+            tr.innerHTML = `
+                <td><input type="text" class="cx-nome-input" placeholder="Nome do modelo" style="width:100%;"></td>
+                <td><input type="text" class="cx-medida-input" placeholder="ex: 300x200x150" style="width:100%;"></td>
+                <td class="num"><input type="number" min="1" class="cx-lead-input" placeholder="opcional" style="text-align:right;"></td>
+                <td class="num"><input type="number" min="0" max="100" class="cx-pct-input" value="20" style="text-align:right;"></td>
+                <td>
+                    <button type="button" class="cx-icon-btn" data-remove-novo-modelo title="Remover">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    </button>
+                </td>`;
+            tbody.appendChild(tr);
+            tr.querySelector('[data-remove-novo-modelo]').addEventListener('click', () => tr.remove());
+            tr.querySelector('.cx-nome-input').focus();
         }
         function cxCloseCadastroModal() { document.getElementById('cxCadastroModal').hidden = true; }
 
@@ -1070,7 +1101,18 @@
                 }
             });
 
-            if (updates.length === 0) { cxCloseCadastroModal(); return; }
+            const novasLinhas = document.querySelectorAll('#cxCadastroBody tr[data-novo]');
+            const novos = [];
+            for (const tr of novasLinhas) {
+                const nome = tr.querySelector('.cx-nome-input').value.trim();
+                if (!nome) continue; // linha adicionada mas deixada em branco — ignora, não trava o salvar
+                const medida = tr.querySelector('.cx-medida-input').value.trim();
+                const lead = tr.querySelector('.cx-lead-input').value ? Number(tr.querySelector('.cx-lead-input').value) : null;
+                const pct = tr.querySelector('.cx-pct-input').value ? Number(tr.querySelector('.cx-pct-input').value) / 100 : 0.20;
+                novos.push({ nome, medida_mm: medida || null, lead_time_dias: lead, estoque_seguranca_pct: pct });
+            }
+
+            if (updates.length === 0 && novos.length === 0) { cxCloseCadastroModal(); return; }
 
             const btn = document.getElementById('cxBtnSaveCadastro');
             btn.disabled = true;
@@ -1082,7 +1124,17 @@
                 }).then(async r => {
                     if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || ('Falha ao salvar modelo ' + u.id)); }
                 })));
-                cxToast(`${updates.length} modelo(s) atualizado(s).`, 'success');
+                await Promise.all(novos.map(n => fetch('/api/caixa-modelos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(n),
+                }).then(async r => {
+                    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || ('Falha ao criar modelo "' + n.nome + '"')); }
+                })));
+                const partes = [];
+                if (updates.length) partes.push(`${updates.length} atualizado(s)`);
+                if (novos.length) partes.push(`${novos.length} novo(s)`);
+                cxToast(`Modelos: ${partes.join(', ')}.`, 'success');
                 cxCloseCadastroModal();
                 await cxRefreshAll();
             } catch (err) {
@@ -1384,6 +1436,7 @@
         document.getElementById('cxBtnCloseCadastro').addEventListener('click', cxCloseCadastroModal);
         document.getElementById('cxBtnCancelCadastro').addEventListener('click', cxCloseCadastroModal);
         document.getElementById('cxBtnSaveCadastro').addEventListener('click', cxSaveCadastro);
+        document.getElementById('cxBtnNovoModelo').addEventListener('click', cxAddNovoModeloRow);
         document.getElementById('cxCadastroModal').addEventListener('click', e => { if (e.target.id === 'cxCadastroModal') cxCloseCadastroModal(); });
 
         document.getElementById('cxBtnOpenRegra').addEventListener('click', () => cxOpenRegraModal());
