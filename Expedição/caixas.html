@@ -1047,12 +1047,12 @@
                 if (!resp.ok) throw new Error(modelos.error || 'Erro ao carregar.');
                 cxCadastroOriginal = {};
                 tbody.innerHTML = modelos.map(m => {
-                    cxCadastroOriginal[m.id] = { lead_time_dias: m.lead_time_dias, estoque_seguranca_pct: Number(m.estoque_seguranca_pct) };
+                    cxCadastroOriginal[m.id] = { medida_mm: m.medida_mm, lead_time_dias: m.lead_time_dias, estoque_seguranca_pct: Number(m.estoque_seguranca_pct) };
                     const pct = Math.round(Number(m.estoque_seguranca_pct) * 100);
                     return `
                         <tr data-id="${m.id}">
                             <td><div class="cx-box-name">${m.nome}</div></td>
-                            <td class="cx-box-sub">${m.medida_mm || '—'}</td>
+                            <td><input type="text" class="cx-medida-input" value="${m.medida_mm || ''}" placeholder="ex: 300x200x150" style="width:100%;"></td>
                             <td class="num"><input type="number" min="1" class="cx-lead-input" value="${m.lead_time_dias ?? ''}" style="text-align:right;"></td>
                             <td class="num"><input type="number" min="0" max="100" class="cx-pct-input" value="${pct}" style="text-align:right;"></td>
                             <td></td>
@@ -1093,11 +1093,12 @@
             const updates = [];
             rows.forEach(tr => {
                 const id = Number(tr.dataset.id);
+                const medida = tr.querySelector('.cx-medida-input').value.trim() || null;
                 const lead = tr.querySelector('.cx-lead-input').value ? Number(tr.querySelector('.cx-lead-input').value) : null;
                 const pct = tr.querySelector('.cx-pct-input').value ? Number(tr.querySelector('.cx-pct-input').value) / 100 : null;
                 const orig = cxCadastroOriginal[id] || {};
-                if (lead !== orig.lead_time_dias || pct !== orig.estoque_seguranca_pct) {
-                    updates.push({ id, lead_time_dias: lead, estoque_seguranca_pct: pct });
+                if (medida !== orig.medida_mm || lead !== orig.lead_time_dias || pct !== orig.estoque_seguranca_pct) {
+                    updates.push({ id, medida_mm: medida, lead_time_dias: lead, estoque_seguranca_pct: pct });
                 }
             });
 
