@@ -189,7 +189,7 @@ export default async function handler(req, res) {
 
       let itens;
       try {
-        await esperar(350); // espaça as chamadas pra não estourar a cota do Tiny
+        await esperar(600); // espaça as chamadas pra não estourar a cota do Tiny
         itens = await buscarItensDaNota(token, nota.id);
       } catch (err) {
         pendencias.push({ nota: nota.numero, motivo: 'erro_ao_obter_nota', detalhe: err.message });
