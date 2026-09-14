@@ -69,6 +69,10 @@ async function buscarNotasPeriodo(token, dataInicialBr, dataFinalBr) {
   return notas.slice(0, MAX_NOTAS_POR_EXECUCAO);
 }
 
+function esperar(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function buscarItensDaNota(token, notaId) {
   const params = new URLSearchParams({ token, id: String(notaId), formato: 'json' });
   const resp = await fetch(`${TINY_BASE_URL}/nota.fiscal.obter.php?${params.toString()}`);
@@ -185,6 +189,7 @@ export default async function handler(req, res) {
 
       let itens;
       try {
+        await esperar(350); // espaça as chamadas pra não estourar a cota do Tiny
         itens = await buscarItensDaNota(token, nota.id);
       } catch (err) {
         pendencias.push({ nota: nota.numero, motivo: 'erro_ao_obter_nota', detalhe: err.message });
