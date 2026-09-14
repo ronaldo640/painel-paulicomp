@@ -34,6 +34,23 @@ async function vincularSkus(sql, regraId, skuList, modeloIdPadrao) {
   await Promise.all(skuList.map(({ sku }) => sql`
     INSERT INTO caixa_regra_produtos (regra_id, sku) VALUES (${regraId}, ${sku})
   `));
+
+  // O SKU agora tem mapeamento — qualquer pendência antiga de "sem
+  // mapeamento" pra ele deixou de ser um problema real, então resolve
+  // todas de uma vez (evita o usuário achar que precisa mapear a mesma
+  // coisa de novo pra cada venda antiga que ainda aparecia no alerta).
+  // "fora_da_faixa" fica de fora de propósito: essa regra pode não cobrir
+  // a quantidade daquela venda específica, então só dispensar manualmente
+  // garante que continua correto.
+  try {
+    await Promise.all(skuList.map(({ sku }) => sql`
+      UPDATE caixa_auto_pendencias
+      SET resolvida = true
+      WHERE sku = ${sku} AND resolvida = false AND motivo = 'sem_mapeamento'
+    `));
+  } catch (err) {
+    console.error('Falha ao resolver pendências automaticamente:', err.message);
+  }
 }
 
 export default async function handler(req, res) {

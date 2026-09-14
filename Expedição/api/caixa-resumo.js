@@ -15,13 +15,15 @@ export default async function handler(req, res) {
 
   const sql = neon(process.env.DATABASE_URL);
 
-  // Marca uma pendência de regra (item sem regra de embalagem) como
-  // resolvida, depois que o usuário cria a regra que faltava.
+  // Marca TODAS as pendências abertas de um SKU como resolvidas — o alerta
+  // agrupa por SKU (não por nota), então dispensar precisa limpar todas as
+  // ocorrências de uma vez, não só a que estava sendo exibida.
   if (req.method === 'POST') {
     try {
-      const { id } = req.body || {};
-      if (!id) return res.status(400).json({ error: 'Campo "id" é obrigatório.' });
-      await sql`UPDATE caixa_auto_pendencias SET resolvida = true WHERE id = ${id}`;
+      const { sku, filial: filialBody } = req.body || {};
+      if (!sku) return res.status(400).json({ error: 'Campo "sku" é obrigatório.' });
+      const filialResolver = filialBody ? String(filialBody).toUpperCase() : 'SP';
+      await sql`UPDATE caixa_auto_pendencias SET resolvida = true WHERE sku = ${sku} AND filial = ${filialResolver} AND resolvida = false`;
       return res.status(200).json({ ok: true });
     } catch (error) {
       console.error('Erro POST caixa-resumo (resolver pendência):', error);
@@ -89,16 +91,36 @@ export default async function handler(req, res) {
     // Itens de notas processadas pela baixa automática que caíram sem
     // regra de embalagem (nem mapeamento padrão, nem faixa de qtd que
     // cubra o caso) — cada um vira um alerta convidando a criar a regra.
-    // Try/catch isolado: se a tabela ainda não existir (migração 007 não
-    // rodada), o resumo inteiro não pode quebrar por causa disso.
+    // Agrupado por SKU (não por nota): o mesmo SKU sem mapeamento pode
+    // vender várias vezes antes de alguém criar a regra, e listar uma
+    // linha por venda só polui o alerta e sugere (errado) que precisaria
+    // mapear várias vezes a mesma coisa. Try/catch isolado: se a tabela
+    // ainda não existir (migração 007 não rodada), o resumo inteiro não
+    // pode quebrar por causa disso.
     const limitePendencias = Math.min(Number(req.query.limitePendencias) || 50, 5000);
     let pendenciasRegra = [];
     try {
       pendenciasRegra = await sql`
-        SELECT id, nota_numero, sku, descricao, quantidade, motivo, TO_CHAR(data, 'YYYY-MM-DD') AS data
-        FROM caixa_auto_pendencias
-        WHERE filial = ${filial} AND resolvida = false
-        ORDER BY data DESC, id DESC
+        WITH abertas AS (
+          SELECT * FROM caixa_auto_pendencias
+          WHERE filial = ${filial} AND resolvida = false
+        ),
+        recente AS (
+          SELECT DISTINCT ON (sku) sku, nota_numero, descricao, data
+          FROM abertas
+          ORDER BY sku, data DESC, id DESC
+        ),
+        agregado AS (
+          SELECT sku, COUNT(*) AS ocorrencias, SUM(quantidade) AS quantidade_total,
+                 STRING_AGG(DISTINCT motivo, ' / ') AS motivos
+          FROM abertas
+          GROUP BY sku
+        )
+        SELECT r.sku, r.descricao, r.nota_numero AS ultima_nf, TO_CHAR(r.data, 'YYYY-MM-DD') AS data,
+               a.ocorrencias::int AS ocorrencias, a.quantidade_total::int AS quantidade_total, a.motivos
+        FROM recente r
+        JOIN agregado a ON a.sku = r.sku
+        ORDER BY r.data DESC
         LIMIT ${limitePendencias}
       `;
     } catch (err) {
