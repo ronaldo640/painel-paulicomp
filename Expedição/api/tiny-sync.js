@@ -238,21 +238,33 @@ export default async function handler(req, res) {
   if (query.debug === 'busca') {
     const f = filiaisAtivas[0];
     const token = process.env[f.env];
-    const params = new URLSearchParams({ token, formato: 'json', pagina: String(query.pagina || '1'), dataInicial, dataFinal });
-    if (query.extra) {
-      String(query.extra).split(',').forEach(par => {
-        const [k, v] = par.split(':');
-        if (k && v) params.set(k, v);
+    const filtroNome = query.nomeContem ? String(query.nomeContem).toLowerCase() : null;
+    let pagina = 1, totalPaginas = 1;
+    const encontradas = [];
+    let totalVistas = 0;
+    do {
+      const params = new URLSearchParams({ token, formato: 'json', pagina: String(pagina), dataInicial, dataFinal });
+      if (query.extra) {
+        String(query.extra).split(',').forEach(par => {
+          const [k, v] = par.split(':');
+          if (k && v) params.set(k, v);
+        });
+      }
+      const resp = await fetch(`${TINY_BASE_URL}?${params.toString()}`);
+      const json = await resp.json();
+      const retorno = json.retorno || {};
+      totalPaginas = Number(retorno.numero_paginas || 1);
+      (retorno.notas_fiscais || []).forEach(item => {
+        const n = item.nota_fiscal || {};
+        totalVistas++;
+        const nome = (n.cliente && n.cliente.nome) || '';
+        if (!filtroNome || nome.toLowerCase().includes(filtroNome)) {
+          encontradas.push({ id: n.id, numero: n.numero, tipo: n.tipo, cliente: nome, data: n.data_emissao });
+        }
       });
-    }
-    const resp = await fetch(`${TINY_BASE_URL}?${params.toString()}`);
-    const json = await resp.json();
-    const retorno = json.retorno || {};
-    const notas = (retorno.notas_fiscais || []).map(item => item.nota_fiscal);
-    return res.status(200).json({
-      ok: true, filial: f.nome, numero_paginas: retorno.numero_paginas, total: notas.length,
-      amostra: notas.slice(0, 5).map(n => ({ numero: n.numero, tipo: n.tipo, cliente: n.cliente?.nome, data: n.data_emissao })),
-    });
+      pagina++;
+    } while (pagina <= totalPaginas && pagina <= 60);
+    return res.status(200).json({ ok: true, filial: f.nome, numero_paginas: totalPaginas, totalVistas, encontradas });
   }
 
   const sql = neon(process.env.DATABASE_URL);
