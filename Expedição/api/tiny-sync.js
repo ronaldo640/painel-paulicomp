@@ -235,6 +235,60 @@ export default async function handler(req, res) {
   // Modo de diagnóstico temporário (?debug=busca&extra=chave:valor,...): repassa parâmetros
   // extras crus pra notas.fiscais.pesquisa.php, pra descobrir quais filtros o Tiny realmente
   // aceita (tipoNota, cliente, fornecedor etc.) sem precisar adivinhar às cegas.
+  // Modo de diagnóstico temporário (?debug=itens&offset=N&limite=N): refaz a mesma busca
+  // filtrada por fornecedor e, a partir do offset, abre cada nota (nota.fiscal.obter.php) pra
+  // extrair os itens (SKU + quantidade) — usado pra montar o mapa SKU -> número da nota, sem
+  // repetir a varredura de páginas a cada lote.
+  if (query.debug === 'itens') {
+    const f = filiaisAtivas[0];
+    const token = process.env[f.env];
+    const filtroNome = query.nomeContem ? String(query.nomeContem).toLowerCase() : null;
+    let pagina = 1, totalPaginas = 1;
+    const notas = [];
+    do {
+      const params = new URLSearchParams({ token, formato: 'json', pagina: String(pagina), dataInicial, dataFinal });
+      if (query.extra) {
+        String(query.extra).split(',').forEach(par => {
+          const [k, v] = par.split(':');
+          if (k && v) params.set(k, v);
+        });
+      }
+      const resp = await fetch(`${TINY_BASE_URL}?${params.toString()}`);
+      const json = await resp.json();
+      const retorno = json.retorno || {};
+      totalPaginas = Number(retorno.numero_paginas || 1);
+      (retorno.notas_fiscais || []).forEach(item => {
+        const n = item.nota_fiscal || {};
+        const nome = (n.cliente && n.cliente.nome) || '';
+        if (!filtroNome || nome.toLowerCase().includes(filtroNome)) {
+          notas.push({ id: n.id, numero: n.numero, data: n.data_emissao });
+        }
+      });
+      pagina++;
+    } while (pagina <= totalPaginas && pagina <= 60);
+
+    const offset = Number(query.offset) || 0;
+    const limite = Number(query.limite) || 30;
+    const lote = notas.slice(offset, offset + limite);
+    const resultado = [];
+    for (let i = 0; i < lote.length; i++) {
+      if (i > 0) await sleep(400);
+      const params = new URLSearchParams({ token, id: String(lote[i].id), formato: 'json' });
+      const resp = await fetch(`https://api.tiny.com.br/api2/nota.fiscal.obter.php?${params.toString()}`).catch(() => null);
+      const json = resp ? await resp.json().catch(() => null) : null;
+      const nf = json?.retorno?.nota_fiscal;
+      const itens = (nf?.itens || []).map(it => (it.item || it)).map(it => ({
+        sku: String(it.codigo || '').trim(), qtd: Number(it.quantidade || 0), descricao: it.descricao || '',
+      })).filter(it => it.sku);
+      resultado.push({ numero: lote[i].numero, data: lote[i].data, itens });
+    }
+    return res.status(200).json({
+      ok: true, filial: f.nome, totalNotas: notas.length, offset, processadas: lote.length,
+      proximoOffset: offset + lote.length < notas.length ? offset + lote.length : null,
+      resultado,
+    });
+  }
+
   if (query.debug === 'busca') {
     const f = filiaisAtivas[0];
     const token = process.env[f.env];
