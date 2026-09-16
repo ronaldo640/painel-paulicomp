@@ -38,7 +38,13 @@ export default async function handler(req, res) {
       WHERE modelo_id=${modeloId} AND filial=${filial} AND tipo='entrada'
       ORDER BY id
     `;
-    return res.status(200).json({ antes, depois, linha: linha[0] || null, todasEntradas });
+    const hoje16 = await sql`
+      SELECT id, modelo_id, tipo, quantidade, conta_estoque, TO_CHAR(data,'YYYY-MM-DD') AS data, observacao, automatica
+      FROM caixa_movimentacoes
+      WHERE filial=${filial} AND data = '2026-09-16' AND automatica = false
+      ORDER BY id
+    `;
+    return res.status(200).json({ antes, depois, linha: linha[0] || null, todasEntradas, hoje16 });
   }
 
   try {
