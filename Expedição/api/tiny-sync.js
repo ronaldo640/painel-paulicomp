@@ -20,6 +20,8 @@ const TINY_FILIAIS = [
   { key: 'TRADE', nome: 'COMP TRADE', env: 'TINY_TOKEN_TRADE' },
 ];
 
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
 function toIsoDate(brDate) {
   // "dd/mm/yyyy" -> "yyyy-mm-dd"
   if (!brDate || typeof brDate !== "string" || !brDate.includes("/")) return null;
