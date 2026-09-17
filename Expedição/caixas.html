@@ -395,7 +395,7 @@
                 <div class="cx-scroll-x">
                     <table class="cx-table cx-cadastro-table" style="min-width:520px;">
                         <thead>
-                            <tr><th>Modelo</th><th>Medida (mm)</th><th class="num">Lead time (dias)</th><th class="num">Segurança (%)</th><th></th></tr>
+                            <tr><th>Modelo</th><th>Medida (mm)</th><th class="num">Estoque atual</th><th class="num">Lead time (dias)</th><th class="num">Segurança (%)</th><th></th></tr>
                         </thead>
                         <tbody id="cxCadastroBody"></tbody>
                     </table>
@@ -1040,26 +1040,34 @@
         async function cxOpenCadastroModal() {
             document.getElementById('cxCadastroModal').hidden = false;
             const tbody = document.getElementById('cxCadastroBody');
-            tbody.innerHTML = '<tr><td colspan="5" class="cx-note">Carregando...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="cx-note">Carregando...</td></tr>';
             try {
-                const resp = await fetch('/api/caixa-modelos');
+                const [resp, resumoResp] = await Promise.all([
+                    fetch('/api/caixa-modelos'),
+                    fetch(`/api/caixa-resumo?filial=${CX_FILIAL}`),
+                ]);
                 const modelos = await resp.json();
                 if (!resp.ok) throw new Error(modelos.error || 'Erro ao carregar.');
+                const resumo = await resumoResp.json();
+                const estoquePorModelo = new Map((resumo.modelos || []).map(m => [m.id, m.estoque_atual]));
+
                 cxCadastroOriginal = {};
                 tbody.innerHTML = modelos.map(m => {
-                    cxCadastroOriginal[m.id] = { medida_mm: m.medida_mm, lead_time_dias: m.lead_time_dias, estoque_seguranca_pct: Number(m.estoque_seguranca_pct) };
+                    const estoqueAtual = estoquePorModelo.has(m.id) ? estoquePorModelo.get(m.id) : 0;
+                    cxCadastroOriginal[m.id] = { medida_mm: m.medida_mm, lead_time_dias: m.lead_time_dias, estoque_seguranca_pct: Number(m.estoque_seguranca_pct), estoque_atual: estoqueAtual };
                     const pct = Math.round(Number(m.estoque_seguranca_pct) * 100);
                     return `
                         <tr data-id="${m.id}">
                             <td><div class="cx-box-name">${m.nome}</div></td>
                             <td><input type="text" class="cx-medida-input" value="${m.medida_mm || ''}" placeholder="ex: 300x200x150" style="width:100%;"></td>
+                            <td class="num"><input type="number" class="cx-estoque-input" value="${estoqueAtual}" style="text-align:right;" title="Alterar aqui lança um ajuste automático pra corrigir a diferença"></td>
                             <td class="num"><input type="number" min="1" class="cx-lead-input" value="${m.lead_time_dias ?? ''}" style="text-align:right;"></td>
                             <td class="num"><input type="number" min="0" max="100" class="cx-pct-input" value="${pct}" style="text-align:right;"></td>
                             <td></td>
                         </tr>`;
                 }).join('');
             } catch (err) {
-                tbody.innerHTML = `<tr><td colspan="5" class="cx-note">Erro ao carregar: ${err.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="cx-note">Erro ao carregar: ${err.message}</td></tr>`;
             }
         }
 
@@ -1075,6 +1083,7 @@
             tr.innerHTML = `
                 <td><input type="text" class="cx-nome-input" placeholder="Nome do modelo" style="width:100%;"></td>
                 <td><input type="text" class="cx-medida-input" placeholder="ex: 300x200x150" style="width:100%;"></td>
+                <td class="num cx-box-sub">—</td>
                 <td class="num"><input type="number" min="1" class="cx-lead-input" placeholder="opcional" style="text-align:right;"></td>
                 <td class="num"><input type="number" min="0" max="100" class="cx-pct-input" value="20" style="text-align:right;"></td>
                 <td>
@@ -1091,6 +1100,7 @@
         async function cxSaveCadastro() {
             const rows = document.querySelectorAll('#cxCadastroBody tr[data-id]');
             const updates = [];
+            const ajustesEstoque = [];
             rows.forEach(tr => {
                 const id = Number(tr.dataset.id);
                 const medida = tr.querySelector('.cx-medida-input').value.trim() || null;
@@ -1099,6 +1109,17 @@
                 const orig = cxCadastroOriginal[id] || {};
                 if (medida !== orig.medida_mm || lead !== orig.lead_time_dias || pct !== orig.estoque_seguranca_pct) {
                     updates.push({ id, medida_mm: medida, lead_time_dias: lead, estoque_seguranca_pct: pct });
+                }
+
+                // Estoque não é campo de caixa_modelos — é sempre calculado a
+                // partir das movimentações. Mudar esse número aqui não
+                // sobrescreve nada diretamente: lança a diferença como um
+                // ajuste (entrada ou saída) pra fechar a conta com a
+                // contagem física, sem o usuário ter que calcular a mão.
+                const novoEstoque = tr.querySelector('.cx-estoque-input').value !== '' ? Number(tr.querySelector('.cx-estoque-input').value) : orig.estoque_atual;
+                const diferenca = novoEstoque - (orig.estoque_atual ?? 0);
+                if (diferenca !== 0) {
+                    ajustesEstoque.push({ modelo_id: id, tipo: diferenca > 0 ? 'entrada' : 'saida', quantidade: Math.abs(diferenca) });
                 }
             });
 
@@ -1113,7 +1134,7 @@
                 novos.push({ nome, medida_mm: medida || null, lead_time_dias: lead, estoque_seguranca_pct: pct });
             }
 
-            if (updates.length === 0 && novos.length === 0) { cxCloseCadastroModal(); return; }
+            if (updates.length === 0 && novos.length === 0 && ajustesEstoque.length === 0) { cxCloseCadastroModal(); return; }
 
             const btn = document.getElementById('cxBtnSaveCadastro');
             btn.disabled = true;
@@ -1132,9 +1153,20 @@
                 }).then(async r => {
                     if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || ('Falha ao criar modelo "' + n.nome + '"')); }
                 })));
+                await Promise.all(ajustesEstoque.map(a => fetch('/api/caixa-movimentacoes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        modelo_id: a.modelo_id, filial: CX_FILIAL, tipo: a.tipo, quantidade: a.quantidade,
+                        data: cxTodayIso(), observacao: 'Ajuste de estoque — contagem física',
+                    }),
+                }).then(async r => {
+                    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || ('Falha ao ajustar estoque do modelo ' + a.modelo_id)); }
+                })));
                 const partes = [];
                 if (updates.length) partes.push(`${updates.length} atualizado(s)`);
                 if (novos.length) partes.push(`${novos.length} novo(s)`);
+                if (ajustesEstoque.length) partes.push(`${ajustesEstoque.length} ajuste(s) de estoque`);
                 cxToast(`Modelos: ${partes.join(', ')}.`, 'success');
                 cxCloseCadastroModal();
                 await cxRefreshAll();
