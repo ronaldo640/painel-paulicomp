@@ -14,39 +14,6 @@ export default async function handler(req, res) {
 
   const sql = neon(process.env.DATABASE_URL);
 
-  // Diagnóstico pontual: estoque real (conta_estoque=true) de um modelo
-  // antes/depois de um id de movimentação específico. Uso único, remover
-  // depois. ?diagEstoque=1&modeloId=3&filial=SP&antesDe=1019
-  if (req.query.diagEstoque === '1') {
-    const modeloId = Number(req.query.modeloId);
-    const filial = String(req.query.filial || 'SP').toUpperCase();
-    const antesDe = Number(req.query.antesDe);
-    const [{ total: antes }] = await sql`
-      SELECT COALESCE(SUM(CASE WHEN tipo='entrada' THEN quantidade ELSE -quantidade END),0)::int AS total
-      FROM caixa_movimentacoes
-      WHERE modelo_id=${modeloId} AND filial=${filial} AND conta_estoque=true AND id < ${antesDe}
-    `;
-    const [{ total: depois }] = await sql`
-      SELECT COALESCE(SUM(CASE WHEN tipo='entrada' THEN quantidade ELSE -quantidade END),0)::int AS total
-      FROM caixa_movimentacoes
-      WHERE modelo_id=${modeloId} AND filial=${filial} AND conta_estoque=true
-    `;
-    const linha = await sql`SELECT id, tipo, quantidade, conta_estoque, data, observacao FROM caixa_movimentacoes WHERE id = ${antesDe}`;
-    const todasEntradas = await sql`
-      SELECT id, tipo, quantidade, conta_estoque, TO_CHAR(data,'YYYY-MM-DD') AS data, observacao
-      FROM caixa_movimentacoes
-      WHERE modelo_id=${modeloId} AND filial=${filial} AND tipo='entrada'
-      ORDER BY id
-    `;
-    const hoje16 = await sql`
-      SELECT id, modelo_id, tipo, quantidade, conta_estoque, TO_CHAR(data,'YYYY-MM-DD') AS data, observacao, automatica
-      FROM caixa_movimentacoes
-      WHERE filial=${filial} AND data = '2026-09-16' AND automatica = false
-      ORDER BY id
-    `;
-    return res.status(200).json({ antes, depois, linha: linha[0] || null, todasEntradas, hoje16 });
-  }
-
   try {
     const rows = await sql`
       SELECT p.sku, p.produto, p.modelo_id, cm.nome AS modelo_nome
