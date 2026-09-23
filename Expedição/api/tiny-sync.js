@@ -20,8 +20,6 @@ const TINY_FILIAIS = [
   { key: 'TRADE', nome: 'COMP TRADE', env: 'TINY_TOKEN_TRADE' },
 ];
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
 function toIsoDate(brDate) {
   // "dd/mm/yyyy" -> "yyyy-mm-dd"
   if (!brDate || typeof brDate !== "string" || !brDate.includes("/")) return null;
@@ -232,67 +230,6 @@ export default async function handler(req, res) {
         ? `Token não configurado para a filial "${filialFiltro}".`
         : 'Nenhum token do Tiny configurado nas variáveis de ambiente da Vercel (TINY_TOKEN_SP / TINY_TOKEN_SUL / TINY_TOKEN_TRADE).',
     });
-  }
-
-  // Modo de diagnóstico temporário (?debug=busca&extra=chave:valor,...&nomeContem=texto):
-  // varre todas as páginas de notas.fiscais.pesquisa.php no período e filtra por nome de
-  // cliente/fornecedor no lado do código — usado pra localizar as notas de um fornecedor
-  // específico sem depender de um filtro de nome aceito pelo Tiny.
-  if (query.debug === 'busca') {
-    const f = filiaisAtivas[0];
-    const token = process.env[f.env];
-    const filtroNome = query.nomeContem ? String(query.nomeContem).toLowerCase() : null;
-    let pagina = 1, totalPaginas = 1;
-    const encontradas = [];
-    let totalVistas = 0;
-    do {
-      const params = new URLSearchParams({ token, formato: 'json', pagina: String(pagina), dataInicial, dataFinal });
-      if (query.extra) {
-        String(query.extra).split(',').forEach(par => {
-          const [k, v] = par.split(':');
-          if (k && v) params.set(k, v);
-        });
-      }
-      const resp = await fetch(`${TINY_BASE_URL}?${params.toString()}`);
-      const json = await resp.json();
-      const retorno = json.retorno || {};
-      totalPaginas = Number(retorno.numero_paginas || 1);
-      (retorno.notas_fiscais || []).forEach(item => {
-        const n = item.nota_fiscal || {};
-        totalVistas++;
-        const nome = (n.cliente && n.cliente.nome) || '';
-        if (!filtroNome || nome.toLowerCase().includes(filtroNome)) {
-          encontradas.push({ id: n.id, numero: n.numero, tipo: n.tipo, cliente: nome, data: n.data_emissao });
-        }
-      });
-      pagina++;
-    } while (pagina <= totalPaginas && pagina <= 60);
-    return res.status(200).json({ ok: true, filial: f.nome, numero_paginas: totalPaginas, totalVistas, encontradas });
-  }
-
-  // ?debug=itens&ids=id1:numero1,id2:numero2,... — recebe a lista de notas já conhecida e abre
-  // cada uma (nota.fiscal.obter.php) pra extrair os itens (SKU + quantidade).
-  if (query.debug === 'itens' && query.ids) {
-    const f = filiaisAtivas[0];
-    const token = process.env[f.env];
-    const lote = String(query.ids).split(',').map(par => {
-      const [id, numero] = par.split(':');
-      return { id, numero };
-    }).filter(x => x.id);
-    const resultado = [];
-    for (let i = 0; i < lote.length; i++) {
-      if (i > 0) await sleep(400);
-      const params = new URLSearchParams({ token, id: String(lote[i].id), formato: 'json' });
-      const resp = await fetch(`https://api.tiny.com.br/api2/nota.fiscal.obter.php?${params.toString()}`).catch(() => null);
-      const json = resp ? await resp.json().catch(() => null) : null;
-      const nf = json && json.retorno && json.retorno.nota_fiscal;
-      const itensBrutos = (nf && nf.itens) || [];
-      const itens = itensBrutos.map(it => (it.item || it)).map(it => ({
-        sku: String(it.codigo || '').trim(), qtd: Number(it.quantidade || 0), descricao: it.descricao || '',
-      })).filter(it => it.sku);
-      resultado.push({ numero: lote[i].numero, itens });
-    }
-    return res.status(200).json({ ok: true, filial: f.nome, processadas: lote.length, resultado });
   }
 
   const sql = neon(process.env.DATABASE_URL);
