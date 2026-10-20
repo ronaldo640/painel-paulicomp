@@ -38,6 +38,18 @@ export function destinos() {
   return env ? env.split(',').map(s => s.trim()).filter(Boolean) : DESTINOS_PADRAO;
 }
 
+const REMETENTE_PADRAO = 'Painel Paulicomp <onboarding@resend.dev>';
+
+// Remetente configurado na Vercel, já limpo (aspas e espaços sobrando) e
+// conferido; se o valor não estiver em "email@x.com" ou "Nome <email@x.com>",
+// cai no remetente de teste do Resend em vez de derrubar o envio.
+export function remetente() {
+  const v = (process.env.ALERTA_EMAIL_REMETENTE || '').trim().replace(/^["']+|["']+$/g, '').trim();
+  const soEmail = /^[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+$/;
+  const comNome = /^[^<>]+<[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+>$/;
+  return soEmail.test(v) || comNome.test(v) ? v : REMETENTE_PADRAO;
+}
+
 export async function enviarEmail(assunto, html, texto) {
   const chave = process.env.RESEND_API_KEY;
   if (!chave || !chave.trim()) {
@@ -50,7 +62,7 @@ export async function enviarEmail(assunto, html, texto) {
     method: 'POST',
     headers: { Authorization: `Bearer ${chave}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from: process.env.ALERTA_EMAIL_REMETENTE || 'Painel Paulicomp <onboarding@resend.dev>',
+      from: remetente(),
       to: destinos(),
       subject: assunto,
       html,
@@ -58,8 +70,8 @@ export async function enviarEmail(assunto, html, texto) {
     }),
   });
   const json = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new Error(json.message || `Resend respondeu ${resp.status}`);
-  return json; // { id }
+  if (!resp.ok) throw new Error(`${json.message || `Resend respondeu ${resp.status}`} (remetente usado: ${remetente()}; destinos: ${destinos().join(', ')})`);
+  return { ...json, remetente: remetente() }; // { id, remetente }
 }
 
 function esc(s) {
