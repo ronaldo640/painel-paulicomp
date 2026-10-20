@@ -110,7 +110,7 @@ export default async function handlerCompras(req, res, sql) {
   } catch (error) {
     console.error('Erro caixa-compras:', error);
     if (erroMigracao(error)) {
-      return res.status(500).json({ error: 'Migração 009 pendente: rode sql/009_caixa_compras.sql no Neon.' });
+      return res.status(500).json({ error: `Falha em caixa_compras (migração 009 pendente?): ${error.message}` });
     }
     return res.status(500).json({ error: error.message });
   }
