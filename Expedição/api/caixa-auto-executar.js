@@ -108,7 +108,7 @@ export default async function handler(req, res) {
     try {
       const sqlAlerta = neon(process.env.DATABASE_URL);
       if (req.query.alerta === 'simular') return res.status(200).json(await verificarEAvisar(sqlAlerta, filial, { simular: true }));
-      if (req.query.alerta === 'teste') return res.status(200).json(await enviarTeste(sqlAlerta, filial));
+      if (req.query.alerta === 'teste') return res.status(200).json(await enviarTeste(sqlAlerta, filial, req.query.para));
       return res.status(400).json({ error: 'Parâmetro "alerta" deve ser "simular" ou "teste".' });
     } catch (error) {
       console.error('Erro nos avisos por e-mail:', error);

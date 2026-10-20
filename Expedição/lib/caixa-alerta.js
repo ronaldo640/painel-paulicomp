@@ -50,7 +50,7 @@ export function remetente() {
   return soEmail.test(v) || comNome.test(v) ? v : REMETENTE_PADRAO;
 }
 
-export async function enviarEmail(assunto, html, texto) {
+export async function enviarEmail(assunto, html, texto, para) {
   const chave = process.env.RESEND_API_KEY;
   if (!chave || !chave.trim()) {
     // Diagnóstico sem expor segredo: qual deploy está respondendo e se a
@@ -63,7 +63,7 @@ export async function enviarEmail(assunto, html, texto) {
     headers: { Authorization: `Bearer ${chave}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       from: remetente(),
-      to: destinos(),
+      to: para && para.length ? para : destinos(),
       subject: assunto,
       html,
       text: texto,
@@ -226,7 +226,15 @@ export async function verificarEAvisar(sql, filial, { simular = false } = {}) {
 
 // E-mail de teste da configuração (no máx. 1 a cada 5 minutos, pra ninguém
 // usar o endereço público pra disparar e-mails em sequência).
-export async function enviarTeste(sql, filial) {
+// `para` (opcional) restringe o teste a um endereço da lista de destinos —
+// serve pra validar o envio enquanto o domínio ainda não foi verificado no
+// Resend (que, sem domínio, só entrega no e-mail da própria conta).
+export async function enviarTeste(sql, filial, para) {
+  let alvo = null;
+  if (para) {
+    alvo = destinos().filter(d => d.toLowerCase() === String(para).toLowerCase());
+    if (alvo.length === 0) return { enviado: false, motivo: 'O endereço precisa estar na lista de destinos.' };
+  }
   const estado = await lerEstado(sql, filial);
   const r = estado.get(ESTADO_TESTE);
   if (r && diasDesde(r.notificado_em) < 5 / 1440) {
@@ -244,9 +252,9 @@ export async function enviarTeste(sql, filial) {
       <p><a href="${URL_PAINEL}" style="color:#2563eb;">Abrir o Controle de Caixas</a></p>
     </div>`;
   const texto = `Teste dos avisos do Controle de Caixas. ${crit} em Comprar agora, ${warn} em Atenção. Avisos automáticos: ${alertaAtivo() ? 'ligados' : 'desligados'}. ${URL_PAINEL}`;
-  const envio = await enviarEmail('Teste — avisos do Controle de Caixas', html, texto);
+  const envio = await enviarEmail('Teste — avisos do Controle de Caixas', html, texto, alvo);
   await gravarEstado(sql, filial, ESTADO_TESTE, 'teste', true);
-  return { enviado: true, id_resend: envio.id, destinos: destinos() };
+  return { enviado: true, id_resend: envio.id, remetente: envio.remetente, destinos: alvo || destinos() };
 }
 
 // Avisa que a baixa automática da madrugada falhou (no máx. 1 por dia).
