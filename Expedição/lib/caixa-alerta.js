@@ -40,7 +40,12 @@ export function destinos() {
 
 export async function enviarEmail(assunto, html, texto) {
   const chave = process.env.RESEND_API_KEY;
-  if (!chave) throw new Error('RESEND_API_KEY não está configurada na Vercel.');
+  if (!chave || !chave.trim()) {
+    // Diagnóstico sem expor segredo: qual deploy está respondendo e se a
+    // outra variável criada junto aparece neste ambiente.
+    const deploy = (process.env.VERCEL_GIT_COMMIT_SHA || 'desconhecido').slice(0, 7);
+    throw new Error(`RESEND_API_KEY ${chave === undefined ? 'ausente' : 'vazia'} neste deploy (commit ${deploy}, ambiente ${process.env.VERCEL_ENV || '?'}; ALERTA_EMAIL_REMETENTE ${process.env.ALERTA_EMAIL_REMETENTE ? 'definida' : 'ausente'}).`);
+  }
   const resp = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${chave}`, 'Content-Type': 'application/json' },
