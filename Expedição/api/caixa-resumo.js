@@ -157,7 +157,34 @@ export default async function handler(req, res) {
       console.error('Tabela caixa_auto_pendencias indisponível (migração 007 pendente?):', err.message);
     }
 
+    // Modelos sem estoque controlado (embalagem original do produto ou
+    // reaproveitada, ex: "Padrão 1"): o consumo aparece, mas estoque,
+    // reposição e status de compra não se aplicam. Try/catch isolado: se a
+    // coluna ainda não existir (migração 008 não rodada), todos os modelos
+    // continuam controlados como antes.
+    let semControle = new Set();
+    try {
+      const flagRows = await sql`SELECT id FROM caixa_modelos WHERE controla_estoque = false`;
+      semControle = new Set(flagRows.map(f => f.id));
+    } catch (err) {
+      console.error('Coluna controla_estoque indisponível (migração 008 pendente?):', err.message);
+    }
+
     const modelos = rows.map(r => {
+      if (semControle.has(r.id)) {
+        const tendencia = r.consumo_prev7d > 0 ? ((r.consumo_7d - r.consumo_prev7d) / r.consumo_prev7d) * 100 : null;
+        return {
+          id: r.id, nome: r.nome, medida_mm: r.medida_mm,
+          lead_time_dias: null, estoque_seguranca_pct: Number(r.estoque_seguranca_pct),
+          controla_estoque: false,
+          estoque_atual: null,
+          consumo_30d: Math.round(r.consumo_30d * 10) / 10,
+          consumo_7d: Math.round(r.consumo_7d * 10) / 10,
+          estoque_seguranca_un: 0, ponto_reposicao: null, cobertura_dias: null,
+          tendencia_pct: tendencia !== null ? Math.round(tendencia) : null,
+          status: 'nao_controlada',
+        };
+      }
       const estoqueSeguranca = r.consumo_30d * (r.lead_time_dias || 0) * Number(r.estoque_seguranca_pct);
       const pontoReposicao = r.lead_time_dias
         ? r.consumo_30d * r.lead_time_dias + estoqueSeguranca
@@ -192,7 +219,7 @@ export default async function handler(req, res) {
       };
     });
 
-    const urgencia = { crit: 0, warn: 1, sem_config: 2, ok: 3 };
+    const urgencia = { crit: 0, warn: 1, sem_config: 2, ok: 3, nao_controlada: 4 };
     modelos.sort((a, b) => {
       const u = urgencia[a.status] - urgencia[b.status];
       if (u !== 0) return u;

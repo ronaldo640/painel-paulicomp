@@ -21,7 +21,15 @@ export default async function handler(req, res) {
         FROM caixa_modelos
         ORDER BY nome
       `;
-      return res.status(200).json(rows);
+      // controla_estoque em query separada: tolerante à migração 008 pendente
+      let semControle = new Set();
+      try {
+        const flags = await sql`SELECT id FROM caixa_modelos WHERE controla_estoque = false`;
+        semControle = new Set(flags.map(f => f.id));
+      } catch (err) {
+        console.error('Coluna controla_estoque indisponível (migração 008 pendente?):', err.message);
+      }
+      return res.status(200).json(rows.map(r => ({ ...r, controla_estoque: !semControle.has(r.id) })));
     } catch (error) {
       console.error('Erro GET caixa_modelos:', error);
       return res.status(500).json({ error: error.message });
@@ -53,8 +61,19 @@ export default async function handler(req, res) {
 
   if (req.method === 'PUT') {
     try {
-      const { id, lead_time_dias, estoque_seguranca_pct, medida_mm, ativo } = req.body || {};
+      const { id, lead_time_dias, estoque_seguranca_pct, medida_mm, ativo, controla_estoque } = req.body || {};
       if (!id) return res.status(400).json({ error: 'Campo "id" é obrigatório.' });
+
+      if (typeof controla_estoque === 'boolean') {
+        try {
+          await sql`UPDATE caixa_modelos SET controla_estoque = ${controla_estoque} WHERE id = ${id}`;
+        } catch (err) {
+          if (/controla_estoque/.test(err.message)) {
+            return res.status(400).json({ error: 'Migração 008 pendente: rode sql/008_caixa_modelos_controla_estoque.sql no Neon antes de alterar "Controla estoque".' });
+          }
+          throw err;
+        }
+      }
 
       const rows = await sql`
         UPDATE caixa_modelos SET

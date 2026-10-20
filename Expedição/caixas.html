@@ -98,6 +98,7 @@
         .cx-badge.warn { background: #f59e0b1a; color: #fcd34d; } .cx-badge.warn .d { background: #f59e0b; }
         .cx-badge.crit { background: #f43f5e1a; color: #fda4af; } .cx-badge.crit .d { background: #f43f5e; }
         .cx-badge.sem_config { background: #94a3b81a; color: #cbd5e1; } .cx-badge.sem_config .d { background: #94a3b8; }
+        .cx-badge.nao_controlada { background: #64748b1a; color: #94a3b8; } .cx-badge.nao_controlada .d { background: #64748b; }
         .cx-cov.crit { color: #fda4af; font-weight: 700; } .cx-cov.warn { color: #fcd34d; font-weight: 700; } .cx-cov.ok { color: #6ee7b7; font-weight: 700; }
 
         .cx-trend { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; font-weight: 700; }
@@ -395,7 +396,7 @@
                 <div class="cx-scroll-x">
                     <table class="cx-table cx-cadastro-table" style="min-width:520px;">
                         <thead>
-                            <tr><th>Modelo</th><th>Medida (mm)</th><th class="num">Estoque atual</th><th class="num">Lead time (dias)</th><th class="num">Segurança (%)</th><th></th></tr>
+                            <tr><th>Modelo</th><th>Medida (mm)</th><th class="num">Estoque atual</th><th class="num">Lead time (dias)</th><th class="num">Segurança (%)</th><th title="Desmarque para embalagens que não são estocadas (original do produto, reaproveitada)">Controla estoque</th><th></th></tr>
                         </thead>
                         <tbody id="cxCadastroBody"></tbody>
                     </table>
@@ -551,6 +552,7 @@
                 warn: ['warn', 'Atenção'],
                 ok: ['ok', 'OK'],
                 sem_config: ['sem_config', 'Configurar lead time'],
+                nao_controlada: ['nao_controlada', 'Sem controle de estoque'],
             };
             const [cls, label] = map[status] || map.sem_config;
             return `<span class="cx-badge ${cls}"><span class="d"></span>${label}</span>`;
@@ -581,7 +583,8 @@
         }
 
         function cxRenderKpis(modelos) {
-            const total = modelos.length;
+            const naoControladas = modelos.filter(m => m.status === 'nao_controlada').length;
+            const total = modelos.length - naoControladas;
             const crit = modelos.filter(m => m.status === 'crit').length;
             const warn = modelos.filter(m => m.status === 'warn').length;
             const semConfig = modelos.filter(m => m.status === 'sem_config').length;
@@ -591,7 +594,7 @@
                 <div class="cx-kpi">
                     <div class="l">Modelos de caixa</div>
                     <div class="v">${total}</div>
-                    <div class="s">${semConfig} sem lead time configurado</div>
+                    <div class="s">${semConfig} sem lead time configurado${naoControladas ? ' · +' + naoControladas + ' sem controle de estoque' : ''}</div>
                 </div>
                 <div class="cx-kpi ok">
                     <div class="l">Estoque saudável</div>
@@ -760,7 +763,20 @@
                 return;
             }
             document.getElementById('cxTableNote').textContent = '';
-            tbody.innerHTML = modelos.map(m => `
+            tbody.innerHTML = modelos.map(m => m.status === 'nao_controlada' ? `
+                <tr>
+                    <td>
+                        <div class="cx-box-name">${m.nome}</div>
+                        <div class="cx-box-sub">não controla estoque</div>
+                    </td>
+                    <td class="num">—</td>
+                    <td class="num">${m.consumo_30d.toFixed(1)}/dia</td>
+                    <td class="num">—</td>
+                    <td class="num">—</td>
+                    <td>${cxTrendBadge(m.tendencia_pct)}</td>
+                    <td>${cxStatusBadge(m.status)}</td>
+                </tr>
+            ` : `
                 <tr>
                     <td>
                         <div class="cx-box-name">${m.nome}</div>
@@ -1040,7 +1056,7 @@
         async function cxOpenCadastroModal() {
             document.getElementById('cxCadastroModal').hidden = false;
             const tbody = document.getElementById('cxCadastroBody');
-            tbody.innerHTML = '<tr><td colspan="6" class="cx-note">Carregando...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="cx-note">Carregando...</td></tr>';
             try {
                 const [resp, resumoResp] = await Promise.all([
                     fetch('/api/caixa-modelos'),
@@ -1053,21 +1069,29 @@
 
                 cxCadastroOriginal = {};
                 tbody.innerHTML = modelos.map(m => {
-                    const estoqueAtual = estoquePorModelo.has(m.id) ? estoquePorModelo.get(m.id) : 0;
-                    cxCadastroOriginal[m.id] = { medida_mm: m.medida_mm, lead_time_dias: m.lead_time_dias, estoque_seguranca_pct: Number(m.estoque_seguranca_pct), estoque_atual: estoqueAtual };
+                    const controla = m.controla_estoque !== false;
+                    const estoqueAtual = estoquePorModelo.get(m.id) ?? 0;
+                    cxCadastroOriginal[m.id] = { medida_mm: m.medida_mm, lead_time_dias: m.lead_time_dias, estoque_seguranca_pct: Number(m.estoque_seguranca_pct), estoque_atual: estoqueAtual, controla_estoque: controla };
                     const pct = Math.round(Number(m.estoque_seguranca_pct) * 100);
                     return `
                         <tr data-id="${m.id}">
                             <td><div class="cx-box-name">${m.nome}</div></td>
                             <td><input type="text" class="cx-medida-input" value="${m.medida_mm || ''}" placeholder="ex: 300x200x150" style="width:100%;"></td>
-                            <td class="num"><input type="number" class="cx-estoque-input" value="${estoqueAtual}" style="text-align:right;" title="Alterar aqui lança um ajuste automático pra corrigir a diferença"></td>
+                            <td class="num"><input type="number" class="cx-estoque-input" value="${controla ? estoqueAtual : ''}" ${controla ? '' : 'disabled placeholder="—"'} style="text-align:right;" title="Alterar aqui lança um ajuste automático pra corrigir a diferença"></td>
                             <td class="num"><input type="number" min="1" class="cx-lead-input" value="${m.lead_time_dias ?? ''}" style="text-align:right;"></td>
                             <td class="num"><input type="number" min="0" max="100" class="cx-pct-input" value="${pct}" style="text-align:right;"></td>
+                            <td style="text-align:center;"><input type="checkbox" class="cx-controla-input" ${controla ? 'checked' : ''} title="Desmarque para embalagens que não são estocadas"></td>
                             <td></td>
                         </tr>`;
                 }).join('');
+                tbody.querySelectorAll('.cx-controla-input').forEach(chk => chk.addEventListener('change', () => {
+                    const inp = chk.closest('tr').querySelector('.cx-estoque-input');
+                    const orig = cxCadastroOriginal[chk.closest('tr').dataset.id] || {};
+                    inp.disabled = !chk.checked;
+                    inp.value = chk.checked ? (orig.estoque_atual ?? 0) : '';
+                }));
             } catch (err) {
-                tbody.innerHTML = `<tr><td colspan="6" class="cx-note">Erro ao carregar: ${err.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="cx-note">Erro ao carregar: ${err.message}</td></tr>`;
             }
         }
 
@@ -1086,6 +1110,7 @@
                 <td class="num cx-box-sub">—</td>
                 <td class="num"><input type="number" min="1" class="cx-lead-input" placeholder="opcional" style="text-align:right;"></td>
                 <td class="num"><input type="number" min="0" max="100" class="cx-pct-input" value="20" style="text-align:right;"></td>
+                <td style="text-align:center;"><input type="checkbox" class="cx-controla-input" checked disabled title="Disponível depois de criar o modelo"></td>
                 <td>
                     <button type="button" class="cx-icon-btn" data-remove-novo-modelo title="Remover">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -1107,9 +1132,14 @@
                 const lead = tr.querySelector('.cx-lead-input').value ? Number(tr.querySelector('.cx-lead-input').value) : null;
                 const pct = tr.querySelector('.cx-pct-input').value ? Number(tr.querySelector('.cx-pct-input').value) / 100 : null;
                 const orig = cxCadastroOriginal[id] || {};
-                if (medida !== orig.medida_mm || lead !== orig.lead_time_dias || pct !== orig.estoque_seguranca_pct) {
-                    updates.push({ id, medida_mm: medida, lead_time_dias: lead, estoque_seguranca_pct: pct });
+                const controla = tr.querySelector('.cx-controla-input').checked;
+                const mudouControle = controla !== (orig.controla_estoque !== false);
+                if (medida !== orig.medida_mm || lead !== orig.lead_time_dias || pct !== orig.estoque_seguranca_pct || mudouControle) {
+                    const u = { id, medida_mm: medida, lead_time_dias: lead, estoque_seguranca_pct: pct };
+                    if (mudouControle) u.controla_estoque = controla;
+                    updates.push(u);
                 }
+                if (!controla) return; // sem controle: não há estoque a ajustar
 
                 // Estoque não é campo de caixa_modelos — é sempre calculado a
                 // partir das movimentações. Mudar esse número aqui não
