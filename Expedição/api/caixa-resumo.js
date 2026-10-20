@@ -192,6 +192,25 @@ export default async function handler(req, res) {
       console.error('Tabela caixa_compras indisponível (migração 009 pendente?):', err.message);
     }
 
+    // Envios ao Fulfillment lançados manualmente (migração 011): baixam o
+    // estoque, mas ficam fora do "consumo real" (conta_consumo = false). Pro
+    // planejamento de compra entram como consumo, numa janela maior (60
+    // dias), porque o envio é em lote a cada 20-30 dias e uma janela de 30
+    // dias oscilaria demais conforme caiu ou não um lote nela.
+    const JANELA_ENVIO_FULFILLMENT = 60;
+    const consumoFulfillment = new Map();
+    try {
+      const fl = await sql`
+        SELECT modelo_id, SUM(quantidade)::numeric / ${JANELA_ENVIO_FULFILLMENT} AS por_dia
+        FROM caixa_movimentacoes
+        WHERE filial = ${filial} AND tipo = 'saida' AND envio_fulfillment = true
+          AND data > current_date - ${JANELA_ENVIO_FULFILLMENT} * interval '1 day'
+        GROUP BY modelo_id`;
+      fl.forEach(f => consumoFulfillment.set(f.modelo_id, Number(f.por_dia)));
+    } catch (err) {
+      console.error('Coluna envio_fulfillment indisponível (migração 011 pendente?):', err.message);
+    }
+
     const modelos = rows.map(r => {
       if (semControle.has(r.id)) {
         const tendencia = r.consumo_prev7d > 0 ? ((r.consumo_7d - r.consumo_prev7d) / r.consumo_prev7d) * 100 : null;
@@ -207,7 +226,10 @@ export default async function handler(req, res) {
           status: 'nao_controlada',
         };
       }
-      const estoqueSeguranca = r.consumo_30d * (r.lead_time_dias || 0) * Number(r.estoque_seguranca_pct);
+      // Consumo usado no planejamento = consumo real (30d) + envios ao Fulfillment (60d).
+      const consumoFulf = consumoFulfillment.get(r.id) || 0;
+      const consumoPlan = r.consumo_30d + consumoFulf;
+      const estoqueSeguranca = consumoPlan * (r.lead_time_dias || 0) * Number(r.estoque_seguranca_pct);
       const plan = planejamento.get(r.id) || {};
       // A coluna ponto_reposicao_manual (migração 009) guarda, na prática, a
       // QUANTIDADE PADRÃO DE CADA PEDIDO do modelo (o "lote"): é assim que
@@ -216,17 +238,17 @@ export default async function handler(req, res) {
       const qtdPedido = plan.ponto_reposicao_manual ?? null;
       const coberturaDesejada = plan.cobertura_desejada_dias ?? null;
       const qtdEmPedido = emPedido.get(r.id) || 0;
-      const pontoReposicao = r.lead_time_dias ? r.consumo_30d * r.lead_time_dias + estoqueSeguranca : null;
+      const pontoReposicao = r.lead_time_dias ? consumoPlan * r.lead_time_dias + estoqueSeguranca : null;
       // Sugestão de compra: com quantidade por pedido definida, sugere um
       // lote quando o estoque (contando o que já está pedido) chegou no
       // ponto de reposição. Sem lote, cai na cobertura desejada.
       let sugestaoCompra = null;
       if (qtdPedido !== null) {
         sugestaoCompra = pontoReposicao !== null && r.estoque_atual + qtdEmPedido <= pontoReposicao ? qtdPedido : 0;
-      } else if (coberturaDesejada !== null && r.consumo_30d > 0) {
-        sugestaoCompra = Math.max(0, Math.ceil(r.consumo_30d * coberturaDesejada + estoqueSeguranca - r.estoque_atual - qtdEmPedido));
+      } else if (coberturaDesejada !== null && consumoPlan > 0) {
+        sugestaoCompra = Math.max(0, Math.ceil(consumoPlan * coberturaDesejada + estoqueSeguranca - r.estoque_atual - qtdEmPedido));
       }
-      const coberturaDias = r.consumo_30d > 0 ? r.estoque_atual / r.consumo_30d : null;
+      const coberturaDias = consumoPlan > 0 ? r.estoque_atual / consumoPlan : null;
 
       let status = 'sem_config';
       if (pontoReposicao !== null) {
@@ -248,6 +270,8 @@ export default async function handler(req, res) {
         estoque_atual: r.estoque_atual,
         consumo_30d: Math.round(r.consumo_30d * 10) / 10,
         consumo_7d: Math.round(r.consumo_7d * 10) / 10,
+        consumo_envio_fulfillment: Math.round(consumoFulf * 10) / 10,
+        consumo_planejamento: Math.round(consumoPlan * 10) / 10,
         estoque_seguranca_un: Math.round(estoqueSeguranca),
         ponto_reposicao: pontoReposicao !== null ? Math.round(pontoReposicao) : null,
         cobertura_dias: coberturaDias !== null ? Math.round(coberturaDias) : null,

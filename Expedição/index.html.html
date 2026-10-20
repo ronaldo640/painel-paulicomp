@@ -671,8 +671,13 @@
                     <input type="text" id="cxMovObs" placeholder="ex: NF 4821 — fornecedor X">
                 </div>
                 <div class="cx-field" id="cxMovTransfWrap" hidden>
-                    <label style="display:flex;gap:8px;align-items:center;font-size:12px;cursor:pointer;"><input type="checkbox" id="cxMovTransf" style="width:auto;"> Transferência pra outra filial (não é consumo)</label>
-                    <div class="cx-box-sub">Baixa o estoque, mas fica fora do consumo/dia, da tendência e dos gráficos de consumo.</div>
+                    <label>Tipo da saída</label>
+                    <select id="cxMovSaidaTipo">
+                        <option value="consumo">Uso / consumo</option>
+                        <option value="fulfillment">Envio ao Fulfillment (lote)</option>
+                        <option value="transferencia">Transferência pra outra filial</option>
+                    </select>
+                    <div class="cx-box-sub" id="cxMovSaidaTipoHint"></div>
                 </div>
             </div>
             <div class="cx-modal-foot">
@@ -2379,7 +2384,7 @@
                         ${m.estoque_atual} un
                         ${m.em_pedido > 0 ? `<div class="cx-box-sub" style="text-align:right;color:#93c5fd;">+${m.em_pedido} em pedido</div>` : ''}
                     </td>
-                    <td class="num">${m.consumo_30d.toFixed(1)}/dia</td>
+                    <td class="num">${(m.consumo_planejamento ?? m.consumo_30d).toFixed(1)}/dia${m.consumo_envio_fulfillment > 0 ? `<div class="cx-box-sub" style="text-align:right;">${m.consumo_30d.toFixed(1)} real + ${m.consumo_envio_fulfillment.toFixed(1)} Fulfillment</div>` : ''}</td>
                     <td class="num">
                         ${m.ponto_reposicao !== null ? m.ponto_reposicao + ' un' : '—'}
                         ${m.ponto_reposicao !== null ? `<div class="cx-box-sub" style="text-align:right;">+${m.estoque_seguranca_un} seg. (${Math.round(m.estoque_seguranca_pct * 100)}%)</div>` : ''}
@@ -2638,7 +2643,7 @@
                 return `
                     <div class="cx-movrow">
                         <div class="cx-movicon ${isIn ? 'in' : 'out'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="${iconPath}"/></svg></div>
-                        <div class="cx-movtext"><div class="t1">${m.modelo_nome}</div><div class="t2">${dataFmt} · ${isIn ? 'compra' : (m.conta_consumo === false ? 'transferência' : 'uso')}${m.observacao ? ' — ' + m.observacao : ''}</div></div>
+                        <div class="cx-movtext"><div class="t1">${m.modelo_nome}</div><div class="t2">${dataFmt} · ${isIn ? 'compra' : (m.envio_fulfillment ? 'envio Fulfillment' : (m.conta_consumo === false ? 'transferência' : 'uso'))}${m.observacao ? ' — ' + m.observacao : ''}</div></div>
                         <div class="cx-movqty ${isIn ? 'in' : 'out'}">${isIn ? '+' : '−'}${m.quantidade}</div>
                     </div>`;
             }).join('');
@@ -2710,7 +2715,18 @@
             document.getElementById('cxTipoEntrada').classList.toggle('on', tipo === 'entrada');
             document.getElementById('cxTipoSaida').classList.toggle('on', tipo === 'saida');
             document.getElementById('cxMovTransfWrap').hidden = (tipo !== 'saida');
-            if (tipo !== 'saida') document.getElementById('cxMovTransf').checked = false;
+            if (tipo !== 'saida') document.getElementById('cxMovSaidaTipo').value = 'consumo';
+            cxAtualizaDicaSaida();
+        }
+
+        // Explica, abaixo do seletor, o efeito de cada tipo de saída.
+        function cxAtualizaDicaSaida() {
+            const dicas = {
+                consumo: 'Uso normal: baixa o estoque e entra no consumo real.',
+                fulfillment: 'Baixa o estoque e entra no consumo usado pro planejamento de compra (média de 60 dias), mas fica fora do consumo real e do gráfico Mercado Envios e outros.',
+                transferencia: 'Baixa o estoque, mas fica fora de qualquer consumo (média, tendência e gráficos).',
+            };
+            document.getElementById('cxMovSaidaTipoHint').textContent = dicas[document.getElementById('cxMovSaidaTipo').value] || '';
         }
 
         function cxOpenMovModal() {
@@ -2739,7 +2755,7 @@
                 const resp = await fetch('/api/caixa-movimentacoes', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ modelo_id: modeloId, filial: CX_FILIAL, tipo: cxMovTipo, quantidade: qtd, data, observacao: obs || null, conta_consumo: !(cxMovTipo === 'saida' && document.getElementById('cxMovTransf').checked) }),
+                    body: JSON.stringify({ modelo_id: modeloId, filial: CX_FILIAL, tipo: cxMovTipo, quantidade: qtd, data, observacao: obs || null, saida_tipo: cxMovTipo === 'saida' ? document.getElementById('cxMovSaidaTipo').value : undefined }),
                 });
                 const json = await resp.json();
                 if (!resp.ok) throw new Error(json.error || 'Erro ao salvar.');
@@ -2821,7 +2837,7 @@
             const hint = document.getElementById('cxCpHint');
             const m = cxModeloResumo(document.getElementById('cxCpModelo').value);
             if (!m) { hint.innerHTML = ''; return; }
-            const partes = [`Estoque ${m.estoque_atual} un`, `consumo ${m.consumo_30d.toFixed(1)}/dia`];
+            const partes = [`Estoque ${m.estoque_atual} un`, `consumo ${(m.consumo_planejamento ?? m.consumo_30d).toFixed(1)}/dia`];
             if (m.em_pedido > 0) partes.push(`${m.em_pedido} un já em pedido`);
             let sugestao = '';
             let qtdSugerida = null;
@@ -2841,7 +2857,8 @@
             if (qtd > 0 && preco > 0) {
                 const total = preco * qtd + frete;
                 previa = ` · total ${cxBrl(total)} (${cxBrl(total / qtd)}/un)`;
-                if (m.consumo_30d > 0) previa += ` · cobre ~${Math.round(qtd / m.consumo_30d)} dias`;
+                const consPlan = m.consumo_planejamento ?? m.consumo_30d;
+                if (consPlan > 0) previa += ` · cobre ~${Math.round(qtd / consPlan)} dias`;
             }
             hint.innerHTML = partes.join(' · ') + sugestao + previa;
             const link = document.getElementById('cxCpUsarSugestao');
@@ -2926,11 +2943,12 @@
                     const prazos = lista.filter(c => c.prazo_dias != null).map(c => c.prazo_dias);
                     const menorPrazo = prazos.length > 1 ? Math.min(...prazos) : null;
                     const comparavel = lista.length > 1;
-                    const info = m ? `estoque ${m.estoque_atual} un · consumo ${m.consumo_30d.toFixed(1)}/dia${m.em_pedido > 0 ? ' · ' + m.em_pedido + ' un em pedido' : ''}${m.sugestao_compra > 0 ? ' · sugestão ' + m.sugestao_compra + ' un' : ''}` : '';
+                    const info = m ? `estoque ${m.estoque_atual} un · consumo ${(m.consumo_planejamento ?? m.consumo_30d).toFixed(1)}/dia${m.em_pedido > 0 ? ' · ' + m.em_pedido + ' un em pedido' : ''}${m.sugestao_compra > 0 ? ' · sugestão ' + m.sugestao_compra + ' un' : ''}` : '';
                     const linhas = lista.map(c => {
                         const total = cxCustoTotal(c);
                         const custoUn = total / c.quantidade;
-                        const cobre = m && m.consumo_30d > 0 ? Math.round(c.quantidade / m.consumo_30d) + ' dias' : '—';
+                        const consPlan = m ? (m.consumo_planejamento ?? m.consumo_30d) : 0;
+                        const cobre = consPlan > 0 ? Math.round(c.quantidade / consPlan) + ' dias' : '—';
                         const tags = (comparavel && custoUn === menorCusto ? ' <span class="cx-badge ok"><span class="d"></span>Mais barata</span>' : '')
                             + (comparavel && menorPrazo !== null && c.prazo_dias === menorPrazo ? ' <span class="cx-badge info"><span class="d"></span>Menor prazo</span>' : '');
                         return `<tr>
@@ -3514,6 +3532,7 @@
         document.getElementById('cxMovModal').addEventListener('click', e => { if (e.target.id === 'cxMovModal') cxCloseMovModal(); });
         document.getElementById('cxTipoEntrada').addEventListener('click', () => cxSetTipo('entrada'));
         document.getElementById('cxTipoSaida').addEventListener('click', () => cxSetTipo('saida'));
+        document.getElementById('cxMovSaidaTipo').addEventListener('change', cxAtualizaDicaSaida);
 
         document.getElementById('cxBtnOpenCompras').addEventListener('click', cxOpenComprasModal);
         document.getElementById('cxBtnCloseCompras').addEventListener('click', cxCloseComprasModal);
