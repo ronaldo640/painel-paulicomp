@@ -652,6 +652,10 @@
                     <label>Nota / observação (opcional)</label>
                     <input type="text" id="cxMovObs" placeholder="ex: NF 4821 — fornecedor X">
                 </div>
+                <div class="cx-field" id="cxMovTransfWrap" hidden>
+                    <label style="display:flex;gap:8px;align-items:center;font-size:12px;cursor:pointer;"><input type="checkbox" id="cxMovTransf" style="width:auto;"> Transferência pra outra filial (não é consumo)</label>
+                    <div class="cx-box-sub">Baixa o estoque, mas fica fora do consumo/dia, da tendência e dos gráficos de consumo.</div>
+                </div>
             </div>
             <div class="cx-modal-foot">
                 <button class="cx-btn" id="cxBtnCancelMov">Cancelar</button>
@@ -2521,7 +2525,7 @@
                 return `
                     <div class="cx-movrow">
                         <div class="cx-movicon ${isIn ? 'in' : 'out'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="${iconPath}"/></svg></div>
-                        <div class="cx-movtext"><div class="t1">${m.modelo_nome}</div><div class="t2">${dataFmt} · ${isIn ? 'compra' : 'uso'}${m.observacao ? ' — ' + m.observacao : ''}</div></div>
+                        <div class="cx-movtext"><div class="t1">${m.modelo_nome}</div><div class="t2">${dataFmt} · ${isIn ? 'compra' : (m.conta_consumo === false ? 'transferência' : 'uso')}${m.observacao ? ' — ' + m.observacao : ''}</div></div>
                         <div class="cx-movqty ${isIn ? 'in' : 'out'}">${isIn ? '+' : '−'}${m.quantidade}</div>
                     </div>`;
             }).join('');
@@ -2591,6 +2595,8 @@
             cxMovTipo = tipo;
             document.getElementById('cxTipoEntrada').classList.toggle('on', tipo === 'entrada');
             document.getElementById('cxTipoSaida').classList.toggle('on', tipo === 'saida');
+            document.getElementById('cxMovTransfWrap').hidden = (tipo !== 'saida');
+            if (tipo !== 'saida') document.getElementById('cxMovTransf').checked = false;
         }
 
         function cxOpenMovModal() {
@@ -2619,7 +2625,7 @@
                 const resp = await fetch('/api/caixa-movimentacoes', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ modelo_id: modeloId, filial: CX_FILIAL, tipo: cxMovTipo, quantidade: qtd, data, observacao: obs || null }),
+                    body: JSON.stringify({ modelo_id: modeloId, filial: CX_FILIAL, tipo: cxMovTipo, quantidade: qtd, data, observacao: obs || null, conta_consumo: !(cxMovTipo === 'saida' && document.getElementById('cxMovTransf').checked) }),
                 });
                 const json = await resp.json();
                 if (!resp.ok) throw new Error(json.error || 'Erro ao salvar.');

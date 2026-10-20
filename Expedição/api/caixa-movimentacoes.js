@@ -27,7 +27,7 @@ export default async function handler(req, res) {
 
       const rows = await sql`
         SELECT m.id, m.modelo_id, cm.nome AS modelo_nome, m.filial, m.tipo,
-               m.quantidade, TO_CHAR(m.data, 'YYYY-MM-DD') AS data, m.observacao
+               m.quantidade, TO_CHAR(m.data, 'YYYY-MM-DD') AS data, m.observacao, m.conta_consumo
         FROM caixa_movimentacoes m
         JOIN caixa_modelos cm ON cm.id = m.modelo_id
         WHERE m.filial = ${filial}
@@ -56,9 +56,13 @@ export default async function handler(req, res) {
       }
       if (!data) return res.status(400).json({ error: 'Campo "data" é obrigatório.' });
 
+      // Saída que NÃO é consumo (ex: transferência pra outra filial): baixa o
+      // estoque, mas fica fora de consumo/dia, tendência e gráficos.
+      const contaConsumo = !(tipo === 'saida' && req.body.conta_consumo === false);
+
       const rows = await sql`
-        INSERT INTO caixa_movimentacoes (modelo_id, filial, tipo, quantidade, data, observacao)
-        VALUES (${modelo_id}, ${String(filial).toUpperCase()}, ${tipo}, ${qtd}, ${data}, ${observacao || null})
+        INSERT INTO caixa_movimentacoes (modelo_id, filial, tipo, quantidade, data, observacao, conta_consumo)
+        VALUES (${modelo_id}, ${String(filial).toUpperCase()}, ${tipo}, ${qtd}, ${data}, ${observacao || null}, ${contaConsumo})
         RETURNING id, modelo_id, filial, tipo, quantidade, TO_CHAR(data, 'YYYY-MM-DD') AS data, observacao
       `;
       return res.status(201).json(rows[0]);

@@ -26,7 +26,7 @@ async function responderModelos(sql, res, filial, req) {
     WITH consumo AS (
       SELECT modelo_id, SUM(quantidade)::numeric / ${dias} AS media_diaria
       FROM caixa_movimentacoes
-      WHERE filial = ${filial} AND tipo = 'saida' AND conta_estoque = true
+      WHERE filial = ${filial} AND tipo = 'saida' AND conta_estoque = true AND conta_consumo = true
         AND data >= current_date - (${dias - 1} * interval '1 day')
       GROUP BY modelo_id
     )
@@ -49,7 +49,7 @@ async function responderDia(sql, res, filial, req) {
     WITH consumo AS (
       SELECT modelo_id, SUM(quantidade)::int AS quantidade
       FROM caixa_movimentacoes
-      WHERE filial = ${filial} AND tipo = 'saida' AND conta_estoque = true AND data = ${data}
+      WHERE filial = ${filial} AND tipo = 'saida' AND conta_estoque = true AND conta_consumo = true AND data = ${data}
       GROUP BY modelo_id
     )
     SELECT cm.id AS modelo_id, cm.nome AS modelo_nome, COALESCE(c.quantidade, 0)::int AS quantidade
