@@ -21,7 +21,11 @@
 
 import { calcularResumo } from './caixa-resumo-calculo.js';
 
-const DESTINOS_PADRAO = ['ronaldo@paulicomp.com', 'lsmatielo04@gmail.com'];
+// Sem domínio verificado no Resend, ele só entrega no e-mail da própria conta
+// (ronaldo@paulicomp.com) e recusa o envio inteiro se houver outro endereço
+// na lista. Pra incluir mais gente (ex: lsmatielo04@gmail.com), ou o domínio
+// paulicomp.com é verificado no Resend, ou o destinatário encaminha pelo Gmail.
+const DESTINOS_PADRAO = ['ronaldo@paulicomp.com'];
 const REENVIO_DIAS = 7;            // lembrete se continuar no mesmo estado
 const DADOS_ANTIGOS_DIAS = 3;      // última saída registrada há >= N dias
 const ESTADO_DADOS_ANTIGOS = 0;    // linhas "especiais" de caixa_alerta_estado
