@@ -314,7 +314,7 @@
                             <th class="num">Consumo/dia</th>
                             <th class="num">Ponto de reposição</th>
                             <th class="num">Cobertura</th>
-                            <th class="num" title="Quanto comprar pra chegar na cobertura desejada (definida em Cadastro de modelos)">Sugestão de compra</th>
+                            <th class="num" title="Quanto comprar quando o estoque chega no ponto de reposição (usa a Qtd. por pedido do Cadastro de modelos, ou a cobertura desejada se não houver)">Sugestão de compra</th>
                             <th>Tendência</th>
                             <th>Status</th>
                         </tr>
@@ -403,7 +403,7 @@
                 <div class="cx-scroll-x">
                     <table class="cx-table cx-cadastro-table" style="min-width:760px;">
                         <thead>
-                            <tr><th>Modelo</th><th>Medida (mm)</th><th class="num">Estoque atual</th><th class="num">Lead time (dias)</th><th class="num">Segurança (%)</th><th class="num" title="Dias de consumo que você quer ter em estoque; alimenta a sugestão de compra">Cobertura desejada (dias)</th><th class="num" title="Se preenchido, substitui o ponto de reposição calculado">Ponto de reposição manual</th><th title="Desmarque para embalagens que não são estocadas (original do produto, reaproveitada)">Controla estoque</th><th></th></tr>
+                            <tr><th>Modelo</th><th>Medida (mm)</th><th class="num">Estoque atual</th><th class="num">Lead time (dias)</th><th class="num">Segurança (%)</th><th class="num" title="Dias de consumo que você quer ter em estoque; alimenta a sugestão de compra">Cobertura desejada (dias)</th><th class="num" title="Quantidade que você costuma pedir de cada vez. A reposição é sugerida com essa quantidade quando o estoque chega no ponto de reposição (consumo x lead time + segurança)">Qtd. por pedido</th><th title="Desmarque para embalagens que não são estocadas (original do produto, reaproveitada)">Controla estoque</th><th></th></tr>
                         </thead>
                         <tbody id="cxCadastroBody"></tbody>
                     </table>
@@ -848,14 +848,13 @@
                     <td class="num">${m.consumo_30d.toFixed(1)}/dia</td>
                     <td class="num">
                         ${m.ponto_reposicao !== null ? m.ponto_reposicao + ' un' : '—'}
-                        ${m.ponto_reposicao_manual != null
-                            ? '<div class="cx-box-sub" style="text-align:right;">definido manualmente</div>'
-                            : (m.ponto_reposicao !== null ? `<div class="cx-box-sub" style="text-align:right;">+${m.estoque_seguranca_un} seg. (${Math.round(m.estoque_seguranca_pct * 100)}%)</div>` : '')}
+                        ${m.ponto_reposicao !== null ? `<div class="cx-box-sub" style="text-align:right;">+${m.estoque_seguranca_un} seg. (${Math.round(m.estoque_seguranca_pct * 100)}%)</div>` : ''}
                     </td>
                     <td class="num cx-cov ${m.status}">${m.cobertura_dias !== null ? m.cobertura_dias + ' dias' : '—'}</td>
                     <td class="num">
-                        ${m.sugestao_compra > 0 ? `<b style="color:#f1f5f9;">${m.sugestao_compra} un</b><div class="cx-box-sub" style="text-align:right;">p/ ${m.cobertura_desejada_dias} dias</div>`
-                            : (m.sugestao_compra === 0 ? '<span class="cx-box-sub">ok</span>' : '—')}
+                        ${m.sugestao_compra > 0 ? `<b style="color:#f1f5f9;">${m.sugestao_compra} un</b><div class="cx-box-sub" style="text-align:right;">${m.qtd_pedido != null ? 'pedido padrão' : 'p/ ' + m.cobertura_desejada_dias + ' dias'}</div>`
+                            : (m.sugestao_compra === 0 ? `<span class="cx-box-sub">${m.em_pedido > 0 ? 'já pedido' : 'ainda não'}</span>` : '—')}
+                        ${m.qtd_pedido != null && m.sugestao_compra === 0 ? `<div class="cx-box-sub" style="text-align:right;">pedido padrão ${m.qtd_pedido} un</div>` : ''}
                     </td>
                     <td>${cxTrendBadge(m.tendencia_pct)}</td>
                     <td>${cxStatusBadge(m.status)}</td>
@@ -1193,10 +1192,15 @@
             const partes = [`Estoque ${m.estoque_atual} un`, `consumo ${m.consumo_30d.toFixed(1)}/dia`];
             if (m.em_pedido > 0) partes.push(`${m.em_pedido} un já em pedido`);
             let sugestao = '';
-            if (m.sugestao_compra > 0) {
+            let qtdSugerida = null;
+            if (m.qtd_pedido != null) {
+                qtdSugerida = m.qtd_pedido;
+                sugestao = ` · <a href="#" id="cxCpUsarSugestao" style="color:#93c5fd;">usar quantidade padrão do pedido: ${m.qtd_pedido} un</a>${m.sugestao_compra > 0 ? ' (estoque já chegou no ponto de reposição)' : ' (estoque ainda acima do ponto de reposição)'}`;
+            } else if (m.sugestao_compra > 0) {
+                qtdSugerida = m.sugestao_compra;
                 sugestao = ` · <a href="#" id="cxCpUsarSugestao" style="color:#93c5fd;">usar sugestão: ${m.sugestao_compra} un</a> (cobertura desejada ${m.cobertura_desejada_dias} dias)`;
             } else if (m.cobertura_desejada_dias == null) {
-                sugestao = ' · defina a cobertura desejada em Cadastro de modelos pra ver a sugestão de compra';
+                sugestao = ' · defina a quantidade por pedido em Cadastro de modelos pra ver a sugestão de compra';
             }
             const qtd = Number(document.getElementById('cxCpQtd').value);
             const preco = Number(document.getElementById('cxCpPreco').value);
@@ -1211,7 +1215,7 @@
             const link = document.getElementById('cxCpUsarSugestao');
             if (link) link.addEventListener('click', e => {
                 e.preventDefault();
-                document.getElementById('cxCpQtd').value = m.sugestao_compra;
+                document.getElementById('cxCpQtd').value = qtdSugerida;
                 cxCpAtualizaHint();
             });
         }
@@ -1456,7 +1460,7 @@
                             <td class="num"><input type="number" min="1" class="cx-lead-input" value="${m.lead_time_dias ?? ''}" style="text-align:right;"></td>
                             <td class="num"><input type="number" min="0" max="100" class="cx-pct-input" value="${pct}" style="text-align:right;"></td>
                             <td class="num"><input type="number" min="0" class="cx-cobdes-input" value="${m.cobertura_desejada_dias ?? ''}" placeholder="—" style="text-align:right;"></td>
-                            <td class="num"><input type="number" min="0" class="cx-manual-input" value="${m.ponto_reposicao_manual ?? ''}" placeholder="auto" style="text-align:right;"></td>
+                            <td class="num"><input type="number" min="0" class="cx-manual-input" value="${m.ponto_reposicao_manual ?? ''}" placeholder="—" style="text-align:right;"></td>
                             <td style="text-align:center;"><input type="checkbox" class="cx-controla-input" ${controla ? 'checked' : ''} title="Desmarque para embalagens que não são estocadas"></td>
                             <td></td>
                         </tr>`;

@@ -209,18 +209,23 @@ export default async function handler(req, res) {
       }
       const estoqueSeguranca = r.consumo_30d * (r.lead_time_dias || 0) * Number(r.estoque_seguranca_pct);
       const plan = planejamento.get(r.id) || {};
-      const manual = plan.ponto_reposicao_manual ?? null;
+      // A coluna ponto_reposicao_manual (migração 009) guarda, na prática, a
+      // QUANTIDADE PADRÃO DE CADA PEDIDO do modelo (o "lote"): é assim que
+      // o usuário enxerga reposição. O gatilho de quando comprar continua
+      // sendo sempre o cálculo: consumo x lead time + segurança.
+      const qtdPedido = plan.ponto_reposicao_manual ?? null;
       const coberturaDesejada = plan.cobertura_desejada_dias ?? null;
       const qtdEmPedido = emPedido.get(r.id) || 0;
-      // Ponto de reposição manual, quando informado, vale mais que o calculado.
-      const pontoReposicao = manual !== null
-        ? manual
-        : (r.lead_time_dias ? r.consumo_30d * r.lead_time_dias + estoqueSeguranca : null);
-      // Sugestão de compra: leva o estoque (já contando o que está pedido)
-      // até consumo/dia x cobertura desejada + segurança.
-      const sugestaoCompra = coberturaDesejada !== null && r.consumo_30d > 0
-        ? Math.max(0, Math.ceil(r.consumo_30d * coberturaDesejada + estoqueSeguranca - r.estoque_atual - qtdEmPedido))
-        : null;
+      const pontoReposicao = r.lead_time_dias ? r.consumo_30d * r.lead_time_dias + estoqueSeguranca : null;
+      // Sugestão de compra: com quantidade por pedido definida, sugere um
+      // lote quando o estoque (contando o que já está pedido) chegou no
+      // ponto de reposição. Sem lote, cai na cobertura desejada.
+      let sugestaoCompra = null;
+      if (qtdPedido !== null) {
+        sugestaoCompra = pontoReposicao !== null && r.estoque_atual + qtdEmPedido <= pontoReposicao ? qtdPedido : 0;
+      } else if (coberturaDesejada !== null && r.consumo_30d > 0) {
+        sugestaoCompra = Math.max(0, Math.ceil(r.consumo_30d * coberturaDesejada + estoqueSeguranca - r.estoque_atual - qtdEmPedido));
+      }
       const coberturaDias = r.consumo_30d > 0 ? r.estoque_atual / r.consumo_30d : null;
 
       let status = 'sem_config';
@@ -248,7 +253,7 @@ export default async function handler(req, res) {
         cobertura_dias: coberturaDias !== null ? Math.round(coberturaDias) : null,
         tendencia_pct: tendenciaPct !== null ? Math.round(tendenciaPct) : null,
         cobertura_desejada_dias: coberturaDesejada,
-        ponto_reposicao_manual: manual,
+        qtd_pedido: qtdPedido,
         em_pedido: qtdEmPedido,
         sugestao_compra: sugestaoCompra,
         status, // 'crit' | 'warn' | 'ok' | 'sem_config' (falta cadastrar lead time)
