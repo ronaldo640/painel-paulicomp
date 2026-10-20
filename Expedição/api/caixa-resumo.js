@@ -170,6 +170,28 @@ export default async function handler(req, res) {
       console.error('Coluna controla_estoque indisponível (migração 008 pendente?):', err.message);
     }
 
+    // Planejamento de compras (migração 009): cobertura desejada e ponto de
+    // reposição manual por modelo, e quantidade já pedida e ainda não
+    // recebida. Também tolerante: sem a migração, tudo segue como antes.
+    const planejamento = new Map();
+    try {
+      const pl = await sql`SELECT id, cobertura_desejada_dias, ponto_reposicao_manual FROM caixa_modelos`;
+      pl.forEach(p => planejamento.set(p.id, p));
+    } catch (err) {
+      console.error('Colunas de planejamento indisponíveis (migração 009 pendente?):', err.message);
+    }
+    const emPedido = new Map();
+    try {
+      const ped = await sql`
+        SELECT modelo_id, SUM(quantidade)::int AS qtd
+        FROM caixa_compras
+        WHERE filial = ${filial} AND status IN ('solicitado','em_transito')
+        GROUP BY modelo_id`;
+      ped.forEach(p => emPedido.set(p.modelo_id, p.qtd));
+    } catch (err) {
+      console.error('Tabela caixa_compras indisponível (migração 009 pendente?):', err.message);
+    }
+
     const modelos = rows.map(r => {
       if (semControle.has(r.id)) {
         const tendencia = r.consumo_prev7d > 0 ? ((r.consumo_7d - r.consumo_prev7d) / r.consumo_prev7d) * 100 : null;
@@ -186,8 +208,18 @@ export default async function handler(req, res) {
         };
       }
       const estoqueSeguranca = r.consumo_30d * (r.lead_time_dias || 0) * Number(r.estoque_seguranca_pct);
-      const pontoReposicao = r.lead_time_dias
-        ? r.consumo_30d * r.lead_time_dias + estoqueSeguranca
+      const plan = planejamento.get(r.id) || {};
+      const manual = plan.ponto_reposicao_manual ?? null;
+      const coberturaDesejada = plan.cobertura_desejada_dias ?? null;
+      const qtdEmPedido = emPedido.get(r.id) || 0;
+      // Ponto de reposição manual, quando informado, vale mais que o calculado.
+      const pontoReposicao = manual !== null
+        ? manual
+        : (r.lead_time_dias ? r.consumo_30d * r.lead_time_dias + estoqueSeguranca : null);
+      // Sugestão de compra: leva o estoque (já contando o que está pedido)
+      // até consumo/dia x cobertura desejada + segurança.
+      const sugestaoCompra = coberturaDesejada !== null && r.consumo_30d > 0
+        ? Math.max(0, Math.ceil(r.consumo_30d * coberturaDesejada + estoqueSeguranca - r.estoque_atual - qtdEmPedido))
         : null;
       const coberturaDias = r.consumo_30d > 0 ? r.estoque_atual / r.consumo_30d : null;
 
@@ -215,6 +247,10 @@ export default async function handler(req, res) {
         ponto_reposicao: pontoReposicao !== null ? Math.round(pontoReposicao) : null,
         cobertura_dias: coberturaDias !== null ? Math.round(coberturaDias) : null,
         tendencia_pct: tendenciaPct !== null ? Math.round(tendenciaPct) : null,
+        cobertura_desejada_dias: coberturaDesejada,
+        ponto_reposicao_manual: manual,
+        em_pedido: qtdEmPedido,
+        sugestao_compra: sugestaoCompra,
         status, // 'crit' | 'warn' | 'ok' | 'sem_config' (falta cadastrar lead time)
       };
     });

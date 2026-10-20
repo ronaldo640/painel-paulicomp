@@ -29,7 +29,20 @@ export default async function handler(req, res) {
       } catch (err) {
         console.error('Coluna controla_estoque indisponível (migração 008 pendente?):', err.message);
       }
-      return res.status(200).json(rows.map(r => ({ ...r, controla_estoque: !semControle.has(r.id) })));
+      // cobertura desejada / ponto de reposição manual (migração 009), idem
+      const extras = new Map();
+      try {
+        const ex = await sql`SELECT id, cobertura_desejada_dias, ponto_reposicao_manual FROM caixa_modelos`;
+        ex.forEach(e => extras.set(e.id, e));
+      } catch (err) {
+        console.error('Colunas de planejamento indisponíveis (migração 009 pendente?):', err.message);
+      }
+      return res.status(200).json(rows.map(r => ({
+        ...r,
+        controla_estoque: !semControle.has(r.id),
+        cobertura_desejada_dias: extras.get(r.id)?.cobertura_desejada_dias ?? null,
+        ponto_reposicao_manual: extras.get(r.id)?.ponto_reposicao_manual ?? null,
+      })));
     } catch (error) {
       console.error('Erro GET caixa_modelos:', error);
       return res.status(500).json({ error: error.message });
@@ -63,6 +76,29 @@ export default async function handler(req, res) {
     try {
       const { id, lead_time_dias, estoque_seguranca_pct, medida_mm, ativo, controla_estoque } = req.body || {};
       if (!id) return res.status(400).json({ error: 'Campo "id" é obrigatório.' });
+
+      // Estes dois aceitam null (limpar o campo), então o COALESCE usado
+      // abaixo não serve: só são gravados se a chave veio no corpo.
+      const body = req.body || {};
+      if ('cobertura_desejada_dias' in body || 'ponto_reposicao_manual' in body) {
+        const num = v => (v === null || v === '' || v === undefined ? null : Number(v));
+        const cob = num(body.cobertura_desejada_dias);
+        const man = num(body.ponto_reposicao_manual);
+        for (const v of [cob, man]) {
+          if (v !== null && (!Number.isInteger(v) || v < 0)) {
+            return res.status(400).json({ error: 'Cobertura desejada e ponto de reposição manual devem ser inteiros maiores ou iguais a zero.' });
+          }
+        }
+        try {
+          if ('cobertura_desejada_dias' in body) await sql`UPDATE caixa_modelos SET cobertura_desejada_dias = ${cob} WHERE id = ${id}`;
+          if ('ponto_reposicao_manual' in body) await sql`UPDATE caixa_modelos SET ponto_reposicao_manual = ${man} WHERE id = ${id}`;
+        } catch (err) {
+          if (/cobertura_desejada|ponto_reposicao_manual/.test(err.message)) {
+            return res.status(400).json({ error: 'Migração 009 pendente: rode sql/009_caixa_compras.sql no Neon antes de alterar cobertura/ponto de reposição.' });
+          }
+          throw err;
+        }
+      }
 
       if (typeof controla_estoque === 'boolean') {
         try {
