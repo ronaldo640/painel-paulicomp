@@ -34,6 +34,7 @@ export default async function handler(req, res) {
         SELECT data, SUM(quantidade) AS total
         FROM caixa_movimentacoes
         WHERE modelo_id = ${modeloId} AND filial = ${filial} AND tipo = 'saida'
+          AND conta_estoque = true AND conta_consumo = true
           AND data >= current_date - (${dias - 1} * interval '1 day')
         GROUP BY data
       )

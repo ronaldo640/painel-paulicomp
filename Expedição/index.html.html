@@ -581,6 +581,22 @@
         <div class="cx-card">
             <div class="cx-card-head">
                 <div>
+                    <h2>Consumo diário por modelo de caixa</h2>
+                    <p>Últimos 30 dias · unidades usadas na embalagem, por dia (sem Fulfillment e sem transferências)</p>
+                </div>
+                <select id="cxModelSelect"></select>
+            </div>
+            <div class="cx-chart-stats">
+                <div class="cx-chart-stat"><div class="l">Média 30 dias</div><div class="v" id="cxStatAvg30">—</div></div>
+                <div class="cx-chart-stat"><div class="l">Média últimos 7 dias</div><div class="v" id="cxStatAvg7">—</div></div>
+                <div class="cx-chart-stat"><div class="l">Tendência (7d vs 7d anteriores)</div><div class="v" id="cxStatTrend">—</div></div>
+            </div>
+            <div class="cx-chart-wrap"><canvas id="cxSerieChart"></canvas></div>
+        </div>
+
+        <div class="cx-card">
+            <div class="cx-card-head">
+                <div>
                     <h2>Modelos de caixa</h2>
                     <p>Ordenado por urgência de compra</p>
                 </div>
@@ -2504,11 +2520,100 @@
             });
         }
 
+        // Consumo diário de UM modelo (gráfico com seletor). Só conta consumo
+        // real: fora Fulfillment (informativo) e transferências entre filiais.
+        let cxSerieChart = null;
+
+        async function cxFetchSerie(modeloId) {
+            const resp = await fetch(`/api/caixa-serie?modelo_id=${modeloId}&filial=${CX_FILIAL}&dias=30`);
+            const json = await resp.json();
+            if (!resp.ok) throw new Error(json.error || 'Falha ao carregar série de consumo.');
+            return json;
+        }
+
+        function cxEnsureSerieChart() {
+            if (cxSerieChart) return cxSerieChart;
+            const ctx = document.getElementById('cxSerieChart').getContext('2d');
+            cxSerieChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Consumo diário', data: [], backgroundColor: '#3b82f6cc', borderRadius: 3, maxBarThickness: 18, order: 2 },
+                        { label: 'Média 30 dias', type: 'line', data: [], borderColor: '#94a3b8', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, fill: false, order: 1 },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: { display: false },
+                        tooltip: {
+                            backgroundColor: '#151f34', borderColor: '#1e293b', borderWidth: 1,
+                            titleColor: '#f1f5f9', bodyColor: '#94a3b8', padding: 10, displayColors: false,
+                            callbacks: { label: c => c.dataset.label + ': ' + (c.dataset.type === 'line' ? c.parsed.y.toFixed(1) : c.parsed.y) + ' un' },
+                        },
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } },
+                        y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 10 } } },
+                    },
+                },
+            });
+            return cxSerieChart;
+        }
+
+        async function cxLoadSerie(modeloId) {
+            let serie;
+            try {
+                serie = await cxFetchSerie(modeloId);
+            } catch (err) {
+                cxToast('Erro ao carregar série de consumo: ' + err.message, 'error');
+                return;
+            }
+            const values = serie.map(d => d.quantidade);
+            const labels = serie.map(d => { const p = d.data.split('-'); return p[2] + '/' + p[1]; });
+
+            const avg30 = values.reduce((a, b) => a + b, 0) / (values.length || 1);
+            const last7 = values.slice(-7);
+            const prev7 = values.slice(-14, -7);
+            const avg7 = last7.reduce((a, b) => a + b, 0) / (last7.length || 1);
+            const avgPrev7 = prev7.reduce((a, b) => a + b, 0) / (prev7.length || 1);
+            const deltaPct = avgPrev7 > 0 ? ((avg7 - avgPrev7) / avgPrev7) * 100 : null;
+
+            const chart = cxEnsureSerieChart();
+            chart.data.labels = labels;
+            chart.data.datasets[0].data = values;
+            chart.data.datasets[1].data = values.map(() => avg30);
+            chart.update();
+
+            document.getElementById('cxStatAvg30').innerHTML = avg30.toFixed(1) + ' <span class="unit">un/dia</span>';
+            document.getElementById('cxStatAvg7').innerHTML = avg7.toFixed(1) + ' <span class="unit">un/dia</span>';
+            document.getElementById('cxStatTrend').innerHTML = deltaPct === null ? '—' : cxTrendBadge(Math.round(deltaPct));
+        }
+
+        // Mantém o modelo escolhido entre atualizações; na primeira vez,
+        // abre no de maior consumo.
+        function cxLoadSerieSelecionada() {
+            const sel = document.getElementById('cxModelSelect');
+            if (!sel.value) {
+                const top = [...(cxResumo?.modelos || [])].sort((a, b) => b.consumo_30d - a.consumo_30d)[0];
+                if (top) sel.value = String(top.id);
+            }
+            return sel.value ? cxLoadSerie(Number(sel.value)) : Promise.resolve();
+        }
+
         function cxPopulateSelects(modelos) {
             const sorted = [...modelos].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
             const options = sorted.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
             document.getElementById('cxMovModelo').innerHTML = options;
             document.getElementById('cxRegraModelo').innerHTML = options;
+            const selSerie = document.getElementById('cxModelSelect');
+            const modeloSerieAtual = selSerie.value;
+            selSerie.innerHTML = options;
+            if (modeloSerieAtual) selSerie.value = modeloSerieAtual;
         }
 
         function cxRenderMovList(movs) {
@@ -2550,6 +2655,7 @@
                     cxLoadConsumoModelos(dias),
                     cxLoadConsumoDia(dataDia),
                     cxLoadFulfillment(dataDiaFulfillment),
+                    cxLoadSerieSelecionada(),
                 ]);
             } catch (err) {
                 cxToast('Erro ao carregar Controle de Caixas: ' + err.message, 'error');
@@ -3389,6 +3495,7 @@
         // Wiring
         // ---------------------------------------------------------------
         document.getElementById('cxPeriodoSelect').addEventListener('change', e => cxLoadConsumoModelos(Number(e.target.value)));
+        document.getElementById('cxModelSelect').addEventListener('change', e => cxLoadSerie(Number(e.target.value)));
         document.getElementById('cxFulfillmentDiaSelect').addEventListener('change', e => cxLoadFulfillment(e.target.value));
         document.getElementById('cxDiaSelect').addEventListener('change', e => cxLoadConsumoDia(e.target.value));
 
