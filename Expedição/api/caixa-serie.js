@@ -31,14 +31,19 @@ export default async function handler(req, res) {
         )::date AS data
       ),
       saidas AS (
-        SELECT data, SUM(quantidade) AS total
+        -- quantidade = consumo real (baixa estoque, fora transferências);
+        -- fulfillment = série 2, informativo (conta_estoque = false).
+        SELECT data,
+          SUM(quantidade) FILTER (WHERE conta_estoque = true AND conta_consumo = true) AS total,
+          SUM(quantidade) FILTER (WHERE conta_estoque = false) AS total_fulfillment
         FROM caixa_movimentacoes
         WHERE modelo_id = ${modeloId} AND filial = ${filial} AND tipo = 'saida'
-          AND conta_estoque = true AND conta_consumo = true
           AND data >= current_date - (${dias - 1} * interval '1 day')
         GROUP BY data
       )
-      SELECT TO_CHAR(d.data, 'YYYY-MM-DD') AS data, COALESCE(s.total, 0)::int AS quantidade
+      SELECT TO_CHAR(d.data, 'YYYY-MM-DD') AS data,
+             COALESCE(s.total, 0)::int AS quantidade,
+             COALESCE(s.total_fulfillment, 0)::int AS fulfillment
       FROM dias_serie d
       LEFT JOIN saidas s ON s.data = d.data
       ORDER BY d.data

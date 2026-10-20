@@ -582,7 +582,7 @@
             <div class="cx-card-head">
                 <div>
                     <h2>Consumo diário por modelo de caixa</h2>
-                    <p>Últimos 30 dias · unidades usadas na embalagem, por dia (sem Fulfillment e sem transferências)</p>
+                    <p>Últimos 30 dias · consumo real (Mercado Envios e outros) e Fulfillment (informativo, não baixa estoque) · sem transferências</p>
                 </div>
                 <select id="cxModelSelect"></select>
             </div>
@@ -590,6 +590,8 @@
                 <div class="cx-chart-stat"><div class="l">Média 30 dias</div><div class="v" id="cxStatAvg30">—</div></div>
                 <div class="cx-chart-stat"><div class="l">Média últimos 7 dias</div><div class="v" id="cxStatAvg7">—</div></div>
                 <div class="cx-chart-stat"><div class="l">Tendência (7d vs 7d anteriores)</div><div class="v" id="cxStatTrend">—</div></div>
+                <div class="cx-chart-stat"><div class="l">Fulfillment — média 30 dias</div><div class="v" id="cxStatFulfillment30">—</div></div>
+                <div class="cx-chart-stat"><div class="l">Total (real + Fulfillment)</div><div class="v" id="cxStatTotal30">—</div></div>
             </div>
             <div class="cx-chart-wrap"><canvas id="cxSerieChart"></canvas></div>
         </div>
@@ -2539,8 +2541,9 @@
                 data: {
                     labels: [],
                     datasets: [
-                        { label: 'Consumo diário', data: [], backgroundColor: '#3b82f6cc', borderRadius: 3, maxBarThickness: 18, order: 2 },
-                        { label: 'Média 30 dias', type: 'line', data: [], borderColor: '#94a3b8', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, fill: false, order: 1 },
+                        { label: 'Consumo real', data: [], backgroundColor: '#3b82f6cc', borderRadius: 3, maxBarThickness: 18, order: 2 },
+                        { label: 'Fulfillment', data: [], backgroundColor: '#a78bfacc', borderRadius: 3, maxBarThickness: 18, order: 2 },
+                        { label: 'Média 30 dias (consumo real)', type: 'line', data: [], borderColor: '#94a3b8', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, fill: false, order: 1 },
                     ],
                 },
                 options: {
@@ -2548,7 +2551,7 @@
                     maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
-                        legend: { display: false },
+                        legend: { display: true, position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, boxHeight: 12, font: { size: 11 } } },
                         datalabels: { display: false },
                         tooltip: {
                             backgroundColor: '#151f34', borderColor: '#1e293b', borderWidth: 1,
@@ -2557,8 +2560,8 @@
                         },
                     },
                     scales: {
-                        x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } },
-                        y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 10 } } },
+                        x: { stacked: true, grid: { display: false }, ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } },
+                        y: { stacked: true, beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 10 } } },
                     },
                 },
             });
@@ -2585,9 +2588,14 @@
 
             const chart = cxEnsureSerieChart();
             chart.data.labels = labels;
+            const fulf = serie.map(d => d.fulfillment || 0);
+            const avgFulf30 = fulf.reduce((a, b) => a + b, 0) / (fulf.length || 1);
             chart.data.datasets[0].data = values;
-            chart.data.datasets[1].data = values.map(() => avg30);
+            chart.data.datasets[1].data = fulf;
+            chart.data.datasets[2].data = values.map(() => avg30);
             chart.update();
+            document.getElementById('cxStatFulfillment30').innerHTML = avgFulf30.toFixed(1) + ' <span class="unit">un/dia</span>';
+            document.getElementById('cxStatTotal30').innerHTML = (avg30 + avgFulf30).toFixed(1) + ' <span class="unit">un/dia</span>';
 
             document.getElementById('cxStatAvg30').innerHTML = avg30.toFixed(1) + ' <span class="unit">un/dia</span>';
             document.getElementById('cxStatAvg7').innerHTML = avg7.toFixed(1) + ' <span class="unit">un/dia</span>';
