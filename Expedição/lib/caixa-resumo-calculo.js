@@ -3,7 +3,7 @@
 // por api/caixa-resumo.js (a tela) quanto pelo aviso por e-mail
 // (lib/caixa-alerta.js), sem uma chamar a outra por HTTP.
 
-export async function calcularResumo(sql, filial, limitePendencias) {
+export async function calcularResumo(sql, filial, limitePendenciasEntrada) {
   const rows = await sql`
     WITH base AS (
       SELECT id, nome, medida_mm, lead_time_dias, estoque_seguranca_pct
@@ -65,7 +65,7 @@ export async function calcularResumo(sql, filial, limitePendencias) {
   // mapear várias vezes a mesma coisa. Try/catch isolado: se a tabela
   // ainda não existir (migração 007 não rodada), o resumo inteiro não
   // pode quebrar por causa disso.
-  const limitePendencias = Math.min(Number(limitePendencias) || 50, 5000);
+  const limitePendencias = Math.min(Number(limitePendenciasEntrada) || 50, 5000);
   let pendenciasRegra = [];
   try {
     // Limpeza defensiva: um SKU pode ter ganhado mapeamento por um
