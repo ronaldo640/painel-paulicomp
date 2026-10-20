@@ -44,8 +44,9 @@
         }
 
         /* ============================================================ */
-        /* Aba "Controle de Caixas" — classes prefixadas com cx- pra não  */
-        /* colidir com nada do painel existente.                         */
+        /* Mesmas classes cx- do dashboard principal — mantidas idênticas */
+        /* de propósito, pra portar de volta pro index.html.html depois  */
+        /* sem precisar traduzir nada.                                   */
         /* ============================================================ */
         .cx-tabs { display: flex; gap: 4px; background: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 4px; }
         .cx-tabs a { font-size: 12.5px; font-weight: 600; color: #94a3b8; padding: 7px 14px; border-radius: 7px; text-decoration: none; white-space: nowrap; cursor: pointer; }
@@ -78,11 +79,28 @@
         .cx-alert.info strong { color: #93c5fd; }
         .cx-alert span.cx-txt { font-size: 12.5px; color: #cbd5e1; }
 
+        .cx-alert.warn { background: linear-gradient(180deg,#f59e0b14,#f59e0b08); border-color: #f59e0b3d; align-items: flex-start; flex-direction: column; gap: 10px; }
+        .cx-alert.warn .dot { background: #f59e0b; box-shadow: 0 0 0 4px #f59e0b22; }
+        .cx-alert.warn strong { color: #fcd34d; }
+        .cx-pendencia-table { width: 100%; border-collapse: collapse; }
+        .cx-pendencia-table thead th { text-align: left; font-size: 10px; font-weight: 700; color: #b98a2e; text-transform: uppercase; letter-spacing: .05em; padding: 0 10px 6px; white-space: nowrap; }
+        .cx-pendencia-table thead th.num { text-align: right; }
+        .cx-pendencia-table tbody td { padding: 7px 10px; border-top: 1px solid #f59e0b22; font-size: 12.5px; color: #cbd5e1; vertical-align: middle; }
+        .cx-pendencia-table tbody td.num { text-align: right; white-space: nowrap; }
+        .cx-pendencia-table tbody tr:first-child td { border-top: none; }
+        .cx-pendencia-table .actions { display: flex; gap: 8px; justify-content: flex-end; }
+        .cx-pendencia-table button { font-size: 11.5px; font-weight: 600; padding: 5px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+        .cx-pendencia-table .btn-criar { background: #f59e0b1a; border: 1px solid #f59e0b4d; color: #fcd34d; }
+        .cx-pendencia-table .btn-criar:hover { background: #f59e0b2d; }
+        .cx-pendencia-table .btn-dispensar { background: transparent; border: 1px solid #334155; color: #94a3b8; }
+        .cx-pendencia-table .btn-dispensar:hover { background: #1e293b; }
+
         .cx-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; overflow: hidden; }
         .cx-card-head { padding: 15px 18px; border-bottom: 1px solid #1e293b; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
         .cx-card-head h2 { font-size: 13.5px; font-weight: 700; margin: 0; color: #f1f5f9; }
         .cx-card-head p { font-size: 11.5px; color: #64748b; margin: 2px 0 0; }
-        .cx-card-head select { background: #151f34; border: 1px solid #1e293b; color: #f1f5f9; font-size: 12px; font-weight: 600; font-family: inherit; padding: 7px 10px; border-radius: 7px; cursor: pointer; }
+        .cx-card-head select, .cx-card-head input[type="date"] { background: #151f34; border: 1px solid #1e293b; color: #f1f5f9; font-size: 12px; font-weight: 600; font-family: inherit; padding: 7px 10px; border-radius: 7px; cursor: pointer; }
+        .cx-card-head input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
 
         .cx-scroll-x { overflow-x: auto; }
         .cx-table { width: 100%; border-collapse: collapse; min-width: 880px; }
@@ -100,6 +118,8 @@
         .cx-badge.warn { background: #f59e0b1a; color: #fcd34d; } .cx-badge.warn .d { background: #f59e0b; }
         .cx-badge.crit { background: #f43f5e1a; color: #fda4af; } .cx-badge.crit .d { background: #f43f5e; }
         .cx-badge.sem_config { background: #94a3b81a; color: #cbd5e1; } .cx-badge.sem_config .d { background: #94a3b8; }
+        .cx-badge.info { background: #3b82f61a; color: #93c5fd; } .cx-badge.info .d { background: #3b82f6; }
+        .cx-badge.nao_controlada { background: #64748b1a; color: #94a3b8; } .cx-badge.nao_controlada .d { background: #64748b; }
         .cx-cov.crit { color: #fda4af; font-weight: 700; } .cx-cov.warn { color: #fcd34d; font-weight: 700; } .cx-cov.ok { color: #6ee7b7; font-weight: 700; }
 
         .cx-trend { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; font-weight: 700; }
@@ -123,13 +143,17 @@
         .cx-chart-stat .v { font-size: 17px; font-weight: 800; margin-top: 3px; letter-spacing: -.01em; color: #f1f5f9; }
         .cx-chart-stat .v .unit { font-size: 11px; font-weight: 600; color: #94a3b8; }
         .cx-chart-wrap { padding: 6px 18px 18px; height: 230px; position: relative; }
-        .cx-chart-wrap.tall { height: 340px; }
+        .cx-chart-wrap.tall { height: 460px; }
+        .cx-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
         .cx-rank-hint { font-size: 11px; color: #64748b; }
 
         .cx-modal-overlay { position: fixed; inset: 0; background: #02061799; backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 50; }
         .cx-modal-overlay[hidden] { display: none; }
         .cx-modal-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 14px; width: 100%; max-width: 440px; box-shadow: 0 20px 60px -12px #000000b3; }
         .cx-modal-card.wide { max-width: 640px; }
+        .cx-modal-card.xwide { max-width: 920px; }
+        .cx-modal-section-title { font-size: 12px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 8px; }
+        .cx-modal-divider { border: none; border-top: 1px solid #1e293b; margin: 4px 0; }
         .cx-modal-head { padding: 16px 18px; border-bottom: 1px solid #1e293b; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
         .cx-modal-head h2 { font-size: 14.5px; font-weight: 700; margin: 0; color: #f1f5f9; }
         .cx-modal-head p { font-size: 11.5px; color: #64748b; margin: 3px 0 0; }
@@ -155,15 +179,31 @@
         .cx-btn.primary:hover { background: #2f6fe0; }
         .cx-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
 
-        .cx-cadastro-table input { width: 100%; background: #151f34; border: 1px solid #1e293b; color: #f1f5f9; border-radius: 6px; padding: 5px 7px; font-size: 12.5px; font-family: inherit; }
-        .cx-cadastro-table input:focus { outline: none; border-color: #3b82f6; }
+        .cx-cadastro-table input, .cx-cadastro-table select { width: 100%; background: #151f34; border: 1px solid #1e293b; color: #f1f5f9; border-radius: 6px; padding: 5px 7px; font-size: 12.5px; font-family: inherit; }
+        .cx-cadastro-table input:focus, .cx-cadastro-table select:focus { outline: none; border-color: #3b82f6; }
         .cx-cadastro-table td, .cx-cadastro-table th { padding: 7px 10px; font-size: 12px; }
+        .cx-cadastro-table td.num { white-space: nowrap; }
+
+        .cx-sku-results { max-height: 170px; overflow-y: auto; border: 1px solid #1e293b; border-radius: 8px; margin-top: 6px; background: #151f34; }
+        .cx-sku-results div { padding: 7px 10px; font-size: 12px; cursor: pointer; color: #cbd5e1; }
+        .cx-sku-results div:hover { background: #1e293b; }
+        .cx-sku-results div .sku { font-family: ui-monospace, monospace; color: #93c5fd; margin-right: 6px; }
+        .cx-sku-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .cx-sku-chip { display: inline-flex; align-items: center; gap: 6px; background: #1e293b; border: 1px solid #334155; border-radius: 99px; padding: 4px 10px; font-size: 11.5px; color: #f1f5f9; }
+        .cx-sku-chip .sku { font-family: ui-monospace, monospace; color: #93c5fd; }
+        .cx-sku-chip button { background: none; border: none; color: #64748b; cursor: pointer; font-size: 15px; line-height: 1; padding: 0; }
+        .cx-sku-chip button:hover { color: #fda4af; }
 
         .cx-tab-caixas { display: flex; flex-direction: column; gap: 20px; }
         .cx-tab-caixas[hidden] { display: none; }
 
+        .cx-icon-btn { background: transparent; border: none; color: #64748b; cursor: pointer; padding: 4px; border-radius: 6px; }
+        .cx-icon-btn:hover { background: #f43f5e1a; color: #fda4af; }
+        .cx-icon-btn svg { width: 15px; height: 15px; }
+
         @media (max-width: 920px) {
             .cx-kpis { grid-template-columns: repeat(2,1fr); }
+            .cx-row-2 { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -468,7 +508,11 @@
                     </span>
                 </div>
             </div>
-            <div style="display:flex;gap:10px;">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button class="cx-btn" id="cxBtnOpenCompras">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h15l-1.5 9h-12zM6 6L5 3H2M9 20a1 1 0 100-2 1 1 0 000 2zm9 0a1 1 0 100-2 1 1 0 000 2z"/></svg>
+                    Compras
+                </button>
                 <button class="cx-btn" id="cxBtnCadastro">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7M4 7c0-2 1.5-3 3.5-3h9c2 0 3.5 1 3.5 3M4 7h16"/></svg>
                     Cadastro de modelos
@@ -477,38 +521,61 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                     Registrar movimentação
                 </button>
+                <button class="cx-btn primary" id="cxBtnOpenRegra">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                    Nova regra
+                </button>
             </div>
         </div>
 
         <div class="cx-kpis" id="cxKpis"></div>
 
         <div id="cxAlertWrap"></div>
+        <div id="cxPendenciaAlertWrap"></div>
 
-        <div class="cx-card">
-            <div class="cx-card-head">
-                <div>
-                    <h2>Top 10 caixas mais utilizadas</h2>
-                    <p>Média de consumo diário · últimos 30 dias</p>
+        <div class="cx-row-2">
+            <div class="cx-card">
+                <div class="cx-card-head">
+                    <div>
+                        <h2>Consumo Diário</h2>
+                        <p>Consumo diário Mercado envios e outros</p>
+                    </div>
+                    <input type="date" id="cxDiaSelect">
                 </div>
-                <span class="cx-rank-hint">clique numa barra pra detalhar ↓</span>
+                <div class="cx-chart-stats">
+                    <div class="cx-chart-stat"><div class="l">Total de caixas no dia</div><div class="v" id="cxStatTotalDia">—</div></div>
+                </div>
+                <div class="cx-chart-wrap tall"><canvas id="cxConsumoChart"></canvas></div>
             </div>
-            <div class="cx-chart-wrap tall"><canvas id="cxRankingChart"></canvas></div>
+
+            <div class="cx-card">
+                <div class="cx-card-head">
+                    <div>
+                        <h2>Envio Fulfillment <span class="cx-chip" style="margin-left:6px;">informativo</span></h2>
+                        <p>Baseado em vendas nota série 2</p>
+                    </div>
+                    <input type="date" id="cxFulfillmentDiaSelect">
+                </div>
+                <div class="cx-chart-stats">
+                    <div class="cx-chart-stat"><div class="l">Total de caixas no dia</div><div class="v" id="cxStatTotalFulfillment">—</div></div>
+                </div>
+                <div class="cx-chart-wrap tall"><canvas id="cxFulfillmentChart"></canvas></div>
+            </div>
         </div>
 
         <div class="cx-card">
             <div class="cx-card-head">
                 <div>
-                    <h2>Consumo diário por modelo de caixa</h2>
-                    <p>Últimos 30 dias · unidades usadas na embalagem, por dia</p>
+                    <h2>Consumo por modelo de caixa</h2>
+                    <p>Média de consumo diário — todos os 15 modelos</p>
                 </div>
-                <select id="cxModelSelect"></select>
+                <select id="cxPeriodoSelect">
+                    <option value="30">Últimos 30 dias</option>
+                    <option value="60">Últimos 60 dias</option>
+                    <option value="90">Últimos 90 dias</option>
+                </select>
             </div>
-            <div class="cx-chart-stats">
-                <div class="cx-chart-stat"><div class="l">Média 30 dias</div><div class="v" id="cxStatAvg30">—</div></div>
-                <div class="cx-chart-stat"><div class="l">Média últimos 7 dias</div><div class="v" id="cxStatAvg7">—</div></div>
-                <div class="cx-chart-stat"><div class="l">Tendência (7d vs 7d anteriores)</div><div class="v" id="cxStatTrend">—</div></div>
-            </div>
-            <div class="cx-chart-wrap"><canvas id="cxConsumoChart"></canvas></div>
+            <div class="cx-chart-wrap tall"><canvas id="cxRankingChart"></canvas></div>
         </div>
 
         <div class="cx-card">
@@ -527,6 +594,7 @@
                             <th class="num">Consumo/dia</th>
                             <th class="num">Ponto de reposição</th>
                             <th class="num">Cobertura</th>
+                            <th class="num" title="Quanto comprar quando o estoque chega no ponto de reposição (usa a Qtd. por pedido do Cadastro de modelos, ou a cobertura desejada se não houver)">Sugestão de compra</th>
                             <th>Tendência</th>
                             <th>Status</th>
                         </tr>
@@ -546,6 +614,7 @@
             </div>
             <div class="cx-movlist" id="cxMovList"></div>
         </div>
+
     </div>
 
     <!-- Modal: Registrar movimentação -->
@@ -593,7 +662,7 @@
 
     <!-- Modal: Cadastro de modelos -->
     <div class="cx-modal-overlay" id="cxCadastroModal" hidden>
-        <div class="cx-modal-card wide" role="dialog" aria-modal="true" aria-labelledby="cxCadastroModalTitle">
+        <div class="cx-modal-card xwide" role="dialog" aria-modal="true" aria-labelledby="cxCadastroModalTitle">
             <div class="cx-modal-head">
                 <div>
                     <h2 id="cxCadastroModalTitle">Cadastro de modelos de caixa</h2>
@@ -604,10 +673,16 @@
                 </button>
             </div>
             <div class="cx-modal-body">
+                <div style="display:flex;justify-content:flex-end;">
+                    <button type="button" class="cx-btn" id="cxBtnNovoModelo">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                        Novo modelo
+                    </button>
+                </div>
                 <div class="cx-scroll-x">
-                    <table class="cx-table cx-cadastro-table" style="min-width:520px;">
+                    <table class="cx-table cx-cadastro-table" style="min-width:760px;">
                         <thead>
-                            <tr><th>Modelo</th><th>Medida (mm)</th><th class="num">Lead time (dias)</th><th class="num">Segurança (%)</th></tr>
+                            <tr><th>Modelo</th><th>Medida (mm)</th><th class="num">Estoque atual</th><th class="num">Lead time (dias)</th><th class="num">Segurança (%)</th><th class="num" title="Dias de consumo que você quer ter em estoque; alimenta a sugestão de compra">Cobertura desejada (dias)</th><th class="num" title="Quantidade que você costuma pedir de cada vez. A reposição é sugerida com essa quantidade quando o estoque chega no ponto de reposição (consumo x lead time + segurança)">Qtd. por pedido</th><th title="Desmarque para embalagens que não são estocadas (original do produto, reaproveitada)">Controla estoque</th><th></th></tr>
                         </thead>
                         <tbody id="cxCadastroBody"></tbody>
                     </table>
@@ -619,6 +694,138 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal: Compras (cotações, pedidos, chegada) -->
+    <div class="cx-modal-overlay" id="cxComprasModal" hidden>
+        <div class="cx-modal-card xwide" role="dialog" aria-modal="true" aria-labelledby="cxComprasTitle" style="max-width:1080px;">
+            <div class="cx-modal-head">
+                <div>
+                    <h2 id="cxComprasTitle">Compras de caixas</h2>
+                    <p>Compare cotações, solicite a compra e acompanhe até a chegada. O recebimento não altera o estoque: a entrada é lançada em "Registrar movimentação".</p>
+                </div>
+                <button class="cx-modal-close" id="cxBtnCloseCompras" aria-label="Fechar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="cx-modal-body" style="max-height:72vh;">
+                <div>
+                    <p class="cx-modal-section-title">Nova cotação</p>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end;">
+                        <div class="cx-field"><label>Modelo</label><select id="cxCpModelo"></select></div>
+                        <div class="cx-field"><label>Fornecedor</label><input type="text" id="cxCpFornecedor" placeholder="ex: Embalagens Alfa"></div>
+                        <div class="cx-field"><label>Quantidade</label><input type="number" min="1" step="1" id="cxCpQtd"></div>
+                        <div class="cx-field"><label>Preço unit. (R$)</label><input type="number" min="0" step="0.0001" id="cxCpPreco"></div>
+                        <div class="cx-field"><label>Frete (R$)</label><input type="number" min="0" step="0.01" id="cxCpFrete" placeholder="0"></div>
+                        <div class="cx-field"><label>Prazo (dias)</label><input type="number" min="0" step="1" id="cxCpPrazo"></div>
+                        <button type="button" class="cx-btn primary" id="cxBtnAddCotacao" style="height:38px;">Adicionar</button>
+                    </div>
+                    <div class="cx-box-sub" id="cxCpHint" style="margin-top:8px;font-size:11.5px;"></div>
+                </div>
+
+                <hr class="cx-modal-divider">
+                <div>
+                    <p class="cx-modal-section-title">Comparar cotações</p>
+                    <div id="cxCpCotacoes"></div>
+                </div>
+
+                <hr class="cx-modal-divider">
+                <div>
+                    <p class="cx-modal-section-title">Pedidos em andamento</p>
+                    <div id="cxCpPedidos"></div>
+                </div>
+
+                <hr class="cx-modal-divider">
+                <div>
+                    <p class="cx-modal-section-title">Recebidos</p>
+                    <div id="cxCpRecebidos"></div>
+                </div>
+            </div>
+            <div class="cx-modal-foot">
+                <button class="cx-btn" id="cxBtnFecharCompras">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Nova regra de embalagem -->
+    <div class="cx-modal-overlay" id="cxRegraModal" hidden>
+        <div class="cx-modal-card xwide" role="dialog" aria-modal="true" aria-labelledby="cxRegraModalHeading">
+            <div class="cx-modal-head">
+                <div>
+                    <h2 id="cxRegraModalHeading">Regras de Embalagem</h2>
+                    <p>Casos especiais onde uma faixa de quantidade (ou combinação) usa uma caixa diferente da padrão</p>
+                </div>
+                <button class="cx-modal-close" id="cxBtnCloseRegra" aria-label="Fechar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="cx-modal-body">
+                <p class="cx-modal-section-title" id="cxRegraModalTitle">Nova regra de embalagem</p>
+                <div class="cx-field">
+                    <label>Produto(s) — digite e clique em "+ Adicionar" (ou clique num resultado da lista)</label>
+                    <div style="display:flex;gap:8px;">
+                        <input type="text" id="cxRegraSkuSearch" placeholder="ex: SC10P42352 ou Tela..." style="flex:1;">
+                        <button type="button" class="cx-btn" id="cxBtnAddSku" style="white-space:nowrap;">+ Adicionar</button>
+                    </div>
+                    <div class="cx-sku-results" id="cxRegraSkuResults" style="display:none;"></div>
+                    <div class="cx-sku-chips" id="cxRegraSkuChips"></div>
+                </div>
+                <div style="display:flex;gap:10px;">
+                    <div class="cx-field" style="flex:1;">
+                        <label>Quantidade mínima</label>
+                        <input type="number" min="1" step="1" id="cxRegraQtdMin" placeholder="1">
+                    </div>
+                    <div class="cx-field" style="flex:1;">
+                        <label>Quantidade máxima</label>
+                        <input type="number" min="1" step="1" id="cxRegraQtdMax" placeholder="3">
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;">
+                    <div class="cx-field" style="flex:2;">
+                        <label>Caixa usada</label>
+                        <select id="cxRegraModelo"></select>
+                    </div>
+                    <div class="cx-field" style="flex:1;">
+                        <label>Qtd. de caixas</label>
+                        <input type="number" min="1" step="1" id="cxRegraQtdCaixas" value="1">
+                    </div>
+                </div>
+                <div class="cx-field">
+                    <label>Cliente (opcional)</label>
+                    <input type="text" id="cxRegraCliente" placeholder="deixe em branco se vale pra qualquer cliente">
+                </div>
+                <div class="cx-field">
+                    <label>Observação (opcional)</label>
+                    <input type="text" id="cxRegraObs" placeholder="qualquer detalhe extra que ajude a lembrar o caso">
+                </div>
+
+                <hr class="cx-modal-divider">
+
+                <div>
+                    <input type="text" id="cxRegrasFiltro" placeholder="Filtrar por SKU, produto, caixa ou cliente..." style="width:100%;background:#151f34;border:1px solid #1e293b;color:#f1f5f9;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;">
+                    <div class="cx-scroll-x" style="margin-top:10px;">
+                        <table class="cx-table" style="min-width:760px;">
+                            <thead>
+                                <tr>
+                                    <th>Descrição</th>
+                                    <th class="num">Faixa (qtd)</th>
+                                    <th>Cliente</th>
+                                    <th>Caixa usada</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="cxRegrasBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="cx-note" id="cxRegrasNote">Vá cadastrando aqui conforme for mapeando os casos com a equipe — não precisa vir tudo de uma vez.</div>
+                </div>
+            </div>
+            <div class="cx-modal-foot">
+                <button class="cx-btn" id="cxBtnCancelRegra">Cancelar</button>
+                <button class="cx-btn primary" id="cxBtnSaveRegra">Salvar regra</button>
+            </div>
+        </div>
+    </div>
+
 
     <!-- Modal Banco de Dados -->
     <div id="dataModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
@@ -1886,8 +2093,8 @@
 
     <!-- ============================================================ -->
     <!-- Script da aba "Controle de Caixas". Isolado em IIFE própria — -->
-    <!-- não depende de nada do script acima além da função global    -->
-    <!-- showToast(). Escopo inicial: filial PAULICOMP SP.             -->
+    <!-- depende só da função global showToast() do script acima.      -->
+    <!-- Escopo inicial: filial PAULICOMP SP.                          -->
     <!-- ============================================================ -->
     <script>
     (function () {
@@ -1896,8 +2103,8 @@
         let cxResumo = null;
         let cxRankingChart = null;
         let cxConsumoChart = null;
+        let cxFulfillmentChart = null;
         let cxMovTipo = 'entrada';
-        let cxLoaded = false;
         let cxCadastroOriginal = {};
 
         function cxToast(msg, type) {
@@ -1915,6 +2122,7 @@
                 warn: ['warn', 'Atenção'],
                 ok: ['ok', 'OK'],
                 sem_config: ['sem_config', 'Configurar lead time'],
+                nao_controlada: ['nao_controlada', 'Sem controle de estoque'],
             };
             const [cls, label] = map[status] || map.sem_config;
             return `<span class="cx-badge ${cls}"><span class="d"></span>${label}</span>`;
@@ -1937,13 +2145,6 @@
             return json;
         }
 
-        async function cxFetchSerie(modeloId) {
-            const resp = await fetch(`/api/caixa-serie?modelo_id=${modeloId}&filial=${CX_FILIAL}&dias=30`);
-            const json = await resp.json();
-            if (!resp.ok) throw new Error(json.error || 'Falha ao carregar série de consumo.');
-            return json;
-        }
-
         async function cxFetchMovimentacoes() {
             const resp = await fetch(`/api/caixa-movimentacoes?filial=${CX_FILIAL}&limit=6`);
             const json = await resp.json();
@@ -1952,7 +2153,8 @@
         }
 
         function cxRenderKpis(modelos) {
-            const total = modelos.length;
+            const naoControladas = modelos.filter(m => m.status === 'nao_controlada').length;
+            const total = modelos.length - naoControladas;
             const crit = modelos.filter(m => m.status === 'crit').length;
             const warn = modelos.filter(m => m.status === 'warn').length;
             const semConfig = modelos.filter(m => m.status === 'sem_config').length;
@@ -1962,7 +2164,7 @@
                 <div class="cx-kpi">
                     <div class="l">Modelos de caixa</div>
                     <div class="v">${total}</div>
-                    <div class="s">${semConfig} sem lead time configurado</div>
+                    <div class="s">${semConfig} sem lead time configurado${naoControladas ? ' · +' + naoControladas + ' sem controle de estoque' : ''}</div>
                 </div>
                 <div class="cx-kpi ok">
                     <div class="l">Estoque saudável</div>
@@ -2010,6 +2212,101 @@
             }
         }
 
+        // Itens que a baixa automática encontrou sem regra de embalagem que
+        // cubra o caso (nem mapeamento padrão, nem faixa de qtd cadastrada) —
+        // ficaram sem debitar caixa nenhuma. Alerta persistente convidando a
+        // criar a regra que falta, com atalho direto pro modal já com o SKU
+        // selecionado.
+        let cxPendenciasRegra = [];
+        // Uma linha por SKU (já agrupado pelo backend, não por nota/venda) —
+        // ocorrencias/quantidade_total somam todas as vendas em aberto desse
+        // SKU. Criar a regra resolve automaticamente todas de uma vez (ver
+        // vincularSkus em api/caixa-regras.js), então esse agrupamento é só
+        // pra deixar o alerta legível enquanto o SKU ainda não foi mapeado.
+        function cxRenderPendenciasRegra(pendencias) {
+            cxPendenciasRegra = pendencias || [];
+            const wrap = document.getElementById('cxPendenciaAlertWrap');
+            if (cxPendenciasRegra.length === 0) { wrap.innerHTML = ''; return; }
+
+            const linhas = cxPendenciasRegra.map(p => {
+                const motivoTxt = p.motivos === 'fora_da_faixa' ? 'Fora da faixa'
+                    : p.motivos === 'sem_mapeamento' ? 'Sem mapeamento'
+                    : 'Sem mapeamento / fora da faixa';
+                return `
+                    <tr>
+                        <td class="num">${p.ocorrencias}</td>
+                        <td><span style="font-family:ui-monospace,monospace;color:#fcd34d;">${p.sku}</span></td>
+                        <td>${p.descricao || 'produto'}</td>
+                        <td class="num">${p.quantidade_total}</td>
+                        <td>${motivoTxt}</td>
+                        <td>
+                            <div class="actions">
+                                <button type="button" class="btn-criar" data-criar-regra-sku="${p.sku}">Criar regra</button>
+                                <button type="button" class="btn-dispensar" data-dispensar-sku="${p.sku}">Dispensar</button>
+                            </div>
+                        </td>
+                    </tr>`;
+            }).join('');
+
+            wrap.innerHTML = `
+                <div class="cx-alert warn">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span class="dot"></span>
+                        <span class="cx-txt"><strong>${cxPendenciasRegra.length} produto${cxPendenciasRegra.length > 1 ? 's' : ''} sem regra de embalagem:</strong> não foi debitada caixa pra ${cxPendenciasRegra.length > 1 ? 'esses itens' : 'esse item'} — crie a regra que falta.</span>
+                    </div>
+                    <div class="cx-scroll-x" style="width:100%;">
+                        <table class="cx-pendencia-table">
+                            <thead>
+                                <tr>
+                                    <th class="num">Ocorrências</th>
+                                    <th>SKU</th>
+                                    <th>Descrição</th>
+                                    <th class="num">Quantidade</th>
+                                    <th>Motivo</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>${linhas}</tbody>
+                        </table>
+                    </div>
+                </div>`;
+
+            wrap.querySelectorAll('[data-criar-regra-sku]').forEach(btn => {
+                btn.addEventListener('click', () => cxCriarRegraDePendencia(btn.dataset.criarRegraSku));
+            });
+            wrap.querySelectorAll('[data-dispensar-sku]').forEach(btn => {
+                btn.addEventListener('click', () => cxDispensarPendencia(btn.dataset.dispensarSku));
+            });
+        }
+
+        // Os itens do alerta são exatamente os que NÃO têm cadastro em
+        // produto_caixa (por isso a automação não conseguiu resolver a
+        // caixa) — não adianta tentar achá-los na busca de SKU, que só
+        // procura ali. Usa o SKU/descrição que a própria pendência já trouxe
+        // da nota, e adiciona direto como chip (preferindo o cadastro
+        // existente, se por acaso já houver um).
+        function cxCriarRegraDePendencia(sku) {
+            const p = cxPendenciasRegra.find(x => x.sku === sku);
+            if (!p) return;
+            cxOpenRegraModal();
+            const produto = cxProdutos.find(x => x.sku === p.sku);
+            cxAddSku(produto || { sku: p.sku, produto: p.descricao || p.sku });
+        }
+
+        async function cxDispensarPendencia(sku) {
+            try {
+                const resp = await fetch('/api/caixa-resumo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sku, filial: CX_FILIAL }),
+                });
+                if (!resp.ok) throw new Error((await resp.json()).error || 'Erro ao dispensar.');
+                cxRenderPendenciasRegra(cxPendenciasRegra.filter(p => p.sku !== sku));
+            } catch (err) {
+                cxToast('Erro: ' + err.message, 'error');
+            }
+        }
+
         function cxRenderFreshness(ultimaSaida) {
             const chip = document.getElementById('cxFreshnessChip');
             const text = document.getElementById('cxFreshnessText');
@@ -2036,151 +2333,178 @@
                 return;
             }
             document.getElementById('cxTableNote').textContent = '';
-            tbody.innerHTML = modelos.map(m => `
+            tbody.innerHTML = modelos.map(m => m.status === 'nao_controlada' ? `
+                <tr>
+                    <td>
+                        <div class="cx-box-name">${m.nome}</div>
+                        <div class="cx-box-sub">não controla estoque</div>
+                    </td>
+                    <td class="num">—</td>
+                    <td class="num">${m.consumo_30d.toFixed(1)}/dia</td>
+                    <td class="num">—</td>
+                    <td class="num">—</td>
+                    <td class="num">—</td>
+                    <td>${cxTrendBadge(m.tendencia_pct)}</td>
+                    <td>${cxStatusBadge(m.status)}</td>
+                </tr>
+            ` : `
                 <tr>
                     <td>
                         <div class="cx-box-name">${m.nome}</div>
                         <div class="cx-box-sub">${m.lead_time_dias ? 'lead time ' + m.lead_time_dias + ' dias' : 'lead time não definido'}</div>
                     </td>
-                    <td class="num">${m.estoque_atual} un</td>
+                    <td class="num">
+                        ${m.estoque_atual} un
+                        ${m.em_pedido > 0 ? `<div class="cx-box-sub" style="text-align:right;color:#93c5fd;">+${m.em_pedido} em pedido</div>` : ''}
+                    </td>
                     <td class="num">${m.consumo_30d.toFixed(1)}/dia</td>
                     <td class="num">
                         ${m.ponto_reposicao !== null ? m.ponto_reposicao + ' un' : '—'}
                         ${m.ponto_reposicao !== null ? `<div class="cx-box-sub" style="text-align:right;">+${m.estoque_seguranca_un} seg. (${Math.round(m.estoque_seguranca_pct * 100)}%)</div>` : ''}
                     </td>
                     <td class="num cx-cov ${m.status}">${m.cobertura_dias !== null ? m.cobertura_dias + ' dias' : '—'}</td>
+                    <td class="num">
+                        ${m.sugestao_compra > 0 ? `<b style="color:#f1f5f9;">${m.sugestao_compra} un</b><div class="cx-box-sub" style="text-align:right;">${m.qtd_pedido != null ? 'pedido padrão' : 'p/ ' + m.cobertura_desejada_dias + ' dias'}</div>`
+                            : (m.sugestao_compra === 0 ? `<span class="cx-box-sub">${m.em_pedido > 0 ? 'já pedido' : 'ainda não'}</span>` : '—')}
+                        ${m.qtd_pedido != null && m.sugestao_compra === 0 ? `<div class="cx-box-sub" style="text-align:right;">pedido padrão ${m.qtd_pedido} un</div>` : ''}
+                    </td>
                     <td>${cxTrendBadge(m.tendencia_pct)}</td>
                     <td>${cxStatusBadge(m.status)}</td>
                 </tr>
             `).join('');
         }
 
-        function cxRenderRanking(modelos) {
-            const top10 = [...modelos].sort((a, b) => b.consumo_30d - a.consumo_30d).slice(0, 10);
-            const colors = top10.map((_, i) => {
-                const t = top10.length > 1 ? i / (top10.length - 1) : 0;
-                return `hsl(217, 91%, ${55 + t * 20}%)`;
-            });
+        function cxCorEscala(i, total) {
+            const t = total > 1 ? i / (total - 1) : 0;
+            return `hsl(217, 91%, ${55 + t * 20}%)`;
+        }
 
+        function cxBarraHorizontalOptions(unidadeEixo) {
+            return {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#151f34', borderColor: '#1e293b', borderWidth: 1,
+                        titleColor: '#f1f5f9', bodyColor: '#94a3b8', padding: 10, displayColors: false,
+                        callbacks: { label: c => c.parsed.x.toFixed(unidadeEixo === 'un/dia' ? 1 : 0) + ' ' + unidadeEixo },
+                    },
+                    datalabels: {
+                        anchor: 'end', align: 'end', color: '#94a3b8',
+                        font: { size: 11, weight: '600' },
+                        formatter: v => unidadeEixo === 'un/dia' ? v.toFixed(1) : v,
+                    },
+                },
+                layout: { padding: { right: 34 } },
+                scales: {
+                    x: {
+                        beginAtZero: true, grid: { color: '#1e293b' },
+                        ticks: { color: '#64748b', font: { size: 10 } },
+                        title: { display: true, text: unidadeEixo, color: '#64748b', font: { size: 10.5 } },
+                    },
+                    y: { grid: { display: false }, ticks: { color: '#cbd5e1', font: { size: 12, weight: '600' } } },
+                },
+            };
+        }
+
+        async function cxLoadConsumoModelos(dias) {
+            let payload;
+            try {
+                const resp = await fetch(`/api/caixa-consumo?modo=modelos&filial=${CX_FILIAL}&dias=${dias}`);
+                payload = await resp.json();
+                if (!resp.ok) throw new Error(payload.error || 'Erro ao carregar consumo por modelo.');
+            } catch (err) {
+                cxToast('Erro: ' + err.message, 'error');
+                return;
+            }
+            const modelos = payload.modelos;
             const ctx = document.getElementById('cxRankingChart').getContext('2d');
             if (cxRankingChart) cxRankingChart.destroy();
             cxRankingChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: top10.map(m => m.nome),
+                    labels: modelos.map(m => m.modelo_nome),
                     datasets: [{
                         label: 'Média diária',
-                        data: top10.map(m => m.consumo_30d),
-                        backgroundColor: colors,
+                        data: modelos.map(m => m.media_diaria),
+                        backgroundColor: modelos.map((_, i) => cxCorEscala(i, modelos.length)),
                         borderRadius: 4,
                         maxBarThickness: 20,
                     }],
                 },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    onClick: (evt, elements) => {
-                        if (!elements.length) return;
-                        const modelo = top10[elements[0].index];
-                        document.getElementById('cxModelSelect').value = modelo.id;
-                        cxLoadSerie(modelo.id);
-                    },
-                    onHover: (evt, elements) => { evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'; },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: '#151f34', borderColor: '#1e293b', borderWidth: 1,
-                            titleColor: '#f1f5f9', bodyColor: '#94a3b8', padding: 10, displayColors: false,
-                            callbacks: { label: c => c.parsed.x.toFixed(1) + ' un/dia' },
-                        },
-                        datalabels: {
-                            anchor: 'end', align: 'end', color: '#94a3b8',
-                            font: { size: 11, weight: '600' },
-                            formatter: v => v.toFixed(1),
-                        },
-                    },
-                    layout: { padding: { right: 34 } },
-                    scales: {
-                        x: {
-                            beginAtZero: true, grid: { color: '#1e293b' },
-                            ticks: { color: '#64748b', font: { size: 10 } },
-                            title: { display: true, text: 'un/dia', color: '#64748b', font: { size: 10.5 } },
-                        },
-                        y: { grid: { display: false }, ticks: { color: '#cbd5e1', font: { size: 12, weight: '600' } } },
-                    },
-                },
+                options: cxBarraHorizontalOptions('un/dia'),
             });
         }
 
-        function cxEnsureConsumoChart() {
-            if (cxConsumoChart) return cxConsumoChart;
+        async function cxLoadFulfillment(dataIso) {
+            let payload;
+            try {
+                const resp = await fetch(`/api/caixa-consumo?modo=fulfillment&filial=${CX_FILIAL}&data=${dataIso}`);
+                payload = await resp.json();
+                if (!resp.ok) throw new Error(payload.error || 'Erro ao carregar consumo de Fulfillment.');
+            } catch (err) {
+                cxToast('Erro: ' + err.message, 'error');
+                return;
+            }
+            const modelos = payload.modelos;
+            document.getElementById('cxStatTotalFulfillment').innerHTML = payload.total + ' <span class="unit">caixas</span>';
+
+            const ctx = document.getElementById('cxFulfillmentChart').getContext('2d');
+            if (cxFulfillmentChart) cxFulfillmentChart.destroy();
+            cxFulfillmentChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: modelos.map(m => m.modelo_nome),
+                    datasets: [{
+                        label: 'Fulfillment (informativo)',
+                        data: modelos.map(m => m.quantidade),
+                        backgroundColor: modelos.map((_, i) => cxCorEscala(i, modelos.length)),
+                        borderRadius: 4,
+                        maxBarThickness: 20,
+                    }],
+                },
+                options: cxBarraHorizontalOptions('un'),
+            });
+        }
+
+        async function cxLoadConsumoDia(dataIso) {
+            let payload;
+            try {
+                const resp = await fetch(`/api/caixa-consumo?modo=dia&filial=${CX_FILIAL}&data=${dataIso}`);
+                payload = await resp.json();
+                if (!resp.ok) throw new Error(payload.error || 'Erro ao carregar consumo do dia.');
+            } catch (err) {
+                cxToast('Erro: ' + err.message, 'error');
+                return;
+            }
+            const modelos = payload.modelos;
+            document.getElementById('cxStatTotalDia').innerHTML = payload.total + ' <span class="unit">caixas</span>';
+
             const ctx = document.getElementById('cxConsumoChart').getContext('2d');
+            if (cxConsumoChart) cxConsumoChart.destroy();
             cxConsumoChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: [],
-                    datasets: [
-                        { label: 'Consumo diário', data: [], backgroundColor: '#3b82f6cc', borderRadius: 3, maxBarThickness: 18, order: 2 },
-                        { label: 'Média 30 dias', type: 'line', data: [], borderColor: '#94a3b8', borderDash: [5, 4], borderWidth: 1.5, pointRadius: 0, fill: false, order: 1 },
-                    ],
+                    labels: modelos.map(m => m.modelo_nome),
+                    datasets: [{
+                        label: 'Consumo Diário',
+                        data: modelos.map(m => m.quantidade),
+                        backgroundColor: modelos.map((_, i) => cxCorEscala(i, modelos.length)),
+                        borderRadius: 4,
+                        maxBarThickness: 20,
+                    }],
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: { mode: 'index', intersect: false },
-                    plugins: {
-                        legend: { display: false },
-                        datalabels: { display: false },
-                        tooltip: {
-                            backgroundColor: '#151f34', borderColor: '#1e293b', borderWidth: 1,
-                            titleColor: '#f1f5f9', bodyColor: '#94a3b8', padding: 10, displayColors: false,
-                            callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y + ' un' },
-                        },
-                    },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } },
-                        y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 10 } } },
-                    },
-                },
+                options: cxBarraHorizontalOptions('un'),
             });
-            return cxConsumoChart;
-        }
-
-        async function cxLoadSerie(modeloId) {
-            let serie;
-            try {
-                serie = await cxFetchSerie(modeloId);
-            } catch (err) {
-                cxToast('Erro ao carregar série de consumo: ' + err.message, 'error');
-                return;
-            }
-            const values = serie.map(d => d.quantidade);
-            const labels = serie.map(d => { const p = d.data.split('-'); return p[2] + '/' + p[1]; });
-
-            const avg30 = values.reduce((a, b) => a + b, 0) / (values.length || 1);
-            const last7 = values.slice(-7);
-            const prev7 = values.slice(-14, -7);
-            const avg7 = last7.reduce((a, b) => a + b, 0) / (last7.length || 1);
-            const avgPrev7 = prev7.reduce((a, b) => a + b, 0) / (prev7.length || 1);
-            const deltaPct = avgPrev7 > 0 ? ((avg7 - avgPrev7) / avgPrev7) * 100 : null;
-
-            const chart = cxEnsureConsumoChart();
-            chart.data.labels = labels;
-            chart.data.datasets[0].data = values;
-            chart.data.datasets[1].data = values.map(() => avg30);
-            chart.update();
-
-            document.getElementById('cxStatAvg30').innerHTML = avg30.toFixed(1) + ' <span class="unit">un/dia</span>';
-            document.getElementById('cxStatAvg7').innerHTML = avg7.toFixed(1) + ' <span class="unit">un/dia</span>';
-            document.getElementById('cxStatTrend').innerHTML = deltaPct === null ? '—' : cxTrendBadge(Math.round(deltaPct));
         }
 
         function cxPopulateSelects(modelos) {
             const sorted = [...modelos].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
             const options = sorted.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
-            document.getElementById('cxModelSelect').innerHTML = options;
             document.getElementById('cxMovModelo').innerHTML = options;
+            document.getElementById('cxRegraModelo').innerHTML = options;
         }
 
         function cxRenderMovList(movs) {
@@ -2209,20 +2533,57 @@
                 cxResumo = resumo;
                 cxRenderKpis(resumo.modelos);
                 cxRenderAlert(resumo.modelos);
+                cxRenderPendenciasRegra(resumo.pendencias_regra);
                 cxRenderFreshness(resumo.ultima_saida);
                 cxRenderTable(resumo.modelos);
-                cxRenderRanking(resumo.modelos);
                 cxRenderMovList(movs);
                 cxPopulateSelects(resumo.modelos);
 
-                const top = [...resumo.modelos].sort((a, b) => b.consumo_30d - a.consumo_30d)[0];
-                if (top) {
-                    document.getElementById('cxModelSelect').value = top.id;
-                    await cxLoadSerie(top.id);
-                }
-                cxLoaded = true;
+                const dias = Number(document.getElementById('cxPeriodoSelect').value) || 30;
+                const dataDia = document.getElementById('cxDiaSelect').value;
+                const dataDiaFulfillment = document.getElementById('cxFulfillmentDiaSelect').value;
+                await Promise.all([
+                    cxLoadConsumoModelos(dias),
+                    cxLoadConsumoDia(dataDia),
+                    cxLoadFulfillment(dataDiaFulfillment),
+                ]);
             } catch (err) {
                 cxToast('Erro ao carregar Controle de Caixas: ' + err.message, 'error');
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Baixa automática "ao vivo" — igual ao painel de Expedição (busca
+        // ao abrir a página + periodicamente enquanto ela fica aberta), mas
+        // sempre olhando só o dia de hoje (nunca uma janela de 60 dias como
+        // o tiny-sync do Expedição, pra não pesar na cota da API do Tiny).
+        // Só roda com a aba visível, pra não gastar cota em segundo plano.
+        // ---------------------------------------------------------------
+        const CX_AUTO_INTERVALO_MS = 60 * 60 * 1000; // 60 min
+
+        // Roda a baixa automática de hoje e devolve quantas notas novas foram
+        // processadas (0 se a aba não estava visível, se deu erro, ou se não
+        // tinha nada novo). Quem chama decide se vale a pena atualizar a tela.
+        async function cxAutoDeducaoHoje() {
+            if (document.hidden) return 0;
+            try {
+                const resp = await fetch(`/api/caixa-auto-executar?filial=${CX_FILIAL}&data=${cxTodayIso()}`);
+                const json = await resp.json();
+                if (!resp.ok) throw new Error(json.error || 'Erro na baixa automática.');
+                return json.notas_novas_processadas || 0;
+            } catch (err) {
+                console.error('Erro na baixa automática periódica:', err);
+                return 0;
+            }
+        }
+
+        // Versão usada no intervalo/visibilidade: só incomoda com toast e
+        // recarrega a tela quando realmente processou algo novo.
+        async function cxAutoDeducaoPeriodica() {
+            const n = await cxAutoDeducaoHoje();
+            if (n > 0) {
+                cxToast(`${n} nota(s) nova(s) processada(s) automaticamente.`, 'success');
+                await cxRefreshAll();
             }
         }
 
@@ -2233,6 +2594,7 @@
         }
 
         function cxOpenMovModal() {
+            cxMovCompraId = null; // só o fluxo "Lançar entrada" (Compras) preenche isso, depois de abrir
             cxSetTipo('entrada');
             document.getElementById('cxMovData').value = cxTodayIso();
             document.getElementById('cxMovQtd').value = 1;
@@ -2262,6 +2624,11 @@
                 const json = await resp.json();
                 if (!resp.ok) throw new Error(json.error || 'Erro ao salvar.');
                 cxToast('Lançamento registrado com sucesso.', 'success');
+                if (cxMovCompraId && cxMovTipo === 'entrada') {
+                    // veio de "Lançar entrada" numa compra recebida: marca como lançada
+                    await cxComprasApi('PUT', '', { id: cxMovCompraId, acao: 'entrada_lancada' }).catch(() => {});
+                    cxMovCompraId = null;
+                }
                 cxCloseMovModal();
                 await cxRefreshAll();
             } catch (err) {
@@ -2271,46 +2638,432 @@
             }
         }
 
+        // ---------------------------------------------------------------
+        // Compras: cotações -> pedido -> chegada. O recebimento NÃO lança
+        // entrada no estoque; o botão "Lançar entrada" só abre o modal de
+        // movimentação já preenchido, e quem salva é o usuário.
+        // ---------------------------------------------------------------
+        let cxCompras = [];
+        let cxCpReceberId = null;
+        let cxMovCompraId = null;
+
+        function cxEsc(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        function cxBrl(n) {
+            return Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 4 });
+        }
+        function cxFmtData(iso) {
+            if (!iso) return '—';
+            const p = iso.split('-');
+            return p[2] + '/' + p[1] + '/' + p[0].slice(2);
+        }
+        function cxModeloResumo(id) {
+            return (cxResumo?.modelos || []).find(m => m.id === Number(id));
+        }
+        function cxCustoTotal(c) { return c.preco_unitario * c.quantidade + c.frete; }
+
+        async function cxComprasApi(method, query, body) {
+            const resp = await fetch(`/api/caixa-movimentacoes?recurso=compras&filial=${CX_FILIAL}${query || ''}`, {
+                method,
+                headers: body ? { 'Content-Type': 'application/json' } : undefined,
+                body: body ? JSON.stringify(body) : undefined,
+            });
+            const json = await resp.json().catch(() => ({}));
+            if (!resp.ok) throw new Error(json.error || 'Erro na requisição de compras.');
+            return json;
+        }
+
+        async function cxLoadCompras() {
+            cxCompras = await cxComprasApi('GET');
+            cxRenderCompras();
+        }
+
+        async function cxOpenComprasModal() {
+            const modelos = (cxResumo?.modelos || []).filter(m => m.status !== 'nao_controlada')
+                .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+            document.getElementById('cxCpModelo').innerHTML = modelos.map(m => `<option value="${m.id}">${cxEsc(m.nome)}</option>`).join('');
+            document.getElementById('cxComprasModal').hidden = false;
+            cxCpAtualizaHint();
+            ['cxCpCotacoes', 'cxCpPedidos', 'cxCpRecebidos'].forEach(id => { document.getElementById(id).innerHTML = '<div class="cx-note">Carregando...</div>'; });
+            try {
+                await cxLoadCompras();
+            } catch (err) {
+                ['cxCpPedidos', 'cxCpRecebidos'].forEach(id => { document.getElementById(id).innerHTML = ''; });
+                document.getElementById('cxCpCotacoes').innerHTML = `<div class="cx-note">${cxEsc(err.message)}</div>`;
+            }
+        }
+        function cxCloseComprasModal() { document.getElementById('cxComprasModal').hidden = true; }
+
+        // Dica abaixo do formulário: situação do modelo escolhido + prévia
+        // do custo efetivo e de quantos dias a quantidade digitada cobre.
+        function cxCpAtualizaHint() {
+            const hint = document.getElementById('cxCpHint');
+            const m = cxModeloResumo(document.getElementById('cxCpModelo').value);
+            if (!m) { hint.innerHTML = ''; return; }
+            const partes = [`Estoque ${m.estoque_atual} un`, `consumo ${m.consumo_30d.toFixed(1)}/dia`];
+            if (m.em_pedido > 0) partes.push(`${m.em_pedido} un já em pedido`);
+            let sugestao = '';
+            let qtdSugerida = null;
+            if (m.qtd_pedido != null) {
+                qtdSugerida = m.qtd_pedido;
+                sugestao = ` · <a href="#" id="cxCpUsarSugestao" style="color:#93c5fd;">usar quantidade padrão do pedido: ${m.qtd_pedido} un</a>${m.sugestao_compra > 0 ? ' (estoque já chegou no ponto de reposição)' : ' (estoque ainda acima do ponto de reposição)'}`;
+            } else if (m.sugestao_compra > 0) {
+                qtdSugerida = m.sugestao_compra;
+                sugestao = ` · <a href="#" id="cxCpUsarSugestao" style="color:#93c5fd;">usar sugestão: ${m.sugestao_compra} un</a> (cobertura desejada ${m.cobertura_desejada_dias} dias)`;
+            } else if (m.cobertura_desejada_dias == null) {
+                sugestao = ' · defina a quantidade por pedido em Cadastro de modelos pra ver a sugestão de compra';
+            }
+            const qtd = Number(document.getElementById('cxCpQtd').value);
+            const preco = Number(document.getElementById('cxCpPreco').value);
+            const frete = Number(document.getElementById('cxCpFrete').value) || 0;
+            let previa = '';
+            if (qtd > 0 && preco > 0) {
+                const total = preco * qtd + frete;
+                previa = ` · total ${cxBrl(total)} (${cxBrl(total / qtd)}/un)`;
+                if (m.consumo_30d > 0) previa += ` · cobre ~${Math.round(qtd / m.consumo_30d)} dias`;
+            }
+            hint.innerHTML = partes.join(' · ') + sugestao + previa;
+            const link = document.getElementById('cxCpUsarSugestao');
+            if (link) link.addEventListener('click', e => {
+                e.preventDefault();
+                document.getElementById('cxCpQtd').value = qtdSugerida;
+                cxCpAtualizaHint();
+            });
+        }
+
+        async function cxAddCotacao() {
+            const body = {
+                modelo_id: Number(document.getElementById('cxCpModelo').value),
+                fornecedor: document.getElementById('cxCpFornecedor').value.trim(),
+                quantidade: Number(document.getElementById('cxCpQtd').value),
+                preco_unitario: document.getElementById('cxCpPreco').value,
+                frete: document.getElementById('cxCpFrete').value,
+                prazo_dias: document.getElementById('cxCpPrazo').value,
+            };
+            if (!body.modelo_id) return cxToast('Escolha o modelo.', 'error');
+            if (!body.fornecedor) return cxToast('Informe o fornecedor.', 'error');
+            if (!(body.quantidade > 0)) return cxToast('Informe a quantidade.', 'error');
+            if (body.preco_unitario === '') return cxToast('Informe o preço unitário.', 'error');
+            const btn = document.getElementById('cxBtnAddCotacao');
+            btn.disabled = true;
+            try {
+                await cxComprasApi('POST', '', body);
+                ['cxCpFornecedor', 'cxCpQtd', 'cxCpPreco', 'cxCpFrete', 'cxCpPrazo'].forEach(id => { document.getElementById(id).value = ''; });
+                cxToast('Cotação adicionada.', 'success');
+                await cxLoadCompras();
+                cxCpAtualizaHint();
+            } catch (err) {
+                cxToast('Erro: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function cxCompraAcao(id, acao, extra) {
+            try {
+                await cxComprasApi('PUT', '', { id, acao, ...(extra || {}) });
+                await cxLoadCompras();
+                if (acao !== 'entrada_lancada') await cxRefreshAll();
+                return true;
+            } catch (err) {
+                cxToast('Erro: ' + err.message, 'error');
+                return false;
+            }
+        }
+
+        async function cxDescartarCotacao(id) {
+            try {
+                await cxComprasApi('DELETE', `&id=${id}`);
+                await cxLoadCompras();
+            } catch (err) {
+                cxToast('Erro: ' + err.message, 'error');
+            }
+        }
+
+        function cxCompraBadge(c) {
+            const atrasado = c.previsao_chegada && c.previsao_chegada < cxTodayIso();
+            const base = c.status === 'em_transito'
+                ? '<span class="cx-badge info"><span class="d"></span>Em trânsito</span>'
+                : '<span class="cx-badge sem_config"><span class="d"></span>Solicitado</span>';
+            return base + (atrasado ? ' <span class="cx-badge warn"><span class="d"></span>Atrasado</span>' : '');
+        }
+
+        function cxRenderCompras() {
+            const btnSm = 'padding:5px 10px;font-size:11.5px;';
+
+            // --- cotações, agrupadas por modelo ---
+            const cotacoes = cxCompras.filter(c => c.status === 'cotacao');
+            const wrapCot = document.getElementById('cxCpCotacoes');
+            if (cotacoes.length === 0) {
+                wrapCot.innerHTML = '<div class="cx-note" style="padding:8px 0;">Nenhuma cotação em aberto. Adicione acima pra comparar fornecedores.</div>';
+            } else {
+                const porModelo = new Map();
+                cotacoes.forEach(c => { if (!porModelo.has(c.modelo_id)) porModelo.set(c.modelo_id, []); porModelo.get(c.modelo_id).push(c); });
+                wrapCot.innerHTML = [...porModelo.entries()].map(([modeloId, lista]) => {
+                    const m = cxModeloResumo(modeloId);
+                    const menorCusto = Math.min(...lista.map(c => cxCustoTotal(c) / c.quantidade));
+                    const prazos = lista.filter(c => c.prazo_dias != null).map(c => c.prazo_dias);
+                    const menorPrazo = prazos.length > 1 ? Math.min(...prazos) : null;
+                    const comparavel = lista.length > 1;
+                    const info = m ? `estoque ${m.estoque_atual} un · consumo ${m.consumo_30d.toFixed(1)}/dia${m.em_pedido > 0 ? ' · ' + m.em_pedido + ' un em pedido' : ''}${m.sugestao_compra > 0 ? ' · sugestão ' + m.sugestao_compra + ' un' : ''}` : '';
+                    const linhas = lista.map(c => {
+                        const total = cxCustoTotal(c);
+                        const custoUn = total / c.quantidade;
+                        const cobre = m && m.consumo_30d > 0 ? Math.round(c.quantidade / m.consumo_30d) + ' dias' : '—';
+                        const tags = (comparavel && custoUn === menorCusto ? ' <span class="cx-badge ok"><span class="d"></span>Mais barata</span>' : '')
+                            + (comparavel && menorPrazo !== null && c.prazo_dias === menorPrazo ? ' <span class="cx-badge info"><span class="d"></span>Menor prazo</span>' : '');
+                        return `<tr>
+                            <td>${cxEsc(c.fornecedor)}${tags}</td>
+                            <td class="num">${c.quantidade}</td>
+                            <td class="num">${cxBrl(c.preco_unitario)}</td>
+                            <td class="num">${c.frete ? cxBrl(c.frete) : '—'}</td>
+                            <td class="num">${cxBrl(total)}</td>
+                            <td class="num"><b style="color:#f1f5f9;">${cxBrl(custoUn)}</b></td>
+                            <td class="num">${c.prazo_dias != null ? c.prazo_dias + ' dias' : '—'}</td>
+                            <td class="num">${cobre}</td>
+                            <td class="num" style="white-space:nowrap;">
+                                <button type="button" class="cx-btn primary" style="${btnSm}" data-cp-solicitar="${c.id}">Solicitar</button>
+                                <button type="button" class="cx-btn" style="${btnSm}" data-cp-descartar="${c.id}">Descartar</button>
+                            </td>
+                        </tr>`;
+                    }).join('');
+                    return `<div style="margin-bottom:14px;">
+                        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px;">
+                            <span class="cx-box-name">${cxEsc(lista[0].modelo_nome)}</span><span class="cx-box-sub">${info}</span>
+                        </div>
+                        <div class="cx-scroll-x"><table class="cx-table cx-cadastro-table" style="min-width:820px;">
+                            <thead><tr><th>Fornecedor</th><th class="num">Qtd</th><th class="num">Preço unit.</th><th class="num">Frete</th><th class="num">Total</th><th class="num" title="(preço x qtd + frete) / qtd">Custo/un</th><th class="num">Prazo</th><th class="num" title="Quantidade ÷ consumo/dia atual">Cobre</th><th></th></tr></thead>
+                            <tbody>${linhas}</tbody>
+                        </table></div>
+                    </div>`;
+                }).join('');
+            }
+
+            // --- pedidos em andamento ---
+            const pedidos = cxCompras.filter(c => c.status === 'solicitado' || c.status === 'em_transito');
+            const wrapPed = document.getElementById('cxCpPedidos');
+            if (pedidos.length === 0) {
+                wrapPed.innerHTML = '<div class="cx-note" style="padding:8px 0;">Nenhum pedido em andamento.</div>';
+            } else {
+                wrapPed.innerHTML = `<div class="cx-scroll-x"><table class="cx-table cx-cadastro-table" style="min-width:820px;">
+                    <thead><tr><th>Modelo</th><th>Fornecedor</th><th class="num">Qtd</th><th class="num">Total</th><th class="num">Pedido em</th><th class="num">Previsão</th><th>Status</th><th></th></tr></thead>
+                    <tbody>${pedidos.map(c => {
+                        const recebendo = cxCpReceberId === c.id;
+                        const acoes = recebendo
+                            ? `<span style="display:inline-flex;gap:6px;align-items:center;">
+                                   <input type="number" min="1" id="cxCpRecQtd" value="${c.quantidade}" style="width:80px;text-align:right;" title="Quantidade recebida">
+                                   <input type="date" id="cxCpRecData" value="${cxTodayIso()}" style="width:140px;" title="Data de chegada">
+                                   <button type="button" class="cx-btn primary" style="${btnSm}" data-cp-confirmar-receber="${c.id}">Confirmar</button>
+                                   <button type="button" class="cx-btn" style="${btnSm}" data-cp-cancelar-receber="1">Voltar</button>
+                               </span>`
+                            : `${c.status === 'solicitado' ? `<button type="button" class="cx-btn" style="${btnSm}" data-cp-transito="${c.id}">Em trânsito</button> ` : ''}
+                               <button type="button" class="cx-btn primary" style="${btnSm}" data-cp-receber="${c.id}">Recebido</button>
+                               <button type="button" class="cx-btn" style="${btnSm}" data-cp-cancelar="${c.id}">Cancelar</button>`;
+                        return `<tr>
+                            <td>${cxEsc(c.modelo_nome)}</td>
+                            <td>${cxEsc(c.fornecedor)}</td>
+                            <td class="num">${c.quantidade}</td>
+                            <td class="num">${cxBrl(cxCustoTotal(c))}</td>
+                            <td class="num">${cxFmtData(c.data_pedido)}</td>
+                            <td class="num">${cxFmtData(c.previsao_chegada)}</td>
+                            <td>${cxCompraBadge(c)}</td>
+                            <td class="num" style="white-space:nowrap;">${acoes}</td>
+                        </tr>`;
+                    }).join('')}</tbody></table></div>`;
+            }
+
+            // --- recebidos ---
+            const recebidos = cxCompras.filter(c => c.status === 'recebido');
+            const wrapRec = document.getElementById('cxCpRecebidos');
+            if (recebidos.length === 0) {
+                wrapRec.innerHTML = '<div class="cx-note" style="padding:8px 0;">Nenhum recebimento ainda.</div>';
+            } else {
+                wrapRec.innerHTML = `<div class="cx-scroll-x"><table class="cx-table cx-cadastro-table" style="min-width:820px;">
+                    <thead><tr><th>Modelo</th><th>Fornecedor</th><th class="num">Pedido</th><th class="num">Recebido</th><th class="num">Chegou em</th><th class="num">Custo/un</th><th>Entrada no estoque</th></tr></thead>
+                    <tbody>${recebidos.map(c => {
+                        const dif = c.qtd_recebida !== c.quantidade ? ` style="color:#fcd34d;" title="Diferente do pedido (${c.quantidade})"` : '';
+                        return `<tr>
+                            <td>${cxEsc(c.modelo_nome)}</td>
+                            <td>${cxEsc(c.fornecedor)}</td>
+                            <td class="num">${c.quantidade}</td>
+                            <td class="num"><b${dif}>${c.qtd_recebida}</b></td>
+                            <td class="num">${cxFmtData(c.data_recebimento)}</td>
+                            <td class="num">${cxBrl(cxCustoTotal(c) / c.quantidade)}</td>
+                            <td>${c.entrada_lancada
+                                ? '<span class="cx-badge ok"><span class="d"></span>Lançada</span>'
+                                : `<button type="button" class="cx-btn primary" style="${btnSm}" data-cp-lancar="${c.id}">Lançar entrada</button> <button type="button" class="cx-btn" style="${btnSm}" data-cp-ja-lancei="${c.id}" title="Já lancei a entrada manualmente">Já lancei</button>`}</td>
+                        </tr>`;
+                    }).join('')}</tbody></table></div>`;
+            }
+        }
+
+        // Abre "Registrar movimentação" já preenchido com o recebimento.
+        // Nada é salvo até o usuário confirmar lá.
+        function cxLancarEntradaDaCompra(id) {
+            const c = cxCompras.find(x => x.id === id);
+            if (!c) return;
+            cxCloseComprasModal();
+            cxOpenMovModal();
+            cxMovCompraId = c.id;
+            document.getElementById('cxMovModelo').value = String(c.modelo_id);
+            document.getElementById('cxMovQtd').value = c.qtd_recebida;
+            if (c.data_recebimento) document.getElementById('cxMovData').value = c.data_recebimento;
+            document.getElementById('cxMovObs').value = `Compra #${c.id} — ${c.fornecedor}`;
+        }
+
+        function cxComprasCliques(e) {
+            const t = e.target.closest('button');
+            if (!t) return;
+            const d = t.dataset;
+            if (d.cpSolicitar) {
+                const c = cxCompras.find(x => x.id === Number(d.cpSolicitar));
+                if (c && confirm(`Solicitar ${c.quantidade} un de ${c.modelo_nome} a ${c.fornecedor} por ${cxBrl(cxCustoTotal(c))}?`)) cxCompraAcao(c.id, 'solicitar');
+            } else if (d.cpDescartar) {
+                cxDescartarCotacao(Number(d.cpDescartar));
+            } else if (d.cpTransito) {
+                cxCompraAcao(Number(d.cpTransito), 'em_transito');
+            } else if (d.cpReceber) {
+                cxCpReceberId = Number(d.cpReceber); cxRenderCompras();
+            } else if (d.cpCancelarReceber) {
+                cxCpReceberId = null; cxRenderCompras();
+            } else if (d.cpConfirmarReceber) {
+                const qtd = Number(document.getElementById('cxCpRecQtd').value);
+                const data = document.getElementById('cxCpRecData').value;
+                if (!(qtd > 0)) return cxToast('Informe a quantidade recebida.', 'error');
+                cxCpReceberId = null;
+                cxCompraAcao(Number(d.cpConfirmarReceber), 'receber', { qtd_recebida: qtd, data_recebimento: data || null })
+                    .then(ok => { if (ok) cxToast('Recebimento registrado. Lance a entrada no estoque quando conferir as caixas.', 'success'); });
+            } else if (d.cpCancelar) {
+                const c = cxCompras.find(x => x.id === Number(d.cpCancelar));
+                if (c && confirm(`Cancelar o pedido de ${c.quantidade} un de ${c.modelo_nome} (${c.fornecedor})?`)) cxCompraAcao(c.id, 'cancelar');
+            } else if (d.cpLancar) {
+                cxLancarEntradaDaCompra(Number(d.cpLancar));
+            } else if (d.cpJaLancei) {
+                cxCompraAcao(Number(d.cpJaLancei), 'entrada_lancada');
+            }
+        }
+
         async function cxOpenCadastroModal() {
             document.getElementById('cxCadastroModal').hidden = false;
             const tbody = document.getElementById('cxCadastroBody');
-            tbody.innerHTML = '<tr><td colspan="4" class="cx-note">Carregando...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="cx-note">Carregando...</td></tr>';
             try {
-                const resp = await fetch('/api/caixa-modelos');
+                const [resp, resumoResp] = await Promise.all([
+                    fetch('/api/caixa-modelos'),
+                    fetch(`/api/caixa-resumo?filial=${CX_FILIAL}`),
+                ]);
                 const modelos = await resp.json();
                 if (!resp.ok) throw new Error(modelos.error || 'Erro ao carregar.');
+                const resumo = await resumoResp.json();
+                const estoquePorModelo = new Map((resumo.modelos || []).map(m => [m.id, m.estoque_atual]));
+
                 cxCadastroOriginal = {};
                 tbody.innerHTML = modelos.map(m => {
-                    cxCadastroOriginal[m.id] = { lead_time_dias: m.lead_time_dias, estoque_seguranca_pct: Number(m.estoque_seguranca_pct) };
+                    const controla = m.controla_estoque !== false;
+                    const estoqueAtual = estoquePorModelo.get(m.id) ?? 0;
+                    cxCadastroOriginal[m.id] = { medida_mm: m.medida_mm, lead_time_dias: m.lead_time_dias, estoque_seguranca_pct: Number(m.estoque_seguranca_pct), estoque_atual: estoqueAtual, controla_estoque: controla, cobertura_desejada_dias: m.cobertura_desejada_dias ?? null, ponto_reposicao_manual: m.ponto_reposicao_manual ?? null };
                     const pct = Math.round(Number(m.estoque_seguranca_pct) * 100);
                     return `
                         <tr data-id="${m.id}">
                             <td><div class="cx-box-name">${m.nome}</div></td>
-                            <td class="cx-box-sub">${m.medida_mm || '—'}</td>
+                            <td><input type="text" class="cx-medida-input" value="${m.medida_mm || ''}" placeholder="ex: 300x200x150" style="width:100%;"></td>
+                            <td class="num"><input type="number" class="cx-estoque-input" value="${controla ? estoqueAtual : ''}" ${controla ? '' : 'disabled placeholder="—"'} style="text-align:right;" title="Alterar aqui lança um ajuste automático pra corrigir a diferença"></td>
                             <td class="num"><input type="number" min="1" class="cx-lead-input" value="${m.lead_time_dias ?? ''}" style="text-align:right;"></td>
                             <td class="num"><input type="number" min="0" max="100" class="cx-pct-input" value="${pct}" style="text-align:right;"></td>
+                            <td class="num"><input type="number" min="0" class="cx-cobdes-input" value="${m.cobertura_desejada_dias ?? ''}" placeholder="—" style="text-align:right;"></td>
+                            <td class="num"><input type="number" min="0" class="cx-manual-input" value="${m.ponto_reposicao_manual ?? ''}" placeholder="—" style="text-align:right;"></td>
+                            <td style="text-align:center;"><input type="checkbox" class="cx-controla-input" ${controla ? 'checked' : ''} title="Desmarque para embalagens que não são estocadas"></td>
+                            <td></td>
                         </tr>`;
                 }).join('');
+                tbody.querySelectorAll('.cx-controla-input').forEach(chk => chk.addEventListener('change', () => {
+                    const inp = chk.closest('tr').querySelector('.cx-estoque-input');
+                    const orig = cxCadastroOriginal[chk.closest('tr').dataset.id] || {};
+                    inp.disabled = !chk.checked;
+                    inp.value = chk.checked ? (orig.estoque_atual ?? 0) : '';
+                }));
             } catch (err) {
-                tbody.innerHTML = `<tr><td colspan="4" class="cx-note">Erro ao carregar: ${err.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" class="cx-note">Erro ao carregar: ${err.message}</td></tr>`;
             }
+        }
+
+        // Adiciona uma linha em branco e editável no fim da tabela pra
+        // cadastrar um modelo novo (ex: surgiu uma 16ª embalagem). Sem
+        // data-id numérico — cxSaveCadastro reconhece isso e faz POST em
+        // vez de PUT. O "×" só existe nessa linha nova, pra desfazer antes
+        // de salvar; remover um modelo já existente não é o objetivo aqui.
+        function cxAddNovoModeloRow() {
+            const tbody = document.getElementById('cxCadastroBody');
+            const tr = document.createElement('tr');
+            tr.dataset.novo = '1';
+            tr.innerHTML = `
+                <td><input type="text" class="cx-nome-input" placeholder="Nome do modelo" style="width:100%;"></td>
+                <td><input type="text" class="cx-medida-input" placeholder="ex: 300x200x150" style="width:100%;"></td>
+                <td class="num cx-box-sub">—</td>
+                <td class="num"><input type="number" min="1" class="cx-lead-input" placeholder="opcional" style="text-align:right;"></td>
+                <td class="num"><input type="number" min="0" max="100" class="cx-pct-input" value="20" style="text-align:right;"></td>
+                <td class="num cx-box-sub">—</td>
+                <td class="num cx-box-sub">—</td>
+                <td style="text-align:center;"><input type="checkbox" class="cx-controla-input" checked disabled title="Disponível depois de criar o modelo"></td>
+                <td>
+                    <button type="button" class="cx-icon-btn" data-remove-novo-modelo title="Remover">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    </button>
+                </td>`;
+            tbody.appendChild(tr);
+            tr.querySelector('[data-remove-novo-modelo]').addEventListener('click', () => tr.remove());
+            tr.querySelector('.cx-nome-input').focus();
         }
         function cxCloseCadastroModal() { document.getElementById('cxCadastroModal').hidden = true; }
 
         async function cxSaveCadastro() {
             const rows = document.querySelectorAll('#cxCadastroBody tr[data-id]');
             const updates = [];
+            const ajustesEstoque = [];
             rows.forEach(tr => {
                 const id = Number(tr.dataset.id);
+                const medida = tr.querySelector('.cx-medida-input').value.trim() || null;
                 const lead = tr.querySelector('.cx-lead-input').value ? Number(tr.querySelector('.cx-lead-input').value) : null;
                 const pct = tr.querySelector('.cx-pct-input').value ? Number(tr.querySelector('.cx-pct-input').value) / 100 : null;
                 const orig = cxCadastroOriginal[id] || {};
-                if (lead !== orig.lead_time_dias || pct !== orig.estoque_seguranca_pct) {
-                    updates.push({ id, lead_time_dias: lead, estoque_seguranca_pct: pct });
+                const controla = tr.querySelector('.cx-controla-input').checked;
+                const mudouControle = controla !== (orig.controla_estoque !== false);
+                const cobDes = tr.querySelector('.cx-cobdes-input').value !== '' ? Number(tr.querySelector('.cx-cobdes-input').value) : null;
+                const manual = tr.querySelector('.cx-manual-input').value !== '' ? Number(tr.querySelector('.cx-manual-input').value) : null;
+                const mudouPlan = cobDes !== (orig.cobertura_desejada_dias ?? null) || manual !== (orig.ponto_reposicao_manual ?? null);
+                if (medida !== orig.medida_mm || lead !== orig.lead_time_dias || pct !== orig.estoque_seguranca_pct || mudouControle || mudouPlan) {
+                    const u = { id, medida_mm: medida, lead_time_dias: lead, estoque_seguranca_pct: pct };
+                    if (mudouControle) u.controla_estoque = controla;
+                    if (mudouPlan) { u.cobertura_desejada_dias = cobDes; u.ponto_reposicao_manual = manual; }
+                    updates.push(u);
+                }
+                if (!controla) return; // sem controle: não há estoque a ajustar
+
+                // Estoque não é campo de caixa_modelos — é sempre calculado a
+                // partir das movimentações. Mudar esse número aqui não
+                // sobrescreve nada diretamente: lança a diferença como um
+                // ajuste (entrada ou saída) pra fechar a conta com a
+                // contagem física, sem o usuário ter que calcular a mão.
+                const novoEstoque = tr.querySelector('.cx-estoque-input').value !== '' ? Number(tr.querySelector('.cx-estoque-input').value) : orig.estoque_atual;
+                const diferenca = novoEstoque - (orig.estoque_atual ?? 0);
+                if (diferenca !== 0) {
+                    ajustesEstoque.push({ modelo_id: id, tipo: diferenca > 0 ? 'entrada' : 'saida', quantidade: Math.abs(diferenca) });
                 }
             });
 
-            if (updates.length === 0) { cxCloseCadastroModal(); return; }
+            const novasLinhas = document.querySelectorAll('#cxCadastroBody tr[data-novo]');
+            const novos = [];
+            for (const tr of novasLinhas) {
+                const nome = tr.querySelector('.cx-nome-input').value.trim();
+                if (!nome) continue; // linha adicionada mas deixada em branco — ignora, não trava o salvar
+                const medida = tr.querySelector('.cx-medida-input').value.trim();
+                const lead = tr.querySelector('.cx-lead-input').value ? Number(tr.querySelector('.cx-lead-input').value) : null;
+                const pct = tr.querySelector('.cx-pct-input').value ? Number(tr.querySelector('.cx-pct-input').value) / 100 : 0.20;
+                novos.push({ nome, medida_mm: medida || null, lead_time_dias: lead, estoque_seguranca_pct: pct });
+            }
+
+            if (updates.length === 0 && novos.length === 0 && ajustesEstoque.length === 0) { cxCloseCadastroModal(); return; }
 
             const btn = document.getElementById('cxBtnSaveCadastro');
             btn.disabled = true;
@@ -2322,7 +3075,28 @@
                 }).then(async r => {
                     if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || ('Falha ao salvar modelo ' + u.id)); }
                 })));
-                cxToast(`${updates.length} modelo(s) atualizado(s).`, 'success');
+                await Promise.all(novos.map(n => fetch('/api/caixa-modelos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(n),
+                }).then(async r => {
+                    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || ('Falha ao criar modelo "' + n.nome + '"')); }
+                })));
+                await Promise.all(ajustesEstoque.map(a => fetch('/api/caixa-movimentacoes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        modelo_id: a.modelo_id, filial: CX_FILIAL, tipo: a.tipo, quantidade: a.quantidade,
+                        data: cxTodayIso(), observacao: 'Ajuste de estoque — contagem física',
+                    }),
+                }).then(async r => {
+                    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || ('Falha ao ajustar estoque do modelo ' + a.modelo_id)); }
+                })));
+                const partes = [];
+                if (updates.length) partes.push(`${updates.length} atualizado(s)`);
+                if (novos.length) partes.push(`${novos.length} novo(s)`);
+                if (ajustesEstoque.length) partes.push(`${ajustesEstoque.length} ajuste(s) de estoque`);
+                cxToast(`Modelos: ${partes.join(', ')}.`, 'success');
                 cxCloseCadastroModal();
                 await cxRefreshAll();
             } catch (err) {
@@ -2332,26 +3106,285 @@
             }
         }
 
-        // Troca de aba no cabeçalho (Visão Geral <-> Controle de Caixas)
-        const cxTabLinks = document.querySelectorAll('.cx-tabs a[data-cx-tab]');
-        cxTabLinks.forEach(link => {
-            link.addEventListener('click', function () {
-                const targetId = link.getAttribute('data-cx-tab');
-                cxTabLinks.forEach(l => l.classList.toggle('active', l === link));
-                document.getElementById('cxTabOverview').hidden = (targetId !== 'cxTabOverview');
-                document.getElementById('cxTabCaixas').hidden = (targetId !== 'cxTabCaixas');
-                if (targetId === 'cxTabCaixas') {
-                    if (!cxLoaded) {
-                        cxRefreshAll();
-                    } else {
-                        if (cxRankingChart) cxRankingChart.resize();
-                        if (cxConsumoChart) cxConsumoChart.resize();
-                    }
-                }
-            });
-        });
+        // ---------------------------------------------------------------
+        // Regras de Embalagem
+        // ---------------------------------------------------------------
+        let cxProdutos = []; // cache de /api/produto-caixa pra busca client-side
+        let cxRegraSkus = []; // SKUs escolhidos no modal aberto no momento
+        let cxRegrasCache = []; // última lista de regras carregada, pra abrir o modal de edição sem refetch
+        let cxRegraEditingId = null; // null = criando regra nova; caso contrário, id da regra em edição
 
-        document.getElementById('cxModelSelect').addEventListener('change', e => cxLoadSerie(Number(e.target.value)));
+        async function cxLoadProdutos() {
+            try {
+                const resp = await fetch('/api/produto-caixa');
+                cxProdutos = await resp.json();
+                if (!resp.ok) throw new Error(cxProdutos.error || 'Erro ao carregar produtos.');
+            } catch (err) {
+                cxToast('Erro ao carregar lista de produtos: ' + err.message, 'error');
+            }
+        }
+
+        function cxRenderRegras(regras, filtroAtivo) {
+            const tbody = document.getElementById('cxRegrasBody');
+            if (regras.length === 0) {
+                tbody.innerHTML = '';
+                document.getElementById('cxRegrasNote').textContent = filtroAtivo
+                    ? `Nenhuma regra encontrada para "${filtroAtivo}".`
+                    : 'Nenhuma regra cadastrada ainda — vá adicionando conforme for mapeando com a equipe.';
+                return;
+            }
+            document.getElementById('cxRegrasNote').textContent = filtroAtivo
+                ? `${regras.length} de ${cxRegrasCache.length} regras (filtrado por "${filtroAtivo}")`
+                : '';
+            tbody.innerHTML = regras.map(r => {
+                const faixa = (r.qtd_min || r.qtd_max)
+                    ? `${r.qtd_min ?? '?'}–${r.qtd_max ?? '?'}`
+                    : '—';
+                const produtosTxt = (r.produtos && r.produtos.length)
+                    ? r.produtos.map(p => `<div><span style="font-family:ui-monospace,monospace;color:#93c5fd;">${p.sku}</span> — ${p.produto}</div>`).join('')
+                    : '<span class="cx-box-sub">nenhum SKU vinculado</span>';
+                return `
+                    <tr>
+                        <td>
+                            <div class="cx-box-name">${produtosTxt}</div>
+                            ${r.descricao ? `<div class="cx-box-sub">${r.descricao}</div>` : ''}
+                            ${r.observacao ? `<div class="cx-box-sub">${r.observacao}</div>` : ''}
+                        </td>
+                        <td class="num">${faixa}</td>
+                        <td>${r.cliente || '<span class="cx-box-sub">qualquer cliente</span>'}</td>
+                        <td>${r.modelo_nome}${r.qtd_caixas > 1 ? ` <span class="cx-box-sub">(${r.qtd_caixas}x)</span>` : ''}</td>
+                        <td style="white-space:nowrap;">
+                            <button class="cx-icon-btn" data-edit-regra="${r.id}" title="Editar regra">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <button class="cx-icon-btn" data-del-regra="${r.id}" title="Excluir regra">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9.5 7V4a1 1 0 011-1h3a1 1 0 011 1v3M4 7h16"/></svg>
+                            </button>
+                        </td>
+                    </tr>`;
+            }).join('');
+
+            tbody.querySelectorAll('[data-edit-regra]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const regra = cxRegrasCache.find(r => r.id === Number(btn.dataset.editRegra));
+                    if (regra) cxOpenRegraModal(regra);
+                });
+            });
+            tbody.querySelectorAll('[data-del-regra]').forEach(btn => {
+                btn.addEventListener('click', () => cxDeleteRegra(btn.dataset.delRegra));
+            });
+        }
+
+        function cxAplicarFiltroRegras() {
+            const q = (document.getElementById('cxRegrasFiltro').value || '').trim().toLowerCase();
+            if (!q) { cxRenderRegras(cxRegrasCache); return; }
+            const filtradas = cxRegrasCache.filter(r => {
+                const alvo = [
+                    r.modelo_nome, r.cliente, r.descricao, r.observacao,
+                    ...(r.produtos || []).flatMap(p => [p.sku, p.produto]),
+                ].filter(Boolean).join(' ').toLowerCase();
+                return alvo.includes(q);
+            });
+            cxRenderRegras(filtradas, q);
+        }
+
+        async function cxLoadRegras() {
+            try {
+                const resp = await fetch('/api/caixa-regras');
+                const regras = await resp.json();
+                if (!resp.ok) throw new Error(regras.error || 'Erro ao carregar regras.');
+                cxRegrasCache = regras;
+                cxAplicarFiltroRegras();
+            } catch (err) {
+                cxToast('Erro ao carregar regras de embalagem: ' + err.message, 'error');
+            }
+        }
+
+        function cxRenderSkuChips() {
+            document.getElementById('cxRegraSkuChips').innerHTML = cxRegraSkus.map(p => `
+                <span class="cx-sku-chip">
+                    <span class="sku">${p.sku}</span> ${p.produto.length > 36 ? p.produto.slice(0, 36) + '…' : p.produto}
+                    <button type="button" data-remove-sku="${p.sku}" aria-label="Remover">&times;</button>
+                </span>
+            `).join('');
+            document.getElementById('cxRegraSkuChips').querySelectorAll('[data-remove-sku]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    cxRegraSkus = cxRegraSkus.filter(p => p.sku !== btn.dataset.removeSku);
+                    cxRenderSkuChips();
+                });
+            });
+        }
+
+        function cxAddSku(p) {
+            if (!p) return;
+            if (cxRegraSkus.some(x => x.sku === p.sku)) return;
+            cxRegraSkus.push(p);
+            cxRenderSkuChips();
+            const results = document.getElementById('cxRegraSkuResults');
+            document.getElementById('cxRegraSkuSearch').value = '';
+            results.style.display = 'none';
+            results.innerHTML = '';
+        }
+
+        // Duas faixas [min,max] (null = sem limite nesse lado) se sobrepõem
+        // se não houver como separá-las numa reta — ex: 1–2 e 3–5 NÃO se
+        // sobrepõem (faixas complementares, caso normal de regra por
+        // quantidade), mas 1–3 e 2–5 sim.
+        function cxFaixasSeSobrepoem(min1, max1, min2, max2) {
+            const lo1 = min1 ?? -Infinity, hi1 = max1 ?? Infinity;
+            const lo2 = min2 ?? -Infinity, hi2 = max2 ?? Infinity;
+            return lo1 <= hi2 && lo2 <= hi1;
+        }
+
+        // Só faz sentido checar conflito na hora de salvar, não ao digitar o
+        // SKU — antes disso a faixa de quantidade da regra nova ainda nem
+        // foi preenchida, e é exatamente a faixa que decide se duas regras
+        // pro mesmo SKU convivem (faixas diferentes = ok) ou colidem (faixas
+        // que se sobrepõem = ambíguo pra resolverCaixa, qual delas vale?).
+        function cxRegraConflitanteParaSku(sku, qtdMin, qtdMax) {
+            return cxRegrasCache.find(r =>
+                r.id !== cxRegraEditingId &&
+                r.ativa !== false &&
+                (r.produtos || []).some(p => p.sku === sku) &&
+                cxFaixasSeSobrepoem(r.qtd_min, r.qtd_max, qtdMin, qtdMax)
+            ) || null;
+        }
+
+        // Pega o SKU digitado na busca e adiciona como escolhido. Usado pelo
+        // botão "+ Adicionar", pela tecla Enter, e como reforço dentro de
+        // Salvar (pra não perder um SKU que ficou só digitado). Só usa um
+        // produto já cadastrado se o SKU digitado bater EXATO — nunca troca
+        // silenciosamente pelo primeiro resultado parecido (ex: digitar
+        // "5D11C68081C" não pode virar "5D11C68081C-SC" só porque esse
+        // existe e contém o texto digitado). Sem match exato, adiciona
+        // exatamente o que foi digitado — a busca/lista serve só pra ajudar
+        // a achar e clicar num produto já existente, não pra adivinhar.
+        function cxAddTopMatch() {
+            const input = document.getElementById('cxRegraSkuSearch');
+            const q = input.value.trim();
+            if (!q) return false;
+            const exato = cxProdutos.find(p => p.sku.toLowerCase() === q.toLowerCase());
+            cxAddSku(exato || { sku: q, produto: q });
+            return true;
+        }
+
+        function cxFindSkuMatches(query) {
+            const q = query.trim().toLowerCase();
+            if (!q) return [];
+            const jaEscolhidos = new Set(cxRegraSkus.map(p => p.sku));
+            return cxProdutos
+                .filter(p => !jaEscolhidos.has(p.sku) && (p.sku.toLowerCase().includes(q) || p.produto.toLowerCase().includes(q)))
+                .slice(0, 8);
+        }
+
+        function cxSearchSkus(query) {
+            const results = document.getElementById('cxRegraSkuResults');
+            const q = query.trim();
+            if (!q) { results.style.display = 'none'; results.innerHTML = ''; return; }
+
+            const matches = cxFindSkuMatches(q);
+
+            if (matches.length === 0) {
+                results.style.display = 'block';
+                results.innerHTML = '<div style="cursor:default;color:#64748b;">Nenhum produto cadastrado com esse termo — clique em "+ Adicionar" pra usar esse SKU mesmo assim.</div>';
+                return;
+            }
+            results.style.display = 'block';
+            results.innerHTML = matches.map(p => `<div data-pick-sku="${p.sku}"><span class="sku">${p.sku}</span>${p.produto}</div>`).join('');
+            results.querySelectorAll('[data-pick-sku]').forEach(el => {
+                el.addEventListener('click', () => {
+                    cxAddSku(cxProdutos.find(x => x.sku === el.dataset.pickSku));
+                });
+            });
+        }
+
+        function cxOpenRegraModal(regra) {
+            cxRegraEditingId = regra ? regra.id : null;
+            cxRegraSkus = regra ? regra.produtos.map(p => ({ sku: p.sku, produto: p.produto })) : [];
+            cxRenderSkuChips();
+            document.getElementById('cxRegraSkuSearch').value = '';
+            document.getElementById('cxRegraSkuResults').style.display = 'none';
+            document.getElementById('cxRegraQtdMin').value = regra?.qtd_min ?? '';
+            document.getElementById('cxRegraQtdMax').value = regra?.qtd_max ?? '';
+            document.getElementById('cxRegraModelo').value = regra ? regra.modelo_id : document.getElementById('cxRegraModelo').options[0]?.value;
+            document.getElementById('cxRegraQtdCaixas').value = regra?.qtd_caixas ?? 1;
+            document.getElementById('cxRegraCliente').value = regra?.cliente ?? '';
+            document.getElementById('cxRegraObs').value = regra?.observacao ?? '';
+            document.getElementById('cxRegraModalTitle').textContent = regra ? 'Editar regra de embalagem' : 'Nova regra de embalagem';
+            document.getElementById('cxBtnSaveRegra').textContent = regra ? 'Salvar alterações' : 'Salvar regra';
+            document.getElementById('cxRegraModal').hidden = false;
+        }
+        function cxCloseRegraModal() { document.getElementById('cxRegraModal').hidden = true; }
+
+        async function cxSaveRegra() {
+            const qtdMin = document.getElementById('cxRegraQtdMin').value ? Number(document.getElementById('cxRegraQtdMin').value) : null;
+            const qtdMax = document.getElementById('cxRegraQtdMax').value ? Number(document.getElementById('cxRegraQtdMax').value) : null;
+            const modeloId = Number(document.getElementById('cxRegraModelo').value);
+            const qtdCaixas = Number(document.getElementById('cxRegraQtdCaixas').value) || 1;
+            const cliente = document.getElementById('cxRegraCliente').value.trim();
+            const observacao = document.getElementById('cxRegraObs').value.trim();
+
+            // Reforço: se sobrou um termo digitado na busca sem ter sido
+            // adicionado (esqueceu de clicar/Enter), tenta resgatar antes de
+            // reclamar que não tem SKU nenhum.
+            if (cxRegraSkus.length === 0) cxAddTopMatch();
+
+            if (cxRegraSkus.length === 0) return cxToast('Selecione pelo menos um SKU (digite e clique em "+ Adicionar").', 'error');
+            if (!modeloId) return cxToast('Escolha a caixa usada.', 'error');
+
+            for (const { sku } of cxRegraSkus) {
+                const conflito = cxRegraConflitanteParaSku(sku, qtdMin, qtdMax);
+                if (conflito) {
+                    const faixaConflito = (conflito.qtd_min || conflito.qtd_max) ? `${conflito.qtd_min ?? '?'}–${conflito.qtd_max ?? '?'}` : 'qualquer quantidade';
+                    return cxToast(`${sku} já está numa regra existente pra "${conflito.modelo_nome}" na faixa ${faixaConflito}, que se sobrepõe com essa. Ajuste a faixa ou edite a regra existente.`, 'error');
+                }
+            }
+
+            const isEditing = cxRegraEditingId !== null;
+            const btn = document.getElementById('cxBtnSaveRegra');
+            btn.disabled = true;
+            try {
+                const resp = await fetch('/api/caixa-regras', {
+                    method: isEditing ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: cxRegraEditingId,
+                        skus: cxRegraSkus.map(p => ({ sku: p.sku, produto: p.produto })),
+                        qtd_min: qtdMin, qtd_max: qtdMax, modelo_id: modeloId, qtd_caixas: qtdCaixas,
+                        cliente: cliente || null, observacao: observacao || null,
+                    }),
+                });
+                const json = await resp.json();
+                if (!resp.ok) throw new Error(json.error || 'Erro ao salvar.');
+                cxToast(isEditing ? 'Regra atualizada.' : 'Regra cadastrada.', 'success');
+                cxCloseRegraModal();
+                await cxLoadRegras();
+            } catch (err) {
+                cxToast('Erro: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function cxDeleteRegra(id) {
+            if (!confirm('Excluir esta regra de embalagem?')) return;
+            try {
+                const resp = await fetch(`/api/caixa-regras?id=${id}`, { method: 'DELETE' });
+                const json = await resp.json();
+                if (!resp.ok) throw new Error(json.error || 'Erro ao excluir.');
+                cxToast('Regra excluída.', 'success');
+                await cxLoadRegras();
+            } catch (err) {
+                cxToast('Erro: ' + err.message, 'error');
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Wiring
+        // ---------------------------------------------------------------
+        document.getElementById('cxPeriodoSelect').addEventListener('change', e => cxLoadConsumoModelos(Number(e.target.value)));
+        document.getElementById('cxFulfillmentDiaSelect').addEventListener('change', e => cxLoadFulfillment(e.target.value));
+        document.getElementById('cxDiaSelect').addEventListener('change', e => cxLoadConsumoDia(e.target.value));
 
         document.getElementById('cxBtnOpenMov').addEventListener('click', cxOpenMovModal);
         document.getElementById('cxBtnCloseMov').addEventListener('click', cxCloseMovModal);
@@ -2361,17 +3394,75 @@
         document.getElementById('cxTipoEntrada').addEventListener('click', () => cxSetTipo('entrada'));
         document.getElementById('cxTipoSaida').addEventListener('click', () => cxSetTipo('saida'));
 
+        document.getElementById('cxBtnOpenCompras').addEventListener('click', cxOpenComprasModal);
+        document.getElementById('cxBtnCloseCompras').addEventListener('click', cxCloseComprasModal);
+        document.getElementById('cxBtnFecharCompras').addEventListener('click', cxCloseComprasModal);
+        document.getElementById('cxComprasModal').addEventListener('click', e => { if (e.target.id === 'cxComprasModal') cxCloseComprasModal(); });
+        document.getElementById('cxComprasModal').addEventListener('click', cxComprasCliques);
+        document.getElementById('cxBtnAddCotacao').addEventListener('click', cxAddCotacao);
+        ['cxCpModelo', 'cxCpQtd', 'cxCpPreco', 'cxCpFrete'].forEach(id => document.getElementById(id).addEventListener('input', cxCpAtualizaHint));
+
         document.getElementById('cxBtnCadastro').addEventListener('click', cxOpenCadastroModal);
         document.getElementById('cxBtnCloseCadastro').addEventListener('click', cxCloseCadastroModal);
         document.getElementById('cxBtnCancelCadastro').addEventListener('click', cxCloseCadastroModal);
         document.getElementById('cxBtnSaveCadastro').addEventListener('click', cxSaveCadastro);
+        document.getElementById('cxBtnNovoModelo').addEventListener('click', cxAddNovoModeloRow);
         document.getElementById('cxCadastroModal').addEventListener('click', e => { if (e.target.id === 'cxCadastroModal') cxCloseCadastroModal(); });
+
+        document.getElementById('cxBtnOpenRegra').addEventListener('click', () => cxOpenRegraModal());
+        document.getElementById('cxRegrasFiltro').addEventListener('input', cxAplicarFiltroRegras);
+        document.getElementById('cxBtnCloseRegra').addEventListener('click', cxCloseRegraModal);
+        document.getElementById('cxBtnCancelRegra').addEventListener('click', cxCloseRegraModal);
+        document.getElementById('cxBtnSaveRegra').addEventListener('click', cxSaveRegra);
+        document.getElementById('cxRegraModal').addEventListener('click', e => { if (e.target.id === 'cxRegraModal') cxCloseRegraModal(); });
+        document.getElementById('cxRegraSkuSearch').addEventListener('input', e => cxSearchSkus(e.target.value));
+        document.getElementById('cxRegraSkuSearch').addEventListener('keydown', e => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault(); // não deixa o Enter "enviar" o modal sem querer
+            cxAddTopMatch();
+        });
+        document.getElementById('cxBtnAddSku').addEventListener('click', () => cxAddTopMatch());
 
         document.addEventListener('keydown', e => {
             if (e.key !== 'Escape') return;
             if (!document.getElementById('cxMovModal').hidden) cxCloseMovModal();
             if (!document.getElementById('cxCadastroModal').hidden) cxCloseCadastroModal();
+            if (!document.getElementById('cxComprasModal').hidden) cxCloseComprasModal();
+            if (!document.getElementById('cxRegraModal').hidden) cxCloseRegraModal();
         });
+
+        document.getElementById('cxDiaSelect').value = cxTodayIso();
+        document.getElementById('cxFulfillmentDiaSelect').value = cxTodayIso();
+
+        // Troca de aba no cabeçalho (Visão Geral <-> Controle de Caixas).
+        // Nada de Caixas roda (nem a baixa automática do dia) até a aba ser
+        // aberta pela primeira vez, pra não gastar Neon/Tiny de quem só olha
+        // a Visão Geral.
+        let cxLoaded = false;
+        const cxTabLinks = document.querySelectorAll('.cx-tabs a[data-cx-tab]');
+
+        function cxAbrirAba(targetId) {
+            cxTabLinks.forEach(l => l.classList.toggle('active', l.getAttribute('data-cx-tab') === targetId));
+            document.getElementById('cxTabOverview').hidden = (targetId !== 'cxTabOverview');
+            document.getElementById('cxTabCaixas').hidden = (targetId !== 'cxTabCaixas');
+            if (targetId !== 'cxTabCaixas') return;
+            if (!cxLoaded) {
+                cxLoaded = true;
+                cxAutoDeducaoHoje().then(() => cxRefreshAll());
+                cxLoadRegras();
+                cxLoadProdutos();
+            } else {
+                document.querySelectorAll('#cxTabCaixas canvas').forEach(c => { const ch = Chart.getChart(c); if (ch) ch.resize(); });
+            }
+        }
+        cxTabLinks.forEach(link => link.addEventListener('click', () => cxAbrirAba(link.getAttribute('data-cx-tab'))));
+
+        // Baixa automática periódica só enquanto a aba de Caixas está aberta.
+        setInterval(() => { if (!document.getElementById('cxTabCaixas').hidden) cxAutoDeducaoPeriodica(); }, CX_AUTO_INTERVALO_MS);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden && !document.getElementById('cxTabCaixas').hidden) cxAutoDeducaoPeriodica(); });
+
+        // Link antigo da página avulsa (caixas.html redireciona pra cá com #caixas)
+        if (location.hash === '#caixas') cxAbrirAba('cxTabCaixas');
     })();
     </script>
 </body>
