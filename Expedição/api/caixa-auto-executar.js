@@ -16,6 +16,7 @@
 // GET /api/caixa-auto-executar?filial=SP&dataInicial=2026-08-15&dataFinal=2026-09-12
 
 import { neon } from '@neondatabase/serverless';
+import { verificarEAvisar, enviarTeste, avisarFalhaBaixa } from '../lib/caixa-alerta.js';
 
 const TINY_BASE_URL = 'https://api.tiny.com.br/api2';
 const TINY_FILIAIS = {
@@ -98,6 +99,26 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Método não permitido.' });
 
   const filial = req.query.filial ? String(req.query.filial).toUpperCase() : 'SP';
+
+  // Avisos por e-mail (lib/caixa-alerta.js) — não mexe no Tiny:
+  //   ?alerta=simular  mostra o que seria avisado, sem enviar nem gravar nada
+  //   ?alerta=teste    envia um e-mail de teste da configuração
+  // Mora aqui pra não gastar uma das 12 funções do plano Hobby da Vercel.
+  if (req.query.alerta) {
+    try {
+      const sqlAlerta = neon(process.env.DATABASE_URL);
+      if (req.query.alerta === 'simular') return res.status(200).json(await verificarEAvisar(sqlAlerta, filial, { simular: true }));
+      if (req.query.alerta === 'teste') return res.status(200).json(await enviarTeste(sqlAlerta, filial));
+      return res.status(400).json({ error: 'Parâmetro "alerta" deve ser "simular" ou "teste".' });
+    } catch (error) {
+      console.error('Erro nos avisos por e-mail:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
+  // O cron da Vercel chama com este user-agent; só ele dispara o aviso
+  // automático (quem chama a página aberta não precisa).
+  const ehCron = String(req.headers['user-agent'] || '').includes('vercel-cron');
 
   // Padrão: ontem (dia anterior completo) — pensado pra rodar de madrugada
   // cobrindo o dia que acabou de fechar. Aceita ?data=AAAA-MM-DD (ISO, igual
@@ -250,8 +271,20 @@ export default async function handler(req, res) {
       if (algumaPendencia) notasComPendencia++;
     }
 
+    // Depois da baixa do dia, confere se algum modelo mudou de situação e
+    // avisa por e-mail. Falha no aviso nunca derruba a baixa.
+    let alerta = null;
+    if (ehCron) {
+      try {
+        alerta = await verificarEAvisar(sql, filial);
+      } catch (err) {
+        console.error('Falha no aviso por e-mail:', err);
+        alerta = { erro: err.message };
+      }
+    }
+
     return res.status(200).json({
-      filial, dataInicial: dataInicialBr, dataFinal: dataFinalBr,
+      filial, dataInicial: dataInicialBr, dataFinal: dataFinalBr, alerta,
       notas_encontradas: notas.length,
       notas_novas_processadas: notasNovas,
       notas_ja_processadas_antes: notasJaProcessadas,
@@ -261,6 +294,9 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error('Erro caixa-auto-executar:', error);
+    if (ehCron) {
+      await avisarFalhaBaixa(sql, filial, error.message).catch(err => console.error('Falha ao avisar a falha da baixa:', err));
+    }
     return res.status(500).json({ error: error.message });
   }
 }
