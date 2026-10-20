@@ -162,6 +162,7 @@
         .cx-cadastro-table input, .cx-cadastro-table select { width: 100%; background: #151f34; border: 1px solid #1e293b; color: #f1f5f9; border-radius: 6px; padding: 5px 7px; font-size: 12.5px; font-family: inherit; }
         .cx-cadastro-table input:focus, .cx-cadastro-table select:focus { outline: none; border-color: #3b82f6; }
         .cx-cadastro-table td, .cx-cadastro-table th { padding: 7px 10px; font-size: 12px; }
+        .cx-cadastro-table td.num { white-space: nowrap; }
 
         .cx-sku-results { max-height: 170px; overflow-y: auto; border: 1px solid #1e293b; border-radius: 8px; margin-top: 6px; background: #151f34; }
         .cx-sku-results div { padding: 7px 10px; font-size: 12px; cursor: pointer; color: #cbd5e1; }
@@ -430,7 +431,7 @@
             <div class="cx-modal-body" style="max-height:72vh;">
                 <div>
                     <p class="cx-modal-section-title">Nova cotação</p>
-                    <div style="display:grid;grid-template-columns:1.3fr 1.3fr .8fr .8fr .8fr .7fr auto;gap:10px;align-items:end;">
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end;">
                         <div class="cx-field"><label>Modelo</label><select id="cxCpModelo"></select></div>
                         <div class="cx-field"><label>Fornecedor</label><input type="text" id="cxCpFornecedor" placeholder="ex: Embalagens Alfa"></div>
                         <div class="cx-field"><label>Quantidade</label><input type="number" min="1" step="1" id="cxCpQtd"></div>
