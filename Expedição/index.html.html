@@ -3721,7 +3721,7 @@
                 + `<div style="font-size:9.5px;color:#64748b;margin-top:8px;line-height:1.5;">Consumo/dia = consumo real dos últimos 30 dias + envios de lote ao Fulfillment (média de 60 dias). Ponto de reposição = consumo × lead time + segurança. Tendência = últimos 7 dias contra os 7 anteriores (consumo real).</div>`;
 
             const html = [
-                cxpPagina('Consumo diário e Fulfillment', 'Consumo por modelo no dia escolhido, nos dois tipos de envio', p1, 1, TOTAL, cabecalho),
+                cxpPagina('Consumo de Embalagens SP', `Consumo médio diário por modelo de embalagem — ${periodo}`, p1, 1, TOTAL, cabecalho),
                 cxpPagina('Modelos de caixa', 'Estoque, consumo, ponto de reposição e status, por urgência de compra', p2, 2, TOTAL, cabecalho),
             ].join('');
             const raiz = document.createElement('div');
@@ -3767,7 +3767,7 @@
             try {
                 await html2pdf().set({
                     margin: 0,
-                    filename: `Controle_de_Caixas_${CX_FILIAL}_${hoje}.pdf`,
+                    filename: `Consumo_de_Embalagens_${CX_FILIAL}_${hoje}.pdf`,
                     image: { type: 'jpeg', quality: 0.96 },
                     html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#070b14' },
                     jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
