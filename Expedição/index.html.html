@@ -3602,7 +3602,7 @@
         }
         function cxpImg(chart, alt) {
             try {
-                if (chart) return `<img src="${chart.toBase64Image('image/png', 1.0)}" alt="${alt}" style="width:100%;max-height:100%;object-fit:contain;display:block;">`;
+                if (chart) return `<img src="${chart.toBase64Image('image/png', 1.0)}" alt="${alt}" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;object-position:top center;">`;
             } catch (e) { console.warn('Gráfico indisponível pro relatório:', alt, e); }
             return '<div style="color:#64748b;font-size:12px;">Gráfico indisponível</div>';
         }
@@ -3687,7 +3687,7 @@
                     <div style="font-size:13.5px;font-weight:700;">${titulo}</div>
                     <div style="font-size:10.5px;color:#64748b;margin-top:2px;">${sub}</div>
                     <div style="margin:10px 0 6px;"><span style="font-size:9.5px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Total de caixas no dia</span><div style="font-size:19px;font-weight:800;">${total}</div></div>
-                    <div style="flex:1;min-height:0;overflow:hidden;">${img}</div>
+                    <div style="flex:1;min-height:0;overflow:hidden;position:relative;">${img}</div>
                 </div>`;
             const p2 = `<div style="display:flex;gap:16px;height:100%;">
                 ${coluna(`Consumo Diário — ${dia}`, 'Consumo diário Mercado Envios e outros (baixa o estoque)', cxpTxt('cxStatTotalDia'), cxpImg(cxConsumoChart, 'Consumo diário'))}
@@ -3702,7 +3702,7 @@
                 <div style="flex:1;min-width:0;background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px 14px;box-sizing:border-box;display:flex;flex-direction:column;">
                     <div style="font-size:13.5px;font-weight:700;">Consumo por modelo de caixa</div>
                     <div style="font-size:10.5px;color:#64748b;margin:2px 0 8px;">Média de consumo diário — ${periodoSel ? periodoSel.options[periodoSel.selectedIndex].text : ''}</div>
-                    <div style="flex:1;min-height:0;overflow:hidden;">${cxpImg(cxRankingChart, 'Consumo por modelo')}</div>
+                    <div style="flex:1;min-height:0;overflow:hidden;position:relative;">${cxpImg(cxRankingChart, 'Consumo por modelo')}</div>
                 </div>
                 <div style="flex:1;min-width:0;background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px 14px;box-sizing:border-box;display:flex;flex-direction:column;">
                     <div style="font-size:13.5px;font-weight:700;">Consumo diário — ${cxEsc(modeloSel ? modeloSel.options[modeloSel.selectedIndex]?.text : '')}</div>
@@ -3711,7 +3711,7 @@
                         ${estat('Média 30 dias', 'cxStatAvg30')}${estat('Média 7 dias', 'cxStatAvg7')}${estat('Tendência', 'cxStatTrend')}
                         ${estat('Fulfillment — média 30 dias', 'cxStatFulfillment30')}${estat('Total (real + Fulfillment)', 'cxStatTotal30')}
                     </div>
-                    <div style="flex:1;min-height:0;overflow:hidden;">${cxpImg(cxSerieChart, 'Consumo diário por modelo')}</div>
+                    <div style="flex:1;min-height:0;overflow:hidden;position:relative;">${cxpImg(cxSerieChart, 'Consumo diário por modelo')}</div>
                 </div>
             </div>`;
 
