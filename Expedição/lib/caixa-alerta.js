@@ -204,6 +204,7 @@ export async function verificarEAvisar(sql, filial, { simular = false } = {}) {
   }
 
   const plano = {
+    aviso_automatico_ligado: alertaAtivo(),
     destinos: destinos(),
     avisar: itens.map(i => ({ modelo: i.m.nome, situacao: ROTULO[i.m.status], motivo: i.motivo, estoque: i.m.estoque_atual })),
     dados_antigos: dadosAntigos,
