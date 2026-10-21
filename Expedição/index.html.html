@@ -3612,9 +3612,45 @@
                     chart.update('none');
                     chart.draw();
                 }
-                if (chart) return `<img src="${chart.toBase64Image('image/png', 1.0)}" alt="${alt}" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;object-position:top center;">`;
+                if (chart) return `<img src="${chart.toBase64Image('image/png', 1.0)}" alt="${alt}" style="width:100%;height:auto;display:block;">`;
             } catch (e) { console.warn('Gráfico indisponível pro relatório:', alt, e); }
             return '<div style="color:#64748b;font-size:12px;">Gráfico indisponível</div>';
+        }
+        // Gráfico de barras por modelo só com quem teve consumo: refaz o gráfico
+        // da tela sem os modelos zerados (e com a altura ajustada ao número de
+        // barras) e devolve a imagem. Usa um gráfico temporário, fora da tela.
+        function cxpBarras(chart, unidade, alt) {
+            if (!chart) return cxpImg(chart, alt);
+            const corte = unidade === 'un/dia' ? 0.05 : 0; // abaixo disso o rótulo aparece como 0,0
+            const rotulos = chart.data.labels || [];
+            const valores = chart.data.datasets[0].data || [];
+            const idx = valores.map((v, i) => i).filter(i => Number(valores[i]) > corte);
+            if (idx.length === 0) return '<div style="color:#64748b;font-size:12px;padding:10px 0;">Nenhum modelo teve consumo.</div>';
+            const ls = idx.map(i => rotulos[i]);
+            const vs = idx.map(i => valores[i]);
+            const largura = 480;
+            const altura = Math.max(150, Math.min(560, 64 + ls.length * 38));
+            const area = document.createElement('div');
+            area.style.cssText = `position:fixed;left:-20000px;top:0;width:${largura}px;height:${altura}px;`;
+            const canvas = document.createElement('canvas');
+            canvas.style.cssText = `width:${largura}px;height:${altura}px;`;
+            area.appendChild(canvas);
+            document.body.appendChild(area);
+            let temp;
+            try {
+                temp = new Chart(canvas.getContext('2d'), {
+                    type: 'bar',
+                    data: { labels: ls, datasets: [{ data: vs, backgroundColor: ls.map((_, i) => cxCorEscala(i, ls.length)), borderRadius: 4, maxBarThickness: 24 }] },
+                    options: { ...cxBarraHorizontalOptions(unidade), responsive: false, animation: false, devicePixelRatio: 2 },
+                });
+                return `<img src="${temp.toBase64Image('image/png', 1.0)}" alt="${alt}" style="width:100%;height:auto;display:block;">`;
+            } catch (e) {
+                console.warn('Gráfico filtrado indisponível pro relatório:', alt, e);
+                return cxpImg(chart, alt);
+            } finally {
+                if (temp) temp.destroy();
+                area.remove();
+            }
         }
         function cxpTxt(id) { return (document.getElementById(id)?.innerText || '—').replace(/\s+/g, ' ').trim(); }
 
@@ -3647,7 +3683,7 @@
             const agora = new Date();
             const geradoEm = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             const cabecalho = `Gerado em ${geradoEm}<br>Dados de consumo até ${cxpDataBr(cxResumo?.ultima_saida)}`;
-            const TOTAL = 5;
+            const TOTAL = 4;
 
             // dados extras: últimos lançamentos e compras em andamento (tolerantes a falha)
             let movs = [];
@@ -3655,39 +3691,6 @@
             if (!Array.isArray(movs)) movs = [];
             let compras = [];
             try { const c = await cxComprasApi('GET'); compras = Array.isArray(c) ? c : []; } catch (e) { compras = []; }
-
-            // ---- página 1: resumo ----
-            const crit = modelos.filter(m => m.status === 'crit');
-            const warn = modelos.filter(m => m.status === 'warn');
-            const ok = modelos.filter(m => m.status === 'ok');
-            const semCfg = modelos.filter(m => m.status === 'sem_config');
-            const naoCtl = modelos.filter(m => m.status === 'nao_controlada');
-            const kpi = (rotulo, valor, sub, cor) => `<div style="flex:1;background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px 14px;"><div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;">${rotulo}</div><div style="font-size:28px;font-weight:800;margin-top:6px;color:${cor};">${valor}</div><div style="font-size:10.5px;color:#64748b;margin-top:2px;">${sub}</div></div>`;
-            const atencao = [...crit, ...warn];
-            const linhasAtencao = atencao.map(m => [
-                `<b style="color:#f1f5f9;">${cxEsc(m.nome)}</b>`, `<span style="color:${CXP_COR_STATUS[m.status]};font-weight:700;">${CXP_ROTULO_STATUS[m.status]}</span>`,
-                m.estoque_atual + ' un', (m.consumo_planejamento ?? m.consumo_30d).toFixed(1) + '/dia',
-                m.cobertura_dias !== null ? m.cobertura_dias + ' dias' : '—', m.ponto_reposicao !== null ? m.ponto_reposicao + ' un' : '—',
-                m.em_pedido > 0 ? m.em_pedido + ' un' : '—', m.qtd_pedido != null ? m.qtd_pedido + ' un' : '—',
-            ]);
-            const pend = cxResumo?.pendencias_regra || [];
-            const blocoPend = pend.length
-                ? `<div style="margin-top:14px;background:#f59e0b14;border:1px solid #f59e0b3d;border-radius:10px;padding:10px 14px;"><div style="font-size:12px;font-weight:700;color:#fcd34d;margin-bottom:6px;">${pend.length} produto(s) vendido(s) sem regra de embalagem</div>${cxpTabela(
-                    [{ titulo: 'SKU' }, { titulo: 'Descrição' }, { titulo: 'Ocorrências', num: true }, { titulo: 'Quantidade', num: true }, { titulo: 'Motivo' }],
-                    pend.slice(0, 6).map(p => [cxEsc(p.sku), cxEsc((p.descricao || '').slice(0, 60)), p.ocorrencias, p.quantidade_total, cxEsc(p.motivos === 'sem_mapeamento' ? 'sem regra' : (p.motivos === 'fora_da_faixa' ? 'fora da faixa' : p.motivos))]), { compacto: true, fonte: 10.5 })}${pend.length > 6 ? `<div style="font-size:10px;color:#94a3b8;margin-top:4px;">… e mais ${pend.length - 6} SKU(s)</div>` : ''}</div>`
-                : '<div style="margin-top:14px;font-size:11.5px;color:#64748b;">Nenhum produto vendido sem regra de embalagem.</div>';
-            const p1 = `
-                <div style="display:flex;gap:12px;">
-                    ${kpi('Modelos de caixa', controlados.length, `${semCfg.length} sem lead time configurado${naoCtl.length ? ' · +' + naoCtl.length + ' sem controle de estoque' : ''}`, '#f1f5f9')}
-                    ${kpi('Estoque saudável', ok.length, 'acima do ponto de reposição', '#10b981')}
-                    ${kpi('Em atenção', warn.length, 'perto do ponto de reposição', '#f59e0b')}
-                    ${kpi('Comprar agora', crit.length, 'abaixo do ponto de reposição', '#f43f5e')}
-                </div>
-                <div style="margin-top:16px;font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">Modelos que precisam de atenção</div>
-                <div style="margin-top:6px;">${atencao.length ? cxpTabela(
-                    [{ titulo: 'Modelo' }, { titulo: 'Situação' }, { titulo: 'Estoque', num: true }, { titulo: 'Consumo', num: true }, { titulo: 'Cobertura', num: true }, { titulo: 'Ponto de reposição', num: true }, { titulo: 'Já pedido', num: true }, { titulo: 'Pedido padrão', num: true }], linhasAtencao)
-                    : '<div style="font-size:12px;color:#6ee7b7;">Nenhum modelo precisa de atenção no momento.</div>'}</div>
-                ${blocoPend}`;
 
             // ---- página 2: consumo diário e fulfillment ----
             const dia = cxpDataBr(document.getElementById('cxDiaSelect')?.value);
@@ -3700,8 +3703,8 @@
                     <div style="flex:1;min-height:0;overflow:hidden;position:relative;">${img}</div>
                 </div>`;
             const p2 = `<div style="display:flex;gap:16px;height:100%;">
-                ${coluna(`Consumo Diário — ${dia}`, 'Consumo diário Mercado Envios e outros (baixa o estoque)', cxpTxt('cxStatTotalDia'), cxpImg(cxConsumoChart, 'Consumo diário'))}
-                ${coluna(`Envio Fulfillment — ${diaF}`, 'Baseado em vendas nota série 2 (informativo, não baixa estoque)', cxpTxt('cxStatTotalFulfillment'), cxpImg(cxFulfillmentChart, 'Envio Fulfillment'))}
+                ${coluna(`Consumo Diário — ${dia}`, 'Consumo diário Mercado Envios e outros (baixa o estoque)', cxpTxt('cxStatTotalDia'), cxpBarras(cxConsumoChart, 'un', 'Consumo diário'))}
+                ${coluna(`Envio Fulfillment — ${diaF}`, 'Baseado em vendas nota série 2 (informativo, não baixa estoque)', cxpTxt('cxStatTotalFulfillment'), cxpBarras(cxFulfillmentChart, 'un', 'Envio Fulfillment'))}
             </div>`;
 
             // ---- página 3: consumo por modelo ----
@@ -3712,7 +3715,7 @@
                 <div style="flex:1;min-width:0;background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px 14px;box-sizing:border-box;display:flex;flex-direction:column;">
                     <div style="font-size:13.5px;font-weight:700;">Consumo por modelo de caixa</div>
                     <div style="font-size:10.5px;color:#64748b;margin:2px 0 8px;">Média de consumo diário — ${periodoSel ? periodoSel.options[periodoSel.selectedIndex].text : ''}</div>
-                    <div style="flex:1;min-height:0;overflow:hidden;position:relative;">${cxpImg(cxRankingChart, 'Consumo por modelo')}</div>
+                    <div style="flex:1;min-height:0;overflow:hidden;position:relative;">${cxpBarras(cxRankingChart, 'un/dia', 'Consumo por modelo')}</div>
                 </div>
                 <div style="flex:1;min-width:0;background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px 14px;box-sizing:border-box;display:flex;flex-direction:column;">
                     <div style="font-size:13.5px;font-weight:700;">Consumo diário — ${cxEsc(modeloSel ? modeloSel.options[modeloSel.selectedIndex]?.text : '')}</div>
@@ -3769,11 +3772,10 @@
             </div>`;
 
             const html = [
-                cxpPagina('Controle de Caixas de Embalagem', 'Resumo do estoque e alertas', p1, 1, TOTAL, cabecalho),
-                cxpPagina('Consumo diário e Fulfillment', 'Consumo por modelo no dia escolhido, nos dois tipos de envio', p2, 2, TOTAL, cabecalho),
-                cxpPagina('Consumo por modelo de caixa', 'Ranking do período e série diária do modelo selecionado', p3, 3, TOTAL, cabecalho),
-                cxpPagina('Modelos de caixa', 'Estoque, consumo, ponto de reposição e status, por urgência de compra', p4, 4, TOTAL, cabecalho),
-                cxpPagina('Movimentação e compras', 'Lançamentos recentes, pedidos em andamento e cotações', p5, 5, TOTAL, cabecalho),
+                cxpPagina('Consumo diário e Fulfillment', 'Consumo por modelo no dia escolhido, nos dois tipos de envio', p2, 1, TOTAL, cabecalho),
+                cxpPagina('Consumo por modelo de caixa', 'Ranking do período e série diária do modelo selecionado', p3, 2, TOTAL, cabecalho),
+                cxpPagina('Modelos de caixa', 'Estoque, consumo, ponto de reposição e status, por urgência de compra', p4, 3, TOTAL, cabecalho),
+                cxpPagina('Movimentação e compras', 'Lançamentos recentes, pedidos em andamento e cotações', p5, 4, TOTAL, cabecalho),
             ].join('');
             const raiz = document.createElement('div');
             raiz.id = 'cxRelatorioRaiz';
