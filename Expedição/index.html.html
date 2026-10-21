@@ -184,6 +184,16 @@
         .cx-cadastro-table td, .cx-cadastro-table th { padding: 7px 10px; font-size: 12px; }
         .cx-cadastro-table td.num { white-space: nowrap; }
 
+        /* Cadastro de modelos: cabeçalho e coluna "Modelo" congelados ao rolar.
+           O scroll fica na própria tabela (e não no corpo do modal), senão o
+           sticky não tem onde "grudar". */
+        #cxCadastroModal .cx-modal-body { max-height: 72vh; overflow: hidden; }
+        #cxCadastroModal .cx-scroll-x { overflow: auto; max-height: calc(72vh - 92px); }
+        #cxCadastroModal .cx-cadastro-table thead th { position: sticky; top: 0; z-index: 3; background: #0f172a; box-shadow: 0 1px 0 #1e293b; }
+        #cxCadastroModal .cx-cadastro-table th:first-child,
+        #cxCadastroModal .cx-cadastro-table td:first-child { position: sticky; left: 0; z-index: 2; background: #0f172a; }
+        #cxCadastroModal .cx-cadastro-table thead th:first-child { z-index: 4; }
+
         .cx-sku-results { max-height: 170px; overflow-y: auto; border: 1px solid #1e293b; border-radius: 8px; margin-top: 6px; background: #151f34; }
         .cx-sku-results div { padding: 7px 10px; font-size: 12px; cursor: pointer; color: #cbd5e1; }
         .cx-sku-results div:hover { background: #1e293b; }
