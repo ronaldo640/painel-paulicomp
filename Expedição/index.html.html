@@ -3619,7 +3619,7 @@
         // Gráfico de barras por modelo só com quem teve consumo: refaz o gráfico
         // da tela sem os modelos zerados (e com a altura ajustada ao número de
         // barras) e devolve a imagem. Usa um gráfico temporário, fora da tela.
-        function cxpBarras(chart, unidade, alt) {
+        function cxpBarras(chart, unidade, alt, larguraPx) {
             if (!chart) return cxpImg(chart, alt);
             const corte = unidade === 'un/dia' ? 0.05 : 0; // abaixo disso o rótulo aparece como 0,0
             const rotulos = chart.data.labels || [];
@@ -3628,8 +3628,8 @@
             if (idx.length === 0) return '<div style="color:#64748b;font-size:12px;padding:10px 0;">Nenhum modelo teve consumo.</div>';
             const ls = idx.map(i => rotulos[i]);
             const vs = idx.map(i => valores[i]);
-            const largura = 490;
-            const altura = Math.max(170, Math.min(600, 80 + ls.length * 56));
+            const largura = larguraPx || 490;
+            const altura = Math.max(170, Math.min(larguraPx ? 560 : 600, 80 + ls.length * (larguraPx ? 40 : 56)));
             const area = document.createElement('div');
             area.style.cssText = `position:fixed;left:-20000px;top:0;width:${largura}px;height:${altura}px;`;
             const canvas = document.createElement('canvas');
@@ -3659,53 +3659,6 @@
                 area.remove();
             }
         }
-        // Série diária do modelo (consumo real + Fulfillment empilhados), refeita
-        // fora da tela em tamanho e resolução próprios pro relatório — a imagem
-        // do gráfico da tela é pequena e ficava ilegível no PDF.
-        function cxpSerie(chart, alt) {
-            if (!chart) return cxpImg(chart, alt);
-            const largura = 490, altura = 340;
-            const area = document.createElement('div');
-            area.style.cssText = `position:fixed;left:-20000px;top:0;width:${largura}px;height:${altura}px;`;
-            const canvas = document.createElement('canvas');
-            canvas.style.cssText = `width:${largura}px;height:${altura}px;`;
-            area.appendChild(canvas);
-            document.body.appendChild(area);
-            let temp;
-            try {
-                temp = new Chart(canvas.getContext('2d'), {
-                    type: 'bar',
-                    data: {
-                        labels: (chart.data.labels || []).slice(),
-                        datasets: chart.data.datasets.map(d => ({
-                            label: d.label, type: d.type, data: (d.data || []).slice(), order: d.order,
-                            backgroundColor: d.backgroundColor, borderColor: d.borderColor, borderDash: d.borderDash,
-                            borderWidth: d.borderWidth, pointRadius: d.pointRadius, fill: d.fill,
-                            borderRadius: d.borderRadius, maxBarThickness: d.maxBarThickness,
-                        })),
-                    },
-                    options: {
-                        responsive: false, animation: false, devicePixelRatio: 2,
-                        plugins: {
-                            legend: { display: true, position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, boxHeight: 12, font: { size: 12 } } },
-                            datalabels: { display: false },
-                        },
-                        scales: {
-                            x: { stacked: true, grid: { display: false }, ticks: { color: '#64748b', font: { size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } },
-                            y: { stacked: true, beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 11 } } },
-                        },
-                    },
-                });
-                return `<img src="${temp.toBase64Image('image/png', 1.0)}" alt="${alt}" style="width:100%;height:auto;display:block;">`;
-            } catch (e) {
-                console.warn('Série diária indisponível pro relatório:', e);
-                return cxpImg(chart, alt);
-            } finally {
-                if (temp) temp.destroy();
-                area.remove();
-            }
-        }
-        function cxpTxt(id) { return (document.getElementById(id)?.innerText || '—').replace(/\s+/g, ' ').trim(); }
 
         function cxpPagina(titulo, subtitulo, conteudo, numero, total, cabecalho) {
             return `
@@ -3732,56 +3685,22 @@
 
         async function cxMontarRelatorio() {
             const modelos = cxResumo?.modelos || [];
-            const controlados = modelos.filter(m => m.status !== 'nao_controlada');
             const agora = new Date();
             const geradoEm = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             const cabecalho = `Gerado em ${geradoEm}<br>Dados de consumo até ${cxpDataBr(cxResumo?.ultima_saida)}`;
-            const TOTAL = 4;
+            const TOTAL = 2;
 
-            // dados extras: últimos lançamentos e compras em andamento (tolerantes a falha)
-            let movs = [];
-            try { movs = await (await fetch(`/api/caixa-movimentacoes?filial=${CX_FILIAL}&limit=14`)).json(); } catch (e) { movs = []; }
-            if (!Array.isArray(movs)) movs = [];
-            let compras = [];
-            try { const c = await cxComprasApi('GET'); compras = Array.isArray(c) ? c : []; } catch (e) { compras = []; }
-
-            // ---- página 2: consumo diário e fulfillment ----
-            const dia = cxpDataBr(document.getElementById('cxDiaSelect')?.value);
-            const diaF = cxpDataBr(document.getElementById('cxFulfillmentDiaSelect')?.value);
-            const coluna = (titulo, sub, total, img) => `
-                <div style="flex:1;min-width:0;background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px 14px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;">
-                    <div style="font-size:13.5px;font-weight:700;">${titulo}</div>
-                    <div style="font-size:10.5px;color:#64748b;margin-top:2px;">${sub}</div>
-                    <div style="margin:10px 0 6px;"><span style="font-size:9.5px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">Total de caixas no dia</span><div style="font-size:19px;font-weight:800;">${total}</div></div>
-                    <div style="flex:1;min-height:0;overflow:hidden;position:relative;">${img}</div>
-                </div>`;
-            const p2 = `<div style="display:flex;gap:16px;height:100%;">
-                ${coluna(`Consumo Diário — ${dia}`, 'Consumo diário Mercado Envios e outros (baixa o estoque)', cxpTxt('cxStatTotalDia'), cxpBarras(cxConsumoChart, 'un', 'Consumo diário'))}
-                ${coluna(`Envio Fulfillment — ${diaF}`, 'Baseado em vendas nota série 2 (informativo, não baixa estoque)', cxpTxt('cxStatTotalFulfillment'), cxpBarras(cxFulfillmentChart, 'un', 'Envio Fulfillment'))}
-            </div>`;
-
-            // ---- página 3: consumo por modelo ----
+            // ---- página 1: consumo por modelo (só quem teve consumo) ----
             const periodoSel = document.getElementById('cxPeriodoSelect');
-            const modeloSel = document.getElementById('cxModelSelect');
-            const estat = (rotulo, id) => `<div><div style="font-size:9.5px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;">${rotulo}</div><div style="font-size:16px;font-weight:800;margin-top:2px;">${cxpTxt(id)}</div></div>`;
-            const p3 = `<div style="display:flex;gap:16px;height:100%;">
-                <div style="flex:1;min-width:0;background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px 14px;box-sizing:border-box;display:flex;flex-direction:column;">
+            const periodo = periodoSel ? periodoSel.options[periodoSel.selectedIndex].text : '';
+            const p1 = `
+                <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:14px 18px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;">
                     <div style="font-size:13.5px;font-weight:700;">Consumo por modelo de caixa</div>
-                    <div style="font-size:10.5px;color:#64748b;margin:2px 0 8px;">Média de consumo diário — ${periodoSel ? periodoSel.options[periodoSel.selectedIndex].text : ''}</div>
-                    <div style="flex:1;min-height:0;overflow:hidden;position:relative;">${cxpBarras(cxRankingChart, 'un/dia', 'Consumo por modelo')}</div>
-                </div>
-                <div style="flex:1;min-width:0;background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px 14px;box-sizing:border-box;display:flex;flex-direction:column;">
-                    <div style="font-size:13.5px;font-weight:700;">Consumo diário — ${cxEsc(modeloSel ? modeloSel.options[modeloSel.selectedIndex]?.text : '')}</div>
-                    <div style="font-size:10.5px;color:#64748b;margin:2px 0 10px;">Últimos 30 dias · consumo real (azul) e Fulfillment informativo (roxo), sem transferências</div>
-                    <div style="display:flex;flex-wrap:wrap;gap:14px 22px;margin-bottom:10px;">
-                        ${estat('Média 30 dias', 'cxStatAvg30')}${estat('Média 7 dias', 'cxStatAvg7')}${estat('Tendência', 'cxStatTrend')}
-                        ${estat('Fulfillment — média 30 dias', 'cxStatFulfillment30')}${estat('Total (real + Fulfillment)', 'cxStatTotal30')}
-                    </div>
-                    <div style="flex:1;min-height:0;overflow:hidden;position:relative;">${cxpSerie(cxSerieChart, 'Consumo diário por modelo')}</div>
-                </div>
-            </div>`;
+                    <div style="font-size:10.5px;color:#64748b;margin:2px 0 10px;">Média de consumo diário — ${periodo} · somente modelos com consumo</div>
+                    <div style="flex:1;min-height:0;overflow:hidden;">${cxpBarras(cxRankingChart, 'un/dia', 'Consumo por modelo', 1000)}</div>
+                </div>`;
 
-            // ---- página 4: tabela de modelos ----
+            // ---- página 2: tabela de modelos ----
             const trend = pct => pct === null || pct === undefined ? '—' : `<span style="color:${pct > 0 ? '#f43f5e' : (pct < 0 ? '#10b981' : '#64748b')};font-weight:700;">${pct > 0 ? '▲' : (pct < 0 ? '▼' : '')} ${Math.abs(pct)}%</span>`;
             const linhasModelos = modelos.map(m => m.status === 'nao_controlada'
                 ? [`<b style="color:#f1f5f9;">${cxEsc(m.nome)}</b>`, '—', m.consumo_30d.toFixed(1) + '/dia', '—', '—', '—', '—', trend(m.tendencia_pct), `<span style="color:${CXP_COR_STATUS.nao_controlada};font-weight:700;">${CXP_ROTULO_STATUS.nao_controlada}</span>`]
@@ -3796,39 +3715,14 @@
                     trend(m.tendencia_pct),
                     `<span style="color:${CXP_COR_STATUS[m.status]};font-weight:700;">${CXP_ROTULO_STATUS[m.status]}</span>`,
                 ]);
-            const p4 = cxpTabela(
+            const p2 = cxpTabela(
                 [{ titulo: 'Modelo' }, { titulo: 'Estoque', num: true }, { titulo: 'Consumo/dia', num: true }, { titulo: 'Ponto de reposição', num: true }, { titulo: 'Cobertura', num: true }, { titulo: 'Sugestão de compra', num: true }, { titulo: 'Pedido padrão', num: true }, { titulo: 'Tendência', num: true }, { titulo: 'Status' }],
                 linhasModelos, { compacto: true, fonte: 10.5 })
                 + `<div style="font-size:9.5px;color:#64748b;margin-top:8px;line-height:1.5;">Consumo/dia = consumo real dos últimos 30 dias + envios de lote ao Fulfillment (média de 60 dias). Ponto de reposição = consumo × lead time + segurança. Tendência = últimos 7 dias contra os 7 anteriores (consumo real).</div>`;
 
-            // ---- página 5: movimentações e compras ----
-            const rotuloMov = m => m.tipo === 'entrada' ? 'compra' : (m.envio_fulfillment ? 'envio Fulfillment' : (m.conta_consumo === false ? (/^Ajuste de estoque/.test(m.observacao || '') ? 'ajuste' : 'transferência') : 'uso'));
-            const tabMovs = movs.length ? cxpTabela(
-                [{ titulo: 'Data' }, { titulo: 'Modelo' }, { titulo: 'Tipo' }, { titulo: 'Qtd', num: true }, { titulo: 'Observação' }],
-                movs.map(m => [cxpDataBr(m.data), cxEsc(m.modelo_nome), rotuloMov(m), (m.tipo === 'entrada' ? '+' : '−') + m.quantidade, cxEsc((m.observacao || '').slice(0, 44))]), { compacto: true, fonte: 10.5 })
-                : '<div style="font-size:11.5px;color:#64748b;">Nenhum lançamento registrado.</div>';
-            const pedidos = compras.filter(c => c.status === 'solicitado' || c.status === 'em_transito');
-            const cotacoes = compras.filter(c => c.status === 'cotacao');
-            const brl = n => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 4 });
-            const tabPed = pedidos.length ? cxpTabela(
-                [{ titulo: 'Modelo' }, { titulo: 'Fornecedor' }, { titulo: 'Qtd', num: true }, { titulo: 'Total', num: true }, { titulo: 'Pedido em', num: true }, { titulo: 'Previsão', num: true }, { titulo: 'Status' }],
-                pedidos.map(c => [cxEsc(c.modelo_nome), cxEsc(c.fornecedor), c.quantidade, brl(c.preco_unitario * c.quantidade + c.frete), cxpDataBr(c.data_pedido), cxpDataBr(c.previsao_chegada), c.status === 'em_transito' ? 'Em trânsito' : 'Solicitado']), { compacto: true, fonte: 10.5 })
-                : '<div style="font-size:11.5px;color:#64748b;">Nenhum pedido em andamento.</div>';
-            const tabCot = cotacoes.length ? cxpTabela(
-                [{ titulo: 'Modelo' }, { titulo: 'Fornecedor' }, { titulo: 'Qtd', num: true }, { titulo: 'Preço unit.', num: true }, { titulo: 'Custo/un', num: true }, { titulo: 'Prazo', num: true }],
-                cotacoes.map(c => [cxEsc(c.modelo_nome), cxEsc(c.fornecedor), c.quantidade, brl(c.preco_unitario), brl((c.preco_unitario * c.quantidade + c.frete) / c.quantidade), c.prazo_dias != null ? c.prazo_dias + ' dias' : '—']), { compacto: true, fonte: 10.5 })
-                : '<div style="font-size:11.5px;color:#64748b;">Nenhuma cotação em aberto.</div>';
-            const sec = (t, c) => `<div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;margin:0 0 6px;">${t}</div>${c}`;
-            const p5 = `<div style="display:flex;gap:22px;height:100%;">
-                <div style="flex:1.05;min-width:0;">${sec('Últimos lançamentos', tabMovs)}</div>
-                <div style="flex:1;min-width:0;">${sec('Pedidos em andamento', tabPed)}<div style="height:16px;"></div>${sec('Cotações em aberto', tabCot)}</div>
-            </div>`;
-
             const html = [
-                cxpPagina('Consumo diário e Fulfillment', 'Consumo por modelo no dia escolhido, nos dois tipos de envio', p2, 1, TOTAL, cabecalho),
-                cxpPagina('Consumo por modelo de caixa', 'Ranking do período e série diária do modelo selecionado', p3, 2, TOTAL, cabecalho),
-                cxpPagina('Modelos de caixa', 'Estoque, consumo, ponto de reposição e status, por urgência de compra', p4, 3, TOTAL, cabecalho),
-                cxpPagina('Movimentação e compras', 'Lançamentos recentes, pedidos em andamento e cotações', p5, 4, TOTAL, cabecalho),
+                cxpPagina('Consumo por modelo de caixa', 'Ranking do período, somente modelos com consumo', p1, 1, TOTAL, cabecalho),
+                cxpPagina('Modelos de caixa', 'Estoque, consumo, ponto de reposição e status, por urgência de compra', p2, 2, TOTAL, cabecalho),
             ].join('');
             const raiz = document.createElement('div');
             raiz.id = 'cxRelatorioRaiz';
@@ -3836,7 +3730,6 @@
             raiz.innerHTML = html;
             return raiz;
         }
-
         async function cxGerarRelatorio(ev) {
             if (!cxResumo) return cxToast('Os dados ainda estão carregando. Tente de novo em instantes.', 'error');
             const btn = document.getElementById('cxBtnRelatorio');
