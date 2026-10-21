@@ -2450,6 +2450,7 @@
             };
         }
 
+        let cxRankingDados = []; // média real + Fulfillment por modelo (usado no relatório)
         async function cxLoadConsumoModelos(dias) {
             let payload;
             try {
@@ -2461,6 +2462,7 @@
                 return;
             }
             const modelos = payload.modelos;
+            cxRankingDados = modelos;
             const ctx = document.getElementById('cxRankingChart').getContext('2d');
             if (cxRankingChart) cxRankingChart.destroy();
             cxRankingChart = new Chart(ctx, {
@@ -3622,8 +3624,9 @@
         function cxpBarras(chart, unidade, alt, larguraPx) {
             if (!chart) return cxpImg(chart, alt);
             const corte = unidade === 'un/dia' ? 0.05 : 0; // abaixo disso o rótulo aparece como 0,0
-            const rotulos = chart.data.labels || [];
-            const valores = chart.data.datasets[0].data || [];
+            // aceita um gráfico Chart.js ou, direto, { labels, values }
+            const rotulos = chart.data ? (chart.data.labels || []) : chart.labels;
+            const valores = chart.data ? (chart.data.datasets[0].data || []) : chart.values;
             const idx = valores.map((v, i) => i).filter(i => Number(valores[i]) > corte);
             if (idx.length === 0) return '<div style="color:#64748b;font-size:12px;padding:10px 0;">Nenhum modelo teve consumo.</div>';
             const ls = idx.map(i => rotulos[i]);
@@ -3693,11 +3696,16 @@
             // ---- página 1: consumo por modelo (só quem teve consumo) ----
             const periodoSel = document.getElementById('cxPeriodoSelect');
             const periodo = periodoSel ? periodoSel.options[periodoSel.selectedIndex].text : '';
+            // consumo real + Fulfillment (série 2), do maior pro menor; sem os dados novos usa só o real
+            const ordenado = [...cxRankingDados]
+                .map(m => ({ nome: m.modelo_nome, valor: Number(m.media_diaria) + Number(m.media_fulfillment || 0) }))
+                .sort((a, b) => b.valor - a.valor);
+            const rankingTotal = ordenado.length ? { labels: ordenado.map(o => o.nome), values: ordenado.map(o => o.valor) } : cxRankingChart;
             const p1 = `
                 <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:14px 18px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;">
                     <div style="font-size:13.5px;font-weight:700;">Consumo por modelo de caixa</div>
-                    <div style="font-size:10.5px;color:#64748b;margin:2px 0 10px;">Média de consumo diário — ${periodo}</div>
-                    <div style="flex:1;min-height:0;overflow:hidden;">${cxpBarras(cxRankingChart, 'un/dia', 'Consumo por modelo', 1000)}</div>
+                    <div style="font-size:10.5px;color:#64748b;margin:2px 0 10px;">Média de consumo diário, somando o consumo real e o Fulfillment — ${periodo}</div>
+                    <div style="flex:1;min-height:0;overflow:hidden;">${cxpBarras(rankingTotal, 'un/dia', 'Consumo por modelo', 1000)}</div>
                 </div>`;
 
             // ---- página 2: tabela de modelos ----

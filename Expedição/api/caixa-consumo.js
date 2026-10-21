@@ -22,15 +22,22 @@ async function responderModelos(sql, res, filial, req) {
   const diasPermitidos = [30, 60, 90];
   const dias = diasPermitidos.includes(Number(req.query.dias)) ? Number(req.query.dias) : 30;
 
+  // media_diaria = consumo real (baixa o estoque, sem transferências);
+  // media_fulfillment = vendas série 2 (informativo, conta_estoque = false).
+  // O relatório em PDF soma as duas.
   const rows = await sql`
     WITH consumo AS (
-      SELECT modelo_id, SUM(quantidade)::numeric / ${dias} AS media_diaria
+      SELECT modelo_id,
+        SUM(quantidade) FILTER (WHERE conta_estoque = true AND conta_consumo = true)::numeric / ${dias} AS media_diaria,
+        SUM(quantidade) FILTER (WHERE conta_estoque = false)::numeric / ${dias} AS media_fulfillment
       FROM caixa_movimentacoes
-      WHERE filial = ${filial} AND tipo = 'saida' AND conta_estoque = true AND conta_consumo = true
+      WHERE filial = ${filial} AND tipo = 'saida'
         AND data >= current_date - (${dias - 1} * interval '1 day')
       GROUP BY modelo_id
     )
-    SELECT cm.id AS modelo_id, cm.nome AS modelo_nome, COALESCE(c.media_diaria, 0)::float AS media_diaria
+    SELECT cm.id AS modelo_id, cm.nome AS modelo_nome,
+           COALESCE(c.media_diaria, 0)::float AS media_diaria,
+           COALESCE(c.media_fulfillment, 0)::float AS media_fulfillment
     FROM caixa_modelos cm
     LEFT JOIN consumo c ON c.modelo_id = cm.id
     WHERE cm.ativo = true
