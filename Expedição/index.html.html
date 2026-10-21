@@ -3696,7 +3696,7 @@
             const p1 = `
                 <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:14px 18px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;">
                     <div style="font-size:13.5px;font-weight:700;">Consumo por modelo de caixa</div>
-                    <div style="font-size:10.5px;color:#64748b;margin:2px 0 10px;">Média de consumo diário — ${periodo} · somente modelos com consumo</div>
+                    <div style="font-size:10.5px;color:#64748b;margin:2px 0 10px;">Média de consumo diário — ${periodo}</div>
                     <div style="flex:1;min-height:0;overflow:hidden;">${cxpBarras(cxRankingChart, 'un/dia', 'Consumo por modelo', 1000)}</div>
                 </div>`;
 
@@ -3721,7 +3721,7 @@
                 + `<div style="font-size:9.5px;color:#64748b;margin-top:8px;line-height:1.5;">Consumo/dia = consumo real dos últimos 30 dias + envios de lote ao Fulfillment (média de 60 dias). Ponto de reposição = consumo × lead time + segurança. Tendência = últimos 7 dias contra os 7 anteriores (consumo real).</div>`;
 
             const html = [
-                cxpPagina('Consumo por modelo de caixa', 'Ranking do período, somente modelos com consumo', p1, 1, TOTAL, cabecalho),
+                cxpPagina('Consumo diário e Fulfillment', 'Consumo por modelo no dia escolhido, nos dois tipos de envio', p1, 1, TOTAL, cabecalho),
                 cxpPagina('Modelos de caixa', 'Estoque, consumo, ponto de reposição e status, por urgência de compra', p2, 2, TOTAL, cabecalho),
             ].join('');
             const raiz = document.createElement('div');
