@@ -3602,6 +3602,12 @@
         }
         function cxpImg(chart, alt) {
             try {
+                if (chart) {
+                    // Redesenha na hora (sem animação): se o gráfico acabou de ser
+                    // redimensionado, o canvas está limpo até o próximo quadro.
+                    chart.resize();
+                    chart.update('none');
+                }
                 if (chart) return `<img src="${chart.toBase64Image('image/png', 1.0)}" alt="${alt}" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;object-position:top center;">`;
             } catch (e) { console.warn('Gráfico indisponível pro relatório:', alt, e); }
             return '<div style="color:#64748b;font-size:12px;">Gráfico indisponível</div>';
