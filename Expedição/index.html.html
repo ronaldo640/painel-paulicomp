@@ -3605,8 +3605,12 @@
                 if (chart) {
                     // Redesenha na hora (sem animação): se o gráfico acabou de ser
                     // redimensionado, o canvas está limpo até o próximo quadro.
-                    chart.resize();
+                    // Se ainda houver animação pendente (logo após carregar a página),
+                    // o update não desenha na hora: pára a animação (leva ao estado
+                    // final) e só então redesenha.
+                    chart.stop();
                     chart.update('none');
+                    chart.draw();
                 }
                 if (chart) return `<img src="${chart.toBase64Image('image/png', 1.0)}" alt="${alt}" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;object-position:top center;">`;
             } catch (e) { console.warn('Gráfico indisponível pro relatório:', alt, e); }
