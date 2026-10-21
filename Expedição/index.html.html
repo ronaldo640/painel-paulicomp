@@ -3628,8 +3628,8 @@
             if (idx.length === 0) return '<div style="color:#64748b;font-size:12px;padding:10px 0;">Nenhum modelo teve consumo.</div>';
             const ls = idx.map(i => rotulos[i]);
             const vs = idx.map(i => valores[i]);
-            const largura = 480;
-            const altura = Math.max(150, Math.min(560, 64 + ls.length * 38));
+            const largura = 490;
+            const altura = Math.max(170, Math.min(600, 80 + ls.length * 56));
             const area = document.createElement('div');
             area.style.cssText = `position:fixed;left:-20000px;top:0;width:${largura}px;height:${altura}px;`;
             const canvas = document.createElement('canvas');
@@ -3640,12 +3640,65 @@
             try {
                 temp = new Chart(canvas.getContext('2d'), {
                     type: 'bar',
-                    data: { labels: ls, datasets: [{ data: vs, backgroundColor: ls.map((_, i) => cxCorEscala(i, ls.length)), borderRadius: 4, maxBarThickness: 24 }] },
-                    options: { ...cxBarraHorizontalOptions(unidade), responsive: false, animation: false, devicePixelRatio: 2 },
+                    data: { labels: ls, datasets: [{ data: vs, backgroundColor: ls.map((_, i) => cxCorEscala(i, ls.length)), borderRadius: 5, maxBarThickness: 36 }] },
+                    options: (() => {
+                        // mesmas opções do gráfico da tela, com letras um pouco maiores
+                        const o = cxBarraHorizontalOptions(unidade);
+                        o.scales.y.ticks.font = { size: 13, weight: '600' };
+                        o.scales.x.ticks.font = { size: 11 };
+                        o.plugins.datalabels.font = { size: 13, weight: '700' };
+                        return { ...o, responsive: false, animation: false, devicePixelRatio: 2 };
+                    })(),
                 });
                 return `<img src="${temp.toBase64Image('image/png', 1.0)}" alt="${alt}" style="width:100%;height:auto;display:block;">`;
             } catch (e) {
                 console.warn('Gráfico filtrado indisponível pro relatório:', alt, e);
+                return cxpImg(chart, alt);
+            } finally {
+                if (temp) temp.destroy();
+                area.remove();
+            }
+        }
+        // Série diária do modelo (consumo real + Fulfillment empilhados), refeita
+        // fora da tela em tamanho e resolução próprios pro relatório — a imagem
+        // do gráfico da tela é pequena e ficava ilegível no PDF.
+        function cxpSerie(chart, alt) {
+            if (!chart) return cxpImg(chart, alt);
+            const largura = 490, altura = 340;
+            const area = document.createElement('div');
+            area.style.cssText = `position:fixed;left:-20000px;top:0;width:${largura}px;height:${altura}px;`;
+            const canvas = document.createElement('canvas');
+            canvas.style.cssText = `width:${largura}px;height:${altura}px;`;
+            area.appendChild(canvas);
+            document.body.appendChild(area);
+            let temp;
+            try {
+                temp = new Chart(canvas.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: (chart.data.labels || []).slice(),
+                        datasets: chart.data.datasets.map(d => ({
+                            label: d.label, type: d.type, data: (d.data || []).slice(), order: d.order,
+                            backgroundColor: d.backgroundColor, borderColor: d.borderColor, borderDash: d.borderDash,
+                            borderWidth: d.borderWidth, pointRadius: d.pointRadius, fill: d.fill,
+                            borderRadius: d.borderRadius, maxBarThickness: d.maxBarThickness,
+                        })),
+                    },
+                    options: {
+                        responsive: false, animation: false, devicePixelRatio: 2,
+                        plugins: {
+                            legend: { display: true, position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12, boxHeight: 12, font: { size: 12 } } },
+                            datalabels: { display: false },
+                        },
+                        scales: {
+                            x: { stacked: true, grid: { display: false }, ticks: { color: '#64748b', font: { size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } },
+                            y: { stacked: true, beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 11 } } },
+                        },
+                    },
+                });
+                return `<img src="${temp.toBase64Image('image/png', 1.0)}" alt="${alt}" style="width:100%;height:auto;display:block;">`;
+            } catch (e) {
+                console.warn('Série diária indisponível pro relatório:', e);
                 return cxpImg(chart, alt);
             } finally {
                 if (temp) temp.destroy();
@@ -3724,7 +3777,7 @@
                         ${estat('Média 30 dias', 'cxStatAvg30')}${estat('Média 7 dias', 'cxStatAvg7')}${estat('Tendência', 'cxStatTrend')}
                         ${estat('Fulfillment — média 30 dias', 'cxStatFulfillment30')}${estat('Total (real + Fulfillment)', 'cxStatTotal30')}
                     </div>
-                    <div style="flex:1;min-height:0;overflow:hidden;position:relative;">${cxpImg(cxSerieChart, 'Consumo diário por modelo')}</div>
+                    <div style="flex:1;min-height:0;overflow:hidden;position:relative;">${cxpSerie(cxSerieChart, 'Consumo diário por modelo')}</div>
                 </div>
             </div>`;
 
