@@ -3663,23 +3663,36 @@
             }
         }
 
-        function cxpPagina(titulo, subtitulo, conteudo, numero, total, cabecalho) {
+        // Cabeçalho no estilo do relatório executivo do painel: logotipo, título e
+        // subtítulo à esquerda; "Referência" e "Filial" à direita. `ctx` traz o
+        // logotipo, a referência (período), a filial e as datas de geração.
+        function cxpPagina(titulo, subtitulo, conteudo, numero, total, ctx) {
+            const selo = (rotulo, valor, fundo, borda, corRotulo) => `
+                <div style="background:${fundo};border:1px solid ${borda};border-radius:6px;padding:5px 12px;text-align:right;min-width:92px;">
+                    <span style="font-size:9px;font-weight:700;color:${corRotulo};text-transform:uppercase;display:block;letter-spacing:.04em;">${rotulo}</span>
+                    <span style="font-size:14px;font-weight:800;color:#ffffff;white-space:nowrap;">${valor}</span>
+                </div>`;
             return `
             <div class="cxp-pagina" style="width:1123px;height:793px;box-sizing:border-box;padding:26px 34px 22px;background:#070b14;color:#f1f5f9;font-family:Inter,Arial,sans-serif;position:relative;overflow:hidden;page-break-after:always;">
-                <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid #1e293b;padding-bottom:10px;margin-bottom:14px;">
-                    <div>
-                        <div style="font-size:19px;font-weight:800;letter-spacing:-.01em;">${titulo}</div>
-                        <div style="font-size:11.5px;color:#94a3b8;margin-top:3px;">${subtitulo}</div>
+                <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1.5px solid #1e293b;padding-bottom:12px;margin-bottom:16px;">
+                    <div style="display:flex;align-items:center;gap:14px;">
+                        ${ctx.logo}
+                        <div style="border-left:1.5px solid #1e293b;padding-left:14px;">
+                            <div style="font-size:17px;font-weight:800;color:#ffffff;text-transform:uppercase;line-height:1.15;">${titulo}</div>
+                            <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-top:3px;">${subtitulo}</div>
+                        </div>
                     </div>
-                    <div style="text-align:right;font-size:10.5px;color:#64748b;line-height:1.5;">${cabecalho}</div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        ${selo('Referência', ctx.referencia, 'rgba(30,58,138,.4)', '#3b82f6', '#93c5fd')}
+                        ${selo('Filial', ctx.filial, 'rgba(14,116,144,.35)', '#06b6d4', '#67e8f9')}
+                    </div>
                 </div>
-                <div style="height:calc(100% - 78px);">${conteudo}</div>
+                <div style="height:calc(100% - 110px);">${conteudo}</div>
                 <div style="position:absolute;left:34px;right:34px;bottom:12px;display:flex;justify-content:space-between;font-size:9.5px;color:#475569;">
-                    <span>Paulicomp — Controle de Caixas de Embalagem · Filial SP</span><span>Página ${numero} de ${total}</span>
+                    <span>Paulicomp — Controle de Caixas de Embalagem · Gerado em ${ctx.geradoEm} · Dados de consumo até ${ctx.ultimaSaida}</span><span>Página ${numero} de ${total}</span>
                 </div>
             </div>`;
         }
-
         function cxpTabela(colunas, linhas, opcoes = {}) {
             const th = colunas.map(c => `<th style="text-align:${c.num ? 'right' : 'left'};font-size:9.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:6px 8px;border-bottom:1px solid #1e293b;white-space:nowrap;">${c.titulo}</th>`).join('');
             const tr = linhas.map(l => `<tr>${l.map((v, i) => `<td style="text-align:${colunas[i].num ? 'right' : 'left'};padding:${opcoes.compacto ? '4px' : '6px'} 8px;border-bottom:1px solid #111a2e;font-size:${opcoes.fonte || 11}px;color:#cbd5e1;white-space:nowrap;">${v}</td>`).join('')}</tr>`).join('');
@@ -3690,7 +3703,20 @@
             const modelos = cxResumo?.modelos || [];
             const agora = new Date();
             const geradoEm = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-            const cabecalho = `Gerado em ${geradoEm}<br>Dados de consumo até ${cxpDataBr(cxResumo?.ultima_saida)}`;
+            // logotipo igual ao do painel (respeita a logo trocada pelo usuário)
+            const logoImg = document.getElementById('logoImage');
+            const logoOk = logoImg && !logoImg.classList.contains('hidden') && logoImg.complete && logoImg.naturalWidth > 0;
+            const logo = `<div style="height:46px;padding:4px 12px;border:1px solid rgba(51,65,85,.7);border-radius:12px;display:flex;align-items:center;">${
+                logoOk ? `<img src="${logoImg.src}" alt="Paulicomp" style="height:36px;width:auto;display:block;">`
+                       : '<span style="font-size:16px;font-weight:900;letter-spacing:.06em;color:#ffffff;">PAULICOMP</span>'}</div>`;
+            const periodoSelRef = document.getElementById('cxPeriodoSelect');
+            const ctx = {
+                logo,
+                referencia: periodoSelRef ? periodoSelRef.options[periodoSelRef.selectedIndex].text : 'Últimos 30 dias',
+                filial: 'PAULICOMP ' + CX_FILIAL,
+                geradoEm,
+                ultimaSaida: cxpDataBr(cxResumo?.ultima_saida),
+            };
             const TOTAL = 2;
 
             // ---- página 1: consumo por modelo (só quem teve consumo) ----
@@ -3729,8 +3755,8 @@
                 + `<div style="font-size:9.5px;color:#64748b;margin-top:8px;line-height:1.5;">Consumo/dia = consumo real dos últimos 30 dias + envios de lote ao Fulfillment (média de 60 dias). Ponto de reposição = consumo × lead time + segurança. Tendência = últimos 7 dias contra os 7 anteriores (consumo real).</div>`;
 
             const html = [
-                cxpPagina('Consumo de Embalagens SP', `Consumo médio diário por modelo de embalagem — ${periodo}`, p1, 1, TOTAL, cabecalho),
-                cxpPagina('Modelos de caixa', 'Estoque, consumo, ponto de reposição e status, por urgência de compra', p2, 2, TOTAL, cabecalho),
+                cxpPagina('Consumo de Embalagens SP', `Consumo médio diário por modelo de embalagem — ${periodo}`, p1, 1, TOTAL, ctx),
+                cxpPagina('Modelos de caixa', 'Estoque, consumo, ponto de reposição e status, por urgência de compra', p2, 2, TOTAL, ctx),
             ].join('');
             const raiz = document.createElement('div');
             raiz.id = 'cxRelatorioRaiz';
