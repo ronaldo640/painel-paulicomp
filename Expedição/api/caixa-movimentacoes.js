@@ -79,8 +79,10 @@ export default async function handler(req, res) {
       //    fora do "consumo real", mas entra no consumo do planejamento.
       let saidaTipo = tipo === 'saida' ? (req.body.saida_tipo || 'consumo') : 'consumo';
       if (tipo === 'saida' && !req.body.saida_tipo && req.body.conta_consumo === false) saidaTipo = 'transferencia'; // compat.
-      if (!['consumo', 'transferencia', 'fulfillment'].includes(saidaTipo)) {
-        return res.status(400).json({ error: 'Campo "saida_tipo" deve ser "consumo", "transferencia" ou "fulfillment".' });
+      //  - 'ajuste': correção de estoque por contagem física (inventário). Só
+      //    acerta o saldo; nunca é consumo.
+      if (!['consumo', 'transferencia', 'fulfillment', 'ajuste'].includes(saidaTipo)) {
+        return res.status(400).json({ error: 'Campo "saida_tipo" deve ser "consumo", "transferencia", "fulfillment" ou "ajuste".' });
       }
       const contaConsumo = saidaTipo === 'consumo';
       const envioFulfillment = saidaTipo === 'fulfillment';

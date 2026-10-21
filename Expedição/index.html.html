@@ -2643,7 +2643,7 @@
                 return `
                     <div class="cx-movrow">
                         <div class="cx-movicon ${isIn ? 'in' : 'out'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="${iconPath}"/></svg></div>
-                        <div class="cx-movtext"><div class="t1">${m.modelo_nome}</div><div class="t2">${dataFmt} · ${isIn ? 'compra' : (m.envio_fulfillment ? 'envio Fulfillment' : (m.conta_consumo === false ? 'transferência' : 'uso'))}${m.observacao ? ' — ' + m.observacao : ''}</div></div>
+                        <div class="cx-movtext"><div class="t1">${m.modelo_nome}</div><div class="t2">${dataFmt} · ${isIn ? 'compra' : (m.envio_fulfillment ? 'envio Fulfillment' : (m.conta_consumo === false ? (/^Ajuste de estoque/.test(m.observacao || '') ? 'ajuste' : 'transferência') : 'uso'))}${m.observacao ? ' — ' + m.observacao : ''}</div></div>
                         <div class="cx-movqty ${isIn ? 'in' : 'out'}">${isIn ? '+' : '−'}${m.quantidade}</div>
                     </div>`;
             }).join('');
@@ -3225,7 +3225,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         modelo_id: a.modelo_id, filial: CX_FILIAL, tipo: a.tipo, quantidade: a.quantidade,
-                        data: cxTodayIso(), observacao: 'Ajuste de estoque — contagem física',
+                        data: cxTodayIso(), observacao: 'Ajuste de estoque — contagem física', saida_tipo: 'ajuste',
                     }),
                 }).then(async r => {
                     if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || ('Falha ao ajustar estoque do modelo ' + a.modelo_id)); }
