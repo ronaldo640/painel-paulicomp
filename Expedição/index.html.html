@@ -177,6 +177,8 @@
         .cx-btn:hover { border-color: #334155; background: #151f34; }
         .cx-btn.primary { background: #3b82f6; border-color: #3b82f6; color: #fff; }
         .cx-btn.primary:hover { background: #2f6fe0; }
+        .cx-btn.danger { background: #dc2626; border-color: #dc2626; color: #fff; }
+        .cx-btn.danger:hover { background: #b91c1c; border-color: #b91c1c; }
         .cx-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
 
         .cx-cadastro-table input, .cx-cadastro-table select { width: 100%; background: #151f34; border: 1px solid #1e293b; color: #f1f5f9; border-radius: 6px; padding: 5px 7px; font-size: 12.5px; font-family: inherit; }
@@ -519,7 +521,7 @@
                 </div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                <button class="cx-btn" id="cxBtnRelatorio" title="Baixa um PDF com os gráficos de consumo, Fulfillment, modelos e movimentação (Shift+clique abre uma prévia na tela)">
+                <button class="cx-btn danger" id="cxBtnRelatorio" title="Baixa um PDF com os gráficos de consumo, Fulfillment, modelos e movimentação (Shift+clique abre uma prévia na tela)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8zM14 3v5h5M9 13h6M9 17h6"/></svg>
                     Relatório PDF
                 </button>
@@ -2625,11 +2627,23 @@
 
         // Mantém o modelo escolhido entre atualizações; na primeira vez,
         // abre no de maior consumo.
+        // O gráfico abre sempre no modelo de maior consumo (real + Fulfillment, do
+        // ranking do período; sem o ranking, o consumo real do resumo). Só deixa
+        // de seguir o maior consumo quando o usuário escolhe um modelo no seletor,
+        // e isso vale até recarregar a página.
+        let cxSerieEscolhidaManual = false;
         function cxLoadSerieSelecionada() {
             const sel = document.getElementById('cxModelSelect');
-            if (!sel.value) {
-                const top = [...(cxResumo?.modelos || [])].sort((a, b) => b.consumo_30d - a.consumo_30d)[0];
-                if (top) sel.value = String(top.id);
+            if (!cxSerieEscolhidaManual) {
+                let topoId = null;
+                if (cxRankingDados.length) {
+                    const total = m => Number(m.media_diaria) + Number(m.media_fulfillment || 0);
+                    topoId = [...cxRankingDados].sort((a, b) => total(b) - total(a))[0].modelo_id;
+                } else {
+                    const top = [...(cxResumo?.modelos || [])].sort((a, b) => b.consumo_30d - a.consumo_30d)[0];
+                    topoId = top ? top.id : null;
+                }
+                if (topoId !== null) sel.value = String(topoId);
             }
             return sel.value ? cxLoadSerie(Number(sel.value)) : Promise.resolve();
         }
@@ -2681,10 +2695,10 @@
                 const dataDia = document.getElementById('cxDiaSelect').value;
                 const dataDiaFulfillment = document.getElementById('cxFulfillmentDiaSelect').value;
                 await Promise.all([
-                    cxLoadConsumoModelos(dias),
+                    // a série diária espera o ranking, que define o modelo de maior consumo
+                    cxLoadConsumoModelos(dias).then(() => cxLoadSerieSelecionada()),
                     cxLoadConsumoDia(dataDia),
                     cxLoadFulfillment(dataDiaFulfillment),
-                    cxLoadSerieSelecionada(),
                 ]);
             } catch (err) {
                 cxToast('Erro ao carregar Controle de Caixas: ' + err.message, 'error');
@@ -3536,8 +3550,8 @@
         // ---------------------------------------------------------------
         // Wiring
         // ---------------------------------------------------------------
-        document.getElementById('cxPeriodoSelect').addEventListener('change', e => cxLoadConsumoModelos(Number(e.target.value)));
-        document.getElementById('cxModelSelect').addEventListener('change', e => cxLoadSerie(Number(e.target.value)));
+        document.getElementById('cxPeriodoSelect').addEventListener('change', e => cxLoadConsumoModelos(Number(e.target.value)).then(() => cxLoadSerieSelecionada()));
+        document.getElementById('cxModelSelect').addEventListener('change', e => { cxSerieEscolhidaManual = true; cxLoadSerie(Number(e.target.value)); });
         document.getElementById('cxFulfillmentDiaSelect').addEventListener('change', e => cxLoadFulfillment(e.target.value));
         document.getElementById('cxDiaSelect').addEventListener('change', e => cxLoadConsumoDia(e.target.value));
 
