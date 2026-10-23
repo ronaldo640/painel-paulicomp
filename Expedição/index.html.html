@@ -348,6 +348,7 @@
             <nav class="cx-tabs" style="display:inline-flex;">
                 <a id="cxNavOverview" class="active" data-cx-tab="cxTabOverview">Visão Geral</a>
                 <a id="cxNavCaixas" data-cx-tab="cxTabCaixas">Controle de Caixas</a>
+                <a id="cxNavInsumos" title="Estoque de fita, plástico, bobinas e etiquetas">Controle de Insumos</a>
             </nav>
         </div>
     </div>
@@ -528,10 +529,6 @@
                 <button class="cx-btn danger" id="cxBtnRelatorio" title="Baixa um PDF com os gráficos de consumo, Fulfillment, modelos e movimentação (Shift+clique abre uma prévia na tela)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8zM14 3v5h5M9 13h6M9 17h6"/></svg>
                     Relatório PDF
-                </button>
-                <button class="cx-btn" id="cxBtnInsumos" title="Estoque de fita, plástico, bobinas e etiquetas">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/></svg>
-                    Insumos
                 </button>
                 <button class="cx-btn" id="cxBtnOpenCompras">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h15l-1.5 9h-12zM6 6L5 3H2M9 20a1 1 0 100-2 1 1 0 000 2zm9 0a1 1 0 100-2 1 1 0 000 2z"/></svg>
@@ -4212,7 +4209,7 @@
             return raiz;
         }
 
-        document.getElementById('cxBtnInsumos').addEventListener('click', cxAbrirInsumos);
+        document.getElementById('cxNavInsumos').addEventListener('click', cxAbrirInsumos);
         document.getElementById('cxBtnCloseInsumos').addEventListener('click', () => { document.getElementById('cxInsumosModal').hidden = true; });
         document.getElementById('cxBtnFecharInsumos').addEventListener('click', () => { document.getElementById('cxInsumosModal').hidden = true; });
         document.getElementById('cxInsumosModal').addEventListener('click', e => {
