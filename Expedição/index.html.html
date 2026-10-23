@@ -3998,12 +3998,12 @@
                         ? `<span style="color:#93c5fd;">${cxQtd(i.consumo_por_embalagem)} por embalagem</span><div class="cx-box-sub">${i.unidades_por_estoque > 1 ? cxQtd(i.unidades_por_estoque) + ' por ' + cxEsc(i.unidade) + ' · ' : ''}desde ${cxpDataBr(i.auto_desde)}${i.auto_inclui_fulfillment ? ' · com Fulfillment' : ''}</div>`
                         : `<span style="color:#94a3b8;">manual</span>${i.ativo && i.dias_sem_lancamento !== null && i.dias_sem_lancamento >= 21 ? `<div class="cx-box-sub" style="color:#fcd34d;">sem lançamento há ${i.dias_sem_lancamento} dias</div>` : ''}`;
                     return `<tr style="${i.ativo ? '' : 'opacity:.55;'}">
-                        <td><div class="cx-box-name">${cxEsc(i.nome)}</div><div class="cx-box-sub">${cxEsc(i.unidade)}${i.lead_time_dias ? ' · entrega ' + i.lead_time_dias + ' dias' : ''}</div></td>
+                        <td><div class="cx-box-name" data-ins-editar="${i.id}" style="cursor:pointer;" title="Clique para editar: prazo de entrega, estoque mínimo e baixa automática">${cxEsc(i.nome)} <span style="font-size:11px;font-weight:600;color:#60a5fa;">editar</span></div><div class="cx-box-sub">${cxEsc(i.unidade)}${i.lead_time_dias ? ' · entrega ' + i.lead_time_dias + ' dias' : ''}</div></td>
                         <td class="num"><b style="color:#f1f5f9;">${cxQtd(i.estoque_atual)}</b> <span class="cx-box-sub">${cxEsc(i.unidade)}</span></td>
                         <td class="num">${i.consumo_dia > 0 ? cxQtd(i.consumo_dia) : '—'}</td>
                         <td class="num">${i.cobertura_dias !== null ? i.cobertura_dias + ' dias' : '—'}</td>
                         <td class="num">${i.ponto_reposicao !== null ? cxQtd(i.ponto_reposicao) : '—'}${i.estoque_minimo !== null ? '<div class="cx-box-sub">mínimo definido</div>' : ''}</td>
-                        <td>${cxInsBadge(i.status)}</td>
+                        <td><span data-ins-editar="${i.id}" style="cursor:pointer;" title="Clique para definir o prazo de entrega ou o estoque mínimo">${cxInsBadge(i.status)}</span></td>
                         <td>${baixa}</td>
                         <td class="num"><button type="button" class="cx-btn" style="padding:5px 10px;font-size:11.5px;" data-ins-editar="${i.id}">Editar</button></td>
                     </tr>`;
