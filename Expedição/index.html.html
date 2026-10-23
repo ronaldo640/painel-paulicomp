@@ -3977,6 +3977,13 @@
         }
 
         const cxQtd = n => Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+        // Consumo por dia na unidade de USO: insumo com "unidades por rolo" (ex: etiqueta) mostra
+        // etiquetas por dia, e não a fração de rolo em que o estoque é contado.
+        function cxConsumoUso(i) {
+            if (!(i.consumo_dia > 0)) return null;
+            if (i.unidades_por_estoque > 1) return { valor: Math.round(i.consumo_dia * i.unidades_por_estoque), unidade: /etiqueta/i.test(i.nome) ? 'etiquetas' : 'un' };
+            return { valor: i.consumo_dia, unidade: i.unidade };
+        }
         const CX_INS_STATUS = {
             crit: ['crit', 'Comprar agora'], warn: ['warn', 'Atenção'], ok: ['ok', 'OK'],
             sem_config: ['sem_config', 'Definir prazo ou mínimo'], inativo: ['nao_controlada', 'Inativo'],
@@ -4004,7 +4011,7 @@
                     return `<tr style="${i.ativo ? '' : 'opacity:.55;'}">
                         <td><div class="cx-box-name" data-ins-editar="${i.id}" style="cursor:pointer;" title="Clique para editar: prazo de entrega, estoque mínimo e baixa automática">${cxEsc(i.nome)} <span style="font-size:11px;font-weight:600;color:#60a5fa;">editar</span></div><div class="cx-box-sub">${cxEsc(i.unidade)}${i.lead_time_dias ? ' · entrega ' + i.lead_time_dias + ' dias' : ''}</div></td>
                         <td class="num"><b style="color:#f1f5f9;">${cxQtd(i.estoque_atual)}</b> <span class="cx-box-sub">${cxEsc(i.unidade)}</span></td>
-                        <td class="num">${i.consumo_dia > 0 ? cxQtd(i.consumo_dia) : '—'}</td>
+                        <td class="num">${(() => { const c = cxConsumoUso(i); return c ? `${cxQtd(c.valor)} <span class="cx-box-sub">${cxEsc(c.unidade)}</span>` : '—'; })()}</td>
                         <td class="num">${i.cobertura_dias !== null ? i.cobertura_dias + ' dias' : '—'}</td>
                         <td class="num">${i.ponto_reposicao !== null ? cxQtd(i.ponto_reposicao) : '—'}${i.estoque_minimo !== null ? '<div class="cx-box-sub">mínimo definido</div>' : ''}</td>
                         <td><span data-ins-editar="${i.id}" style="cursor:pointer;" title="Clique para definir o prazo de entrega ou o estoque mínimo">${cxInsBadge(i.status)}</span></td>
@@ -4149,7 +4156,7 @@
             const linhas = insumos.map(i => [
                 `<b style="color:#f1f5f9;">${cxEsc(i.nome)}</b>`, cxEsc(i.unidade),
                 `<b style="color:#f1f5f9;">${cxQtd(i.estoque_atual)}</b>`,
-                i.consumo_dia > 0 ? cxQtd(i.consumo_dia) + '/dia' : '—',
+                (() => { const c = cxConsumoUso(i); return c ? `${cxQtd(c.valor)} ${cxEsc(c.unidade)}/dia` : '—'; })(),
                 i.cobertura_dias !== null ? `<span style="color:${COR[i.status] || '#cbd5e1'};font-weight:700;">${i.cobertura_dias} dias</span>` : '—',
                 i.ponto_reposicao !== null ? cxQtd(i.ponto_reposicao) : '—',
                 `<span style="color:${COR[i.status] || '#cbd5e1'};font-weight:700;">${(CX_INS_STATUS[i.status] || CX_INS_STATUS.sem_config)[1]}</span>`,
