@@ -160,25 +160,21 @@ export async function calcularResumo(sql, filial, limitePendenciasEntrada) {
     console.error('Tabela caixa_compras indisponível (migração 009 pendente?):', err.message);
   }
 
-  // Envios ao Fulfillment lançados manualmente (migração 011): baixam o
-  // estoque, mas ficam fora do "consumo real" (conta_consumo = false). Pro
-  // planejamento de compra entram como consumo, numa janela maior (60
-  // dias), porque o envio é em lote a cada 20-30 dias e uma janela de 30
-  // dias oscilaria demais conforme caiu ou não um lote nela.
-  const JANELA_ENVIO_FULFILLMENT = 60;
+  // Consumo do Fulfillment (vendas série 2, conta_estoque = false): entra, junto
+  // com o consumo real (Mercado Envios e outros), no consumo usado no
+  // planejamento (ponto de reposição, cobertura e sugestão de compra) — a média
+  // dos dois envios reflete melhor o uso real das caixas. É a demanda, medida
+  // pelas vendas; por isso os lotes enviados ao Fulfillment (lançados à mão,
+  // envio_fulfillment) só baixam o estoque e NÃO entram aqui, senão contariam duas vezes.
+  const DIAS_FULFILLMENT = 30;
   const consumoFulfillment = new Map();
-  try {
-    const fl = await sql`
-      SELECT modelo_id, SUM(quantidade)::numeric / ${JANELA_ENVIO_FULFILLMENT} AS por_dia
-      FROM caixa_movimentacoes
-      WHERE filial = ${filial} AND tipo = 'saida' AND envio_fulfillment = true
-        AND data > current_date - ${JANELA_ENVIO_FULFILLMENT} * interval '1 day'
-      GROUP BY modelo_id`;
-    fl.forEach(f => consumoFulfillment.set(f.modelo_id, Number(f.por_dia)));
-  } catch (err) {
-    console.error('Coluna envio_fulfillment indisponível (migração 011 pendente?):', err.message);
-  }
-
+  const fl = await sql`
+    SELECT modelo_id, SUM(quantidade)::numeric / ${DIAS_FULFILLMENT} AS por_dia
+    FROM caixa_movimentacoes
+    WHERE filial = ${filial} AND tipo = 'saida' AND conta_estoque = false
+      AND data > current_date - ${DIAS_FULFILLMENT} * interval '1 day'
+    GROUP BY modelo_id`;
+  fl.forEach(f => consumoFulfillment.set(f.modelo_id, Number(f.por_dia)));
   const modelos = rows.map(r => {
     if (semControle.has(r.id)) {
       const tendencia = r.consumo_prev7d > 0 ? ((r.consumo_7d - r.consumo_prev7d) / r.consumo_prev7d) * 100 : null;
@@ -194,7 +190,7 @@ export async function calcularResumo(sql, filial, limitePendenciasEntrada) {
         status: 'nao_controlada',
       };
     }
-    // Consumo usado no planejamento = consumo real (30d) + envios ao Fulfillment (60d).
+    // Consumo usado no planejamento = consumo real (30d) + Fulfillment série 2 (30d).
     const consumoFulf = consumoFulfillment.get(r.id) || 0;
     const consumoPlan = r.consumo_30d + consumoFulf;
     const estoqueSeguranca = consumoPlan * (r.lead_time_dias || 0) * Number(r.estoque_seguranca_pct);

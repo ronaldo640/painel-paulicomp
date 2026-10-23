@@ -2868,7 +2868,7 @@
         function cxAtualizaDicaSaida() {
             const dicas = {
                 consumo: 'Uso normal: baixa o estoque e entra no consumo real.',
-                fulfillment: 'Baixa o estoque e entra no consumo usado pro planejamento de compra (média de 60 dias), mas fica fora do consumo real e do gráfico Mercado Envios e outros.',
+                fulfillment: 'Baixa o estoque, mas fica fora do consumo real e do gráfico Mercado Envios e outros. O consumo do Fulfillment usado no planejamento vem das vendas série 2, não dos lotes.',
                 transferencia: 'Baixa o estoque, mas fica fora de qualquer consumo (média, tendência e gráficos).',
             };
             document.getElementById('cxMovSaidaTipoHint').textContent = dicas[document.getElementById('cxMovSaidaTipo').value] || '';
@@ -3951,7 +3951,7 @@
             const p2 = cxpTabela(
                 [{ titulo: 'Modelo' }, { titulo: 'Estoque', num: true }, { titulo: 'Consumo/dia', num: true }, { titulo: 'Ponto de reposição', num: true }, { titulo: 'Cobertura', num: true }, { titulo: 'Sugestão de compra', num: true }, { titulo: 'Pedido padrão', num: true }, { titulo: 'Tendência', num: true }, { titulo: 'Status' }],
                 linhasModelos, { compacto: true, fonte: 10.5 })
-                + `<div style="font-size:9.5px;color:#64748b;margin-top:8px;line-height:1.5;">Consumo/dia = consumo real dos últimos 30 dias + envios de lote ao Fulfillment (média de 60 dias). Ponto de reposição = consumo × lead time + segurança. Tendência = últimos 7 dias contra os 7 anteriores (consumo real).</div>`;
+                + `<div style="font-size:9.5px;color:#64748b;margin-top:8px;line-height:1.5;">Consumo/dia = média dos últimos 30 dias dos dois envios: Mercado Envios e outros (consumo real) + vendas do Fulfillment. Ponto de reposição = consumo × lead time + segurança. Tendência = últimos 7 dias contra os 7 anteriores (consumo real).</div>`;
 
             const html = [
                 cxpPagina('Consumo de Embalagens SP', 'Consumo médio diário por modelo de embalagem', p1, 1, TOTAL, ctx),
