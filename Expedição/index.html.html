@@ -3916,7 +3916,7 @@
             } catch (err) {
                 cxToast('Os insumos não entraram no relatório: ' + err.message, 'error');
             }
-            const TOTAL = insumosOk ? 4 : 2;
+            const TOTAL = insumosOk ? 3 : 2;
 
             // ---- página 1: consumo por modelo (só quem teve consumo) ----
             const periodoSel = document.getElementById('cxPeriodoSelect');
@@ -4215,13 +4215,12 @@
         }
 
         // ---- relatório PDF de insumos (2 páginas, mesmo estilo do de embalagens) ----
-        // Páginas do controle de insumos (2). Usadas no relatório só de insumos e no combinado.
+        // Página do controle de insumos (1). Usada no relatório só de insumos e no combinado.
         function cxpPaginasInsumos(ctxBase, numeroInicial, total) {
             const ctx = Object.assign({}, ctxBase);
             ctx.referencia = 'Últimos 30 dias'; // o consumo dos insumos é sempre a média dos últimos 30 dias
             ctx.ultimaSaida = cxpDataBr(cxTodayIso());
             const insumos = (cxInsumosDados?.insumos || []).filter(i => i.ativo);
-            const movs = cxInsumosDados?.movimentos || [];
             const COR = { crit: '#fda4af', warn: '#fcd34d', ok: '#6ee7b7', sem_config: '#cbd5e1' };
             const linhas = insumos.map(i => [
                 `<b style="color:#f1f5f9;">${cxEsc(i.nome)}</b>`, cxEsc(i.unidade),
@@ -4251,16 +4250,7 @@
                     <div style="font-size:10.5px;color:#64748b;margin:2px 0 8px;">Média por dia nos últimos 30 dias, na unidade de uso de cada insumo (só quem teve consumo)</div>
                     ${grafico}
                 </div>`;
-            const rotulo = m => m.tipo === 'entrada' ? (m.conta_consumo === false ? 'ajuste' : 'entrada') : (m.conta_consumo === false ? 'ajuste' : 'uso');
-            const tabMovs = movs.length ? cxpTabela(
-                [{ titulo: 'Data' }, { titulo: 'Insumo' }, { titulo: 'Tipo' }, { titulo: 'Qtd', num: true }, { titulo: 'Observação' }],
-                movs.map(m => [cxpDataBr(m.data), cxEsc(m.insumo_nome), rotulo(m), (m.tipo === 'entrada' ? '+' : '−') + cxQtd(m.quantidade) + ' ' + cxEsc(m.unidade), cxEsc((m.observacao || '').slice(0, 60))]),
-                { compacto: true, fonte: 10.5 }) : '<div style="font-size:11.5px;color:#64748b;">Nenhum lançamento registrado.</div>';
-            const p2 = `<div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;margin:0 0 6px;">Últimos lançamentos</div>${tabMovs}`;
-            return [
-                cxpPagina('Controle de Insumos SP', 'Estoque, consumo e ponto de reposição dos insumos', p1, numeroInicial, total, ctx),
-                cxpPagina('Movimentação de insumos', 'Lançamentos mais recentes de entrada, saída e ajuste', p2, numeroInicial + 1, total, ctx),
-            ].join('');
+            return cxpPagina('Controle de Insumos SP', 'Estoque, consumo e ponto de reposição dos insumos', p1, numeroInicial, total, ctx);
         }
 
         // Relatório só de insumos (botão dentro da janela de insumos)
@@ -4268,7 +4258,7 @@
             const raiz = document.createElement('div');
             raiz.id = 'cxRelatorioRaiz';
             raiz.style.cssText = 'width:1123px;background:#070b14;';
-            raiz.innerHTML = cxpPaginasInsumos(cxpContexto(), 1, 2);
+            raiz.innerHTML = cxpPaginasInsumos(cxpContexto(), 1, 1);
             return raiz;
         }
 
