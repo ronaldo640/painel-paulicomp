@@ -10,7 +10,7 @@
 const DIAS_CONSUMO = 30;
 
 function erroMigracao(error) {
-  return /insumos|insumo_movimentacoes/.test(error.message || '');
+  return /insumos|insumo_movimentacoes|unidades_por_estoque/.test(error.message || '');
 }
 
 const num = v => (v === null || v === undefined || v === '' ? null : Number(v));
@@ -18,13 +18,28 @@ const num = v => (v === null || v === undefined || v === '' ? null : Number(v));
 // Resumo de todos os insumos: estoque, consumo/dia, cobertura, ponto de
 // reposição e situação (crit | warn | ok | sem_config).
 export async function calcularInsumos(sql, filial) {
-  const insumos = await sql`
-    SELECT id, nome, unidade, lead_time_dias, estoque_seguranca_pct::float AS estoque_seguranca_pct,
-           estoque_minimo, consumo_por_embalagem::float AS consumo_por_embalagem,
-           TO_CHAR(auto_desde, 'YYYY-MM-DD') AS auto_desde, auto_inclui_fulfillment, ativo
-    FROM insumos
-    ORDER BY ativo DESC, nome
-  `;
+  // unidades_por_estoque (migração 015) é lida à parte: sem ela, tudo segue com fator 1
+  let insumos;
+  try {
+    insumos = await sql`
+      SELECT id, nome, unidade, lead_time_dias, estoque_seguranca_pct::float AS estoque_seguranca_pct,
+             estoque_minimo, consumo_por_embalagem::float AS consumo_por_embalagem,
+             TO_CHAR(auto_desde, 'YYYY-MM-DD') AS auto_desde, auto_inclui_fulfillment, ativo,
+             unidades_por_estoque::float AS unidades_por_estoque
+      FROM insumos
+      ORDER BY ativo DESC, nome
+    `;
+  } catch (err) {
+    if (!/unidades_por_estoque/.test(err.message || '')) throw err;
+    insumos = await sql`
+      SELECT id, nome, unidade, lead_time_dias, estoque_seguranca_pct::float AS estoque_seguranca_pct,
+             estoque_minimo, consumo_por_embalagem::float AS consumo_por_embalagem,
+             TO_CHAR(auto_desde, 'YYYY-MM-DD') AS auto_desde, auto_inclui_fulfillment, ativo,
+             1::float AS unidades_por_estoque
+      FROM insumos
+      ORDER BY ativo DESC, nome
+    `;
+  }
   const movs = await sql`
     SELECT insumo_id,
            COALESCE(SUM(CASE WHEN tipo = 'entrada' THEN quantidade ELSE -quantidade END), 0)::float AS saldo_manual,
@@ -54,9 +69,11 @@ export async function calcularInsumos(sql, filial) {
         WHERE filial = ${filial} AND tipo = 'saida'
           AND ((conta_estoque = true AND conta_consumo = true) OR (${i.auto_inclui_fulfillment}::boolean AND conta_estoque = false))
       `;
-      baixaAutomatica = e.desde * i.consumo_por_embalagem;
+      // consumo_por_embalagem está na unidade de consumo (ex: etiquetas); o estoque, na de estoque (ex: rolos)
+      const porEmbalagem = i.consumo_por_embalagem / (i.unidades_por_estoque || 1);
+      baixaAutomatica = e.desde * porEmbalagem;
       embalagens30d = e.ultimos_30d;
-      consumoDia += (e.ultimos_30d * i.consumo_por_embalagem) / DIAS_CONSUMO;
+      consumoDia += (e.ultimos_30d * porEmbalagem) / DIAS_CONSUMO;
     }
 
     const estoque = Math.round((m.saldo_manual - baixaAutomatica) * 100) / 100;
@@ -125,8 +142,8 @@ export default async function handlerInsumos(req, res, sql) {
         const desde = body.auto_desde || null;
         if (cpe !== null && !desde) return res.status(400).json({ error: 'Pra baixa automática, informe também a data de início ("A partir de").' });
         const rows = await sql`
-          INSERT INTO insumos (nome, unidade, lead_time_dias, estoque_seguranca_pct, estoque_minimo, consumo_por_embalagem, auto_desde, auto_inclui_fulfillment)
-          VALUES (${nome}, ${unidade}, ${num(body.lead_time_dias)}, ${seg}, ${num(body.estoque_minimo)}, ${cpe}, ${desde}, ${body.auto_inclui_fulfillment === true})
+          INSERT INTO insumos (nome, unidade, lead_time_dias, estoque_seguranca_pct, estoque_minimo, consumo_por_embalagem, auto_desde, auto_inclui_fulfillment, unidades_por_estoque)
+          VALUES (${nome}, ${unidade}, ${num(body.lead_time_dias)}, ${seg}, ${num(body.estoque_minimo)}, ${cpe}, ${desde}, ${body.auto_inclui_fulfillment === true}, ${num(body.unidades_por_estoque) > 0 ? num(body.unidades_por_estoque) : 1})
           RETURNING id`;
         return res.status(201).json(rows[0]);
       }
@@ -177,6 +194,7 @@ export default async function handlerInsumos(req, res, sql) {
       if ('estoque_minimo' in b) await sql`UPDATE insumos SET estoque_minimo = ${num(b.estoque_minimo)} WHERE id = ${id}`;
       if ('consumo_por_embalagem' in b) await sql`UPDATE insumos SET consumo_por_embalagem = ${num(b.consumo_por_embalagem)} WHERE id = ${id}`;
       if ('auto_desde' in b) await sql`UPDATE insumos SET auto_desde = ${b.auto_desde || null} WHERE id = ${id}`;
+      if ('unidades_por_estoque' in b && num(b.unidades_por_estoque) > 0) await sql`UPDATE insumos SET unidades_por_estoque = ${num(b.unidades_por_estoque)} WHERE id = ${id}`;
       if ('auto_inclui_fulfillment' in b) await sql`UPDATE insumos SET auto_inclui_fulfillment = ${b.auto_inclui_fulfillment === true} WHERE id = ${id}`;
       if ('ativo' in b) await sql`UPDATE insumos SET ativo = ${b.ativo === true} WHERE id = ${id}`;
       return res.status(200).json({ ok: true });
@@ -185,6 +203,9 @@ export default async function handlerInsumos(req, res, sql) {
     return res.status(405).json({ error: 'Método não permitido.' });
   } catch (error) {
     console.error('Erro caixa-insumos:', error);
+    if (erroMigracao(error) && /unidades_por_estoque/.test(error.message)) {
+      return res.status(500).json({ error: 'Migração 015 pendente: rode sql/015_insumos_unidades_por_estoque.sql no Neon.' });
+    }
     if (erroMigracao(error) && /does not exist|não existe/.test(error.message)) {
       return res.status(500).json({ error: 'Migração 014 pendente: rode sql/014_insumos.sql no Neon.' });
     }

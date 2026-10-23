@@ -889,7 +889,9 @@
                 <div style="display:flex;gap:10px;">
                     <div class="cx-field" style="flex:1;"><label>Unidades por embalagem expedida</label><input type="number" min="0" step="any" id="cxInsCadCpe" placeholder="vazio = só manual"></div>
                     <div class="cx-field" style="flex:1;"><label>A partir de</label><input type="date" id="cxInsCadDesde"></div>
+                    <div class="cx-field" style="flex:1;"><label>Unidades por rolo/bobina</label><input type="number" min="1" step="any" id="cxInsCadFator" value="1" title="Quantas unidades de consumo vêm em 1 unidade de estoque. Ex: 500 etiquetas por rolo (o estoque é contado em rolos)."></div>
                 </div>
+                <div class="cx-box-sub">Ex: etiqueta 100x150mm = 2 unidades por embalagem e 500 etiquetas por rolo. A baixa automática desconta 2 ÷ 500 de rolo a cada embalagem. Deixe 1 se o estoque e o consumo estão na mesma unidade.</div>
                 <label style="display:flex;gap:8px;align-items:center;font-size:12px;cursor:pointer;color:#cbd5e1;"><input type="checkbox" id="cxInsCadFulf"> Contar também as embalagens do Fulfillment (série 2)</label>
                 <label style="display:flex;gap:8px;align-items:center;font-size:12px;cursor:pointer;color:#cbd5e1;" id="cxInsCadAtivoWrap"><input type="checkbox" id="cxInsCadAtivo" checked> Insumo ativo</label>
             </div>
@@ -3993,7 +3995,7 @@
             } else {
                 corpo.innerHTML = insumos.map(i => {
                     const baixa = i.automatico
-                        ? `<span style="color:#93c5fd;">${cxQtd(i.consumo_por_embalagem)} por embalagem</span><div class="cx-box-sub">desde ${cxpDataBr(i.auto_desde)}${i.auto_inclui_fulfillment ? ' · com Fulfillment' : ''}</div>`
+                        ? `<span style="color:#93c5fd;">${cxQtd(i.consumo_por_embalagem)} por embalagem</span><div class="cx-box-sub">${i.unidades_por_estoque > 1 ? cxQtd(i.unidades_por_estoque) + ' por ' + cxEsc(i.unidade) + ' · ' : ''}desde ${cxpDataBr(i.auto_desde)}${i.auto_inclui_fulfillment ? ' · com Fulfillment' : ''}</div>`
                         : `<span style="color:#94a3b8;">manual</span>${i.ativo && i.dias_sem_lancamento !== null && i.dias_sem_lancamento >= 21 ? `<div class="cx-box-sub" style="color:#fcd34d;">sem lançamento há ${i.dias_sem_lancamento} dias</div>` : ''}`;
                     return `<tr style="${i.ativo ? '' : 'opacity:.55;'}">
                         <td><div class="cx-box-name">${cxEsc(i.nome)}</div><div class="cx-box-sub">${cxEsc(i.unidade)}${i.lead_time_dias ? ' · entrega ' + i.lead_time_dias + ' dias' : ''}</div></td>
@@ -4096,6 +4098,7 @@
             document.getElementById('cxInsCadMin').value = i && i.estoque_minimo !== null ? i.estoque_minimo : '';
             document.getElementById('cxInsCadCpe').value = i && i.consumo_por_embalagem !== null ? i.consumo_por_embalagem : '';
             document.getElementById('cxInsCadDesde').value = i && i.auto_desde ? i.auto_desde : '';
+            document.getElementById('cxInsCadFator').value = i && i.unidades_por_estoque ? i.unidades_por_estoque : 1;
             document.getElementById('cxInsCadFulf').checked = !!(i && i.auto_inclui_fulfillment);
             document.getElementById('cxInsCadAtivo').checked = i ? !!i.ativo : true;
             document.getElementById('cxInsCadAtivoWrap').style.display = i ? 'flex' : 'none';
@@ -4114,6 +4117,7 @@
                 estoque_minimo: v('cxInsCadMin') === '' ? null : Number(v('cxInsCadMin')),
                 consumo_por_embalagem: cpe, auto_desde: cpe === null ? null : v('cxInsCadDesde'),
                 auto_inclui_fulfillment: document.getElementById('cxInsCadFulf').checked,
+                unidades_por_estoque: v('cxInsCadFator') === '' || Number(v('cxInsCadFator')) <= 0 ? 1 : Number(v('cxInsCadFator')),
             };
             const btn = document.getElementById('cxBtnSaveInsumoCad');
             btn.disabled = true;

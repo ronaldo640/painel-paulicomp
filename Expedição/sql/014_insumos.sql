@@ -55,13 +55,9 @@ INSERT INTO insumos (nome, unidade) VALUES
   ('Etiqueta térmica 100x150mm', 'rolo')
 ON CONFLICT (nome) DO NOTHING;
 
--- Baixa automática: a etiqueta 100x150mm usa 2 unidades por embalagem expedida
--- pelos envios normais (Mercado Envios e outros). O Fulfillment usa a etiqueta
--- dele, então não entra. A baixa conta a partir de 23/10/2026 (data da contagem
--- inicial); dá pra ajustar no cadastro do insumo.
-UPDATE insumos
-SET consumo_por_embalagem = 2, auto_desde = DATE '2026-10-23', auto_inclui_fulfillment = FALSE
-WHERE nome = 'Etiqueta térmica 100x150mm' AND consumo_por_embalagem IS NULL;
+-- A baixa automática da etiqueta 100x150mm (2 etiquetas por embalagem) NÃO é configurada aqui:
+-- o estoque é em rolos e a baixa é em etiquetas, então depende da conversão da
+-- migração 015 (etiquetas por rolo). Ela é ligada depois, no cadastro do insumo.
 
 INSERT INTO insumo_movimentacoes (insumo_id, filial, tipo, quantidade, data, observacao, conta_consumo)
 SELECT i.id, 'SP', 'entrada', c.qtd, DATE '2026-10-23', 'Contagem inicial', false
