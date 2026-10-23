@@ -20,6 +20,7 @@
 //   ALERTA_EMAIL_DESTINOS   lista separada por vírgula (opcional)
 
 import { calcularResumo } from './caixa-resumo-calculo.js';
+import { calcularInsumos } from './caixa-insumos.js';
 
 // Sem domínio verificado no Resend, ele só entrega no e-mail da própria conta
 // (ronaldo@paulicomp.com) e recusa o envio inteiro se houver outro endereço
@@ -31,6 +32,7 @@ const DADOS_ANTIGOS_DIAS = 3;      // última saída registrada há >= N dias
 const ESTADO_DADOS_ANTIGOS = 0;    // linhas "especiais" de caixa_alerta_estado
 const ESTADO_TESTE = -1;
 const ESTADO_FALHA_BAIXA = -2;
+const ESTADO_BASE_INSUMO = -1000;   // insumo de id N usa a chave -1000 - N em caixa_alerta_estado
 const URL_PAINEL = 'https://painel-paulicomp.vercel.app/index.html.html#caixas';
 
 export function alertaAtivo() {
@@ -115,14 +117,23 @@ const ROTULO = { crit: 'Comprar agora', warn: 'Atenção' };
 const COR = { crit: '#e11d48', warn: '#d97706' };
 const MOTIVO = { novo: 'novo', agravou: 'piorou', lembrete: 'lembrete semanal' };
 
-function montarEmail({ itens, dadosAntigos }) {
-  const crit = itens.filter(i => i.m.status === 'crit').length;
-  const warn = itens.filter(i => i.m.status === 'warn').length;
+// consumo por dia na unidade de uso (etiqueta com "unidades por rolo" aparece em etiquetas)
+function consumoInsumoTexto(i) {
+  if (!(i.consumo_dia > 0)) return '—';
+  if (i.unidades_por_estoque > 1) return `${Math.round(i.consumo_dia * i.unidades_por_estoque)} ${/etiqueta/i.test(i.nome) ? 'etiquetas' : 'un'}/dia`;
+  return `${i.consumo_dia.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ${esc(i.unidade)}/dia`;
+}
+const qtdBr = n => Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+
+function montarEmail({ itens, itensInsumos = [], dadosAntigos }) {
+  const status = [...itens.map(i => i.m.status), ...itensInsumos.map(i => i.i.status)];
+  const crit = status.filter(s => s === 'crit').length;
+  const warn = status.filter(s => s === 'warn').length;
   const partes = [];
   if (crit) partes.push(`${crit} para comprar agora`);
   if (warn) partes.push(`${warn} em atenção`);
-  const assunto = itens.length
-    ? `Controle de Caixas: ${partes.join(' e ')}`
+  const assunto = status.length
+    ? `Controle de Caixas e Insumos: ${partes.join(' e ')}`
     : 'Controle de Caixas: dados de consumo desatualizados';
 
   const linhas = itens.map(({ m, motivo }) => `
@@ -137,7 +148,8 @@ function montarEmail({ itens, dadosAntigos }) {
       <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">${m.qtd_pedido != null ? m.qtd_pedido + ' un' : '—'}</td>
     </tr>`).join('');
 
-  const tabela = itens.length ? `
+  const tituloEmbalagens = itens.length && itensInsumos.length ? '<h3 style="margin:16px 0 0;font-size:14px;">Embalagens</h3>' : '';
+  const tabela = itens.length ? `${tituloEmbalagens}
     <table style="border-collapse:collapse;width:100%;font-size:13px;margin-top:12px;">
       <thead><tr style="background:#f1f5f9;text-align:left;">
         <th style="padding:8px;">Modelo</th><th style="padding:8px;">Situação</th>
@@ -148,6 +160,28 @@ function montarEmail({ itens, dadosAntigos }) {
       <tbody>${linhas}</tbody>
     </table>` : '';
 
+  const linhasIns = itensInsumos.map(({ i, motivo }) => `
+    <tr>
+      <td style="padding:8px;border-bottom:1px solid #e2e8f0;"><b>${esc(i.nome)}</b><br><span style="color:#64748b;font-size:12px;">${esc(MOTIVO[motivo])}</span></td>
+      <td style="padding:8px;border-bottom:1px solid #e2e8f0;color:${COR[i.status]};font-weight:bold;">${ROTULO[i.status]}</td>
+      <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">${qtdBr(i.estoque_atual)} ${esc(i.unidade)}</td>
+      <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">${consumoInsumoTexto(i)}</td>
+      <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">${i.cobertura_dias !== null ? i.cobertura_dias + ' dias' : '—'}</td>
+      <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">${i.ponto_reposicao !== null ? qtdBr(i.ponto_reposicao) + ' ' + esc(i.unidade) : '—'}</td>
+      <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">${i.em_pedido > 0 ? qtdBr(i.em_pedido) + ' ' + esc(i.unidade) : '—'}</td>
+    </tr>`).join('');
+  const tabelaInsumos = itensInsumos.length ? `
+    <h3 style="margin:16px 0 0;font-size:14px;">Insumos</h3>
+    <table style="border-collapse:collapse;width:100%;font-size:13px;margin-top:12px;">
+      <thead><tr style="background:#f1f5f9;text-align:left;">
+        <th style="padding:8px;">Insumo</th><th style="padding:8px;">Situação</th>
+        <th style="padding:8px;text-align:right;">Estoque</th><th style="padding:8px;text-align:right;">Consumo</th>
+        <th style="padding:8px;text-align:right;">Cobertura</th><th style="padding:8px;text-align:right;">Ponto de reposição</th>
+        <th style="padding:8px;text-align:right;">Já pedido</th>
+      </tr></thead>
+      <tbody>${linhasIns}</tbody>
+    </table>` : '';
+
   const aviso = dadosAntigos ? `
     <p style="background:#fffbeb;border:1px solid #fcd34d;padding:10px;border-radius:6px;font-size:13px;">
       <b>Dados de consumo desatualizados:</b> a última saída registrada foi em ${esc(dadosAntigos.ultimaSaida)}
@@ -156,16 +190,17 @@ function montarEmail({ itens, dadosAntigos }) {
 
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a;max-width:760px;">
-      <h2 style="margin:0 0 4px;">Controle de Caixas — Paulicomp SP</h2>
-      ${aviso}${tabela}
+      <h2 style="margin:0 0 4px;">Controle de Caixas e Insumos — Paulicomp SP</h2>
+      ${aviso}${tabela}${tabelaInsumos}
       <p style="margin-top:16px;"><a href="${URL_PAINEL}" style="color:#2563eb;">Abrir o Controle de Caixas</a></p>
-      <p style="color:#94a3b8;font-size:11px;">Aviso automático. Ele só é enviado quando um modelo muda de situação; se continuar igual, repete uma vez por semana.</p>
+      <p style="color:#94a3b8;font-size:11px;">Aviso automático. Ele só é enviado quando um modelo ou insumo muda de situação; se continuar igual, repete uma vez por semana.</p>
     </div>`;
 
   const texto = [
     assunto,
     dadosAntigos ? `Dados de consumo desatualizados: última saída em ${dadosAntigos.ultimaSaida} (${dadosAntigos.dias} dias).` : '',
     ...itens.map(({ m }) => `- ${m.nome}: ${ROTULO[m.status]} · estoque ${m.estoque_atual} un · cobertura ${m.cobertura_dias ?? '—'} dias · ponto ${m.ponto_reposicao ?? '—'} un`),
+    ...itensInsumos.map(({ i }) => `- Insumo ${i.nome}: ${ROTULO[i.status]} · estoque ${qtdBr(i.estoque_atual)} ${i.unidade} · cobertura ${i.cobertura_dias ?? '—'} dias · ponto ${i.ponto_reposicao ?? '—'}`),
     URL_PAINEL,
   ].filter(Boolean).join('\n');
 
@@ -194,6 +229,28 @@ export async function verificarEAvisar(sql, filial, { simular = false } = {}) {
     if (diasDesde(r.notificado_em) >= REENVIO_DIAS) itens.push({ m, motivo: 'lembrete' });
   }
 
+  // Insumos (migração 014): mesma regra de mudança de situação. Sem as tabelas, só as caixas.
+  let insumosCalc = [];
+  try {
+    insumosCalc = (await calcularInsumos(sql, filial)).filter(i => i.ativo);
+  } catch (err) {
+    console.error('Insumos indisponíveis no aviso:', err.message);
+  }
+  const chaveIns = i => ESTADO_BASE_INSUMO - i.id;
+  const itensInsumos = [];
+  for (const i of insumosCalc) {
+    const r = estado.get(chaveIns(i));
+    if (i.status !== 'crit' && i.status !== 'warn') {
+      if (r && r.status !== i.status) semAviso.push({ id: chaveIns(i), status: i.status });
+      continue;
+    }
+    const ativoAntes = r && (r.status === 'crit' || r.status === 'warn');
+    if (!ativoAntes) { itensInsumos.push({ i, motivo: 'novo' }); continue; }
+    if (r.status === 'warn' && i.status === 'crit') { itensInsumos.push({ i, motivo: 'agravou' }); continue; }
+    if (r.status === 'crit' && i.status === 'warn') { semAviso.push({ id: chaveIns(i), status: i.status }); continue; }
+    if (diasDesde(r.notificado_em) >= REENVIO_DIAS) itensInsumos.push({ i, motivo: 'lembrete' });
+  }
+
   let dadosAntigos = null;
   const rDados = estado.get(ESTADO_DADOS_ANTIGOS);
   if (resumo.ultima_saida) {
@@ -207,12 +264,13 @@ export async function verificarEAvisar(sql, filial, { simular = false } = {}) {
     aviso_automatico_ligado: alertaAtivo(),
     destinos: destinos(),
     avisar: itens.map(i => ({ modelo: i.m.nome, situacao: ROTULO[i.m.status], motivo: i.motivo, estoque: i.m.estoque_atual })),
+    avisar_insumos: itensInsumos.map(x => ({ insumo: x.i.nome, situacao: ROTULO[x.i.status], motivo: x.motivo, estoque: x.i.estoque_atual, unidade: x.i.unidade })),
     dados_antigos: dadosAntigos,
     atualizacoes_silenciosas: semAviso.length,
   };
   if (simular) return { simulacao: true, ...plano };
 
-  if (itens.length === 0 && !dadosAntigos) {
+  if (itens.length === 0 && itensInsumos.length === 0 && !dadosAntigos) {
     for (const s of semAviso) await gravarEstado(sql, filial, s.id, s.status, false);
     if (rDados && rDados.status === 'antigo' && resumo.ultima_saida && diasEntreIso(resumo.ultima_saida) < DADOS_ANTIGOS_DIAS) {
       await gravarEstado(sql, filial, ESTADO_DADOS_ANTIGOS, 'ok', false);
@@ -220,10 +278,11 @@ export async function verificarEAvisar(sql, filial, { simular = false } = {}) {
     return { enviado: false, ...plano };
   }
 
-  const { assunto, html, texto } = montarEmail({ itens, dadosAntigos });
+  const { assunto, html, texto } = montarEmail({ itens, itensInsumos, dadosAntigos });
   const envio = await enviarEmail(assunto, html, texto);
 
   for (const i of itens) await gravarEstado(sql, filial, i.m.id, i.m.status, true);
+  for (const x of itensInsumos) await gravarEstado(sql, filial, chaveIns(x.i), x.i.status, true);
   for (const s of semAviso) await gravarEstado(sql, filial, s.id, s.status, false);
   if (dadosAntigos) await gravarEstado(sql, filial, ESTADO_DADOS_ANTIGOS, 'antigo', true);
   return { enviado: true, id_resend: envio.id, assunto, ...plano };
