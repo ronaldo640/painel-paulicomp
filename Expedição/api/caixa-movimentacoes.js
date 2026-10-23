@@ -6,6 +6,7 @@
 
 import { neon } from '@neondatabase/serverless';
 import handlerCompras from '../lib/caixa-compras.js';
+import handlerInsumos from '../lib/caixa-insumos.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -19,6 +20,7 @@ export default async function handler(req, res) {
   // Compras (cotações e pedidos) moram em lib/ pra não gastar uma das 12
   // funções do plano Hobby da Vercel.
   if (req.query.recurso === 'compras') return handlerCompras(req, res, sql);
+  if (req.query.recurso === 'insumos') return handlerInsumos(req, res, sql);
 
   if (req.method === 'GET') {
     try {

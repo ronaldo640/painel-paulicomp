@@ -525,6 +525,10 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8zM14 3v5h5M9 13h6M9 17h6"/></svg>
                     Relatório PDF
                 </button>
+                <button class="cx-btn" id="cxBtnInsumos" title="Estoque de fita, plástico, bobinas e etiquetas">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/></svg>
+                    Insumos
+                </button>
                 <button class="cx-btn" id="cxBtnOpenCompras">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h15l-1.5 9h-12zM6 6L5 3H2M9 20a1 1 0 100-2 1 1 0 000 2zm9 0a1 1 0 100-2 1 1 0 000 2z"/></svg>
                     Compras
@@ -785,6 +789,113 @@
             </div>
             <div class="cx-modal-foot">
                 <button class="cx-btn" id="cxBtnFecharCompras">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Controle de insumos (fita, plástico, bobinas, etiquetas) -->
+    <div class="cx-modal-overlay" id="cxInsumosModal" hidden>
+        <div class="cx-modal-card xwide" role="dialog" aria-modal="true" aria-labelledby="cxInsumosTitle" style="max-width:1080px;">
+            <div class="cx-modal-head">
+                <div>
+                    <h2 id="cxInsumosTitle">Controle de insumos</h2>
+                    <p>Estoque de fita, plástico, bobinas e etiquetas. Entradas e saídas são lançadas à mão; insumos com baixa automática descontam sozinhos a cada embalagem expedida.</p>
+                </div>
+                <button class="cx-modal-close" id="cxBtnCloseInsumos" aria-label="Fechar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="cx-modal-body" style="max-height:72vh;">
+                <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
+                    <button type="button" class="cx-btn" id="cxBtnInsumoNovo">+ Novo insumo</button>
+                    <button type="button" class="cx-btn primary" id="cxBtnInsumoMov">Registrar movimentação</button>
+                    <button type="button" class="cx-btn danger" id="cxBtnInsumosRelatorio" title="Baixa um PDF do controle de insumos (Shift+clique abre uma prévia na tela)">Relatório PDF</button>
+                </div>
+                <div class="cx-scroll-x">
+                    <table class="cx-table cx-cadastro-table" style="min-width:860px;">
+                        <thead><tr><th>Insumo</th><th class="num">Estoque</th><th class="num">Consumo/dia</th><th class="num">Cobertura</th><th class="num">Ponto de reposição</th><th>Situação</th><th>Baixa</th><th></th></tr></thead>
+                        <tbody id="cxInsumosBody"></tbody>
+                    </table>
+                </div>
+                <hr class="cx-modal-divider">
+                <div>
+                    <p class="cx-modal-section-title">Últimos lançamentos</p>
+                    <div class="cx-movlist" id="cxInsumosMovs"></div>
+                </div>
+            </div>
+            <div class="cx-modal-foot">
+                <button class="cx-btn" id="cxBtnFecharInsumos">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: lançamento de insumo (entrada, saída ou contagem) -->
+    <div class="cx-modal-overlay" id="cxInsumoMovModal" hidden>
+        <div class="cx-modal-card" role="dialog" aria-modal="true" aria-labelledby="cxInsumoMovTitle">
+            <div class="cx-modal-head">
+                <div>
+                    <h2 id="cxInsumoMovTitle">Registrar movimentação de insumo</h2>
+                    <p>Entrada (compra), saída (uso) ou contagem física, que acerta o saldo.</p>
+                </div>
+                <button class="cx-modal-close" id="cxBtnCloseInsumoMov" aria-label="Fechar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="cx-modal-body">
+                <div class="cx-seg">
+                    <button type="button" class="on entrada" id="cxInsMovEntrada" data-tipo="entrada">↓ Entrada</button>
+                    <button type="button" class="saida" id="cxInsMovSaida" data-tipo="saida">↑ Saída</button>
+                    <button type="button" id="cxInsMovContagem" data-tipo="contagem">Contagem</button>
+                </div>
+                <div class="cx-field"><label>Insumo</label><select id="cxInsMovInsumo"></select></div>
+                <div style="display:flex;gap:10px;">
+                    <div class="cx-field" style="flex:1;"><label id="cxInsMovQtdLabel">Quantidade</label><input type="number" min="0" step="any" id="cxInsMovQtd"></div>
+                    <div class="cx-field" style="flex:1;"><label>Data</label><input type="date" id="cxInsMovData"></div>
+                </div>
+                <div class="cx-box-sub" id="cxInsMovDica"></div>
+                <div class="cx-field"><label>Observação (opcional)</label><input type="text" id="cxInsMovObs" placeholder="ex: NF 4821 — fornecedor X"></div>
+            </div>
+            <div class="cx-modal-foot">
+                <button class="cx-btn" id="cxBtnCancelInsumoMov">Cancelar</button>
+                <button class="cx-btn primary" id="cxBtnSaveInsumoMov">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: cadastro de insumo (novo ou edição) -->
+    <div class="cx-modal-overlay" id="cxInsumoCadModal" hidden>
+        <div class="cx-modal-card wide" role="dialog" aria-modal="true" aria-labelledby="cxInsumoCadTitle">
+            <div class="cx-modal-head">
+                <div>
+                    <h2 id="cxInsumoCadTitle">Cadastro de insumo</h2>
+                    <p>Prazo de entrega e margem definem o ponto de reposição; o estoque mínimo, se preenchido, vale no lugar do cálculo.</p>
+                </div>
+                <button class="cx-modal-close" id="cxBtnCloseInsumoCad" aria-label="Fechar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="cx-modal-body">
+                <div style="display:flex;gap:10px;">
+                    <div class="cx-field" style="flex:2;"><label>Nome</label><input type="text" id="cxInsCadNome"></div>
+                    <div class="cx-field" style="flex:1;"><label>Unidade</label><input type="text" id="cxInsCadUnidade" placeholder="rolo, bobina, un..."></div>
+                </div>
+                <div style="display:flex;gap:10px;">
+                    <div class="cx-field" style="flex:1;"><label>Prazo de entrega (dias)</label><input type="number" min="0" id="cxInsCadLead"></div>
+                    <div class="cx-field" style="flex:1;"><label>Segurança (%)</label><input type="number" min="0" max="100" id="cxInsCadSeg" value="20"></div>
+                    <div class="cx-field" style="flex:1;"><label>Estoque mínimo (opcional)</label><input type="number" min="0" id="cxInsCadMin" placeholder="usa o cálculo"></div>
+                </div>
+                <hr class="cx-modal-divider">
+                <p class="cx-modal-section-title">Baixa automática (opcional)</p>
+                <div style="display:flex;gap:10px;">
+                    <div class="cx-field" style="flex:1;"><label>Unidades por embalagem expedida</label><input type="number" min="0" step="any" id="cxInsCadCpe" placeholder="vazio = só manual"></div>
+                    <div class="cx-field" style="flex:1;"><label>A partir de</label><input type="date" id="cxInsCadDesde"></div>
+                </div>
+                <label style="display:flex;gap:8px;align-items:center;font-size:12px;cursor:pointer;color:#cbd5e1;"><input type="checkbox" id="cxInsCadFulf"> Contar também as embalagens do Fulfillment (série 2)</label>
+                <label style="display:flex;gap:8px;align-items:center;font-size:12px;cursor:pointer;color:#cbd5e1;" id="cxInsCadAtivoWrap"><input type="checkbox" id="cxInsCadAtivo" checked> Insumo ativo</label>
+            </div>
+            <div class="cx-modal-foot">
+                <button class="cx-btn" id="cxBtnCancelInsumoCad">Cancelar</button>
+                <button class="cx-btn primary" id="cxBtnSaveInsumoCad">Salvar</button>
             </div>
         </div>
     </div>
@@ -3635,9 +3746,10 @@
         // Gráfico de barras por modelo só com quem teve consumo: refaz o gráfico
         // da tela sem os modelos zerados (e com a altura ajustada ao número de
         // barras) e devolve a imagem. Usa um gráfico temporário, fora da tela.
-        function cxpBarras(chart, unidade, alt, larguraPx) {
+        function cxpBarras(chart, unidade, alt, larguraPx, opcoes) {
             if (!chart) return cxpImg(chart, alt);
-            const corte = unidade === 'un/dia' ? 0.05 : 0; // abaixo disso o rótulo aparece como 0,0
+            // abaixo do corte o rótulo apareceria como 0,0 (opcoes.corte troca o valor padrão)
+            const corte = opcoes && opcoes.corte !== undefined ? opcoes.corte : (unidade === 'un/dia' ? 0.05 : 0);
             // aceita um gráfico Chart.js ou, direto, { labels, values }
             const rotulos = chart.data ? (chart.data.labels || []) : chart.labels;
             const valores = chart.data ? (chart.data.datasets[0].data || []) : chart.values;
@@ -3646,7 +3758,7 @@
             const ls = idx.map(i => rotulos[i]);
             const vs = idx.map(i => valores[i]);
             const largura = larguraPx || 490;
-            const altura = Math.max(170, Math.min(larguraPx ? 560 : 600, 80 + ls.length * (larguraPx ? 40 : 56)));
+            const altura = opcoes && opcoes.altura ? opcoes.altura : Math.max(170, Math.min(larguraPx ? 560 : 600, 80 + ls.length * (larguraPx ? 40 : 56)));
             const area = document.createElement('div');
             area.style.cssText = `position:fixed;left:-20000px;top:0;width:${largura}px;height:${altura}px;`;
             const canvas = document.createElement('canvas');
@@ -3664,6 +3776,7 @@
                         o.scales.y.ticks.font = { size: 13, weight: '600' };
                         o.scales.x.ticks.font = { size: 11 };
                         o.plugins.datalabels.font = { size: 13, weight: '700' };
+                        if (opcoes && opcoes.casas !== undefined) o.plugins.datalabels.formatter = v => Number(v).toFixed(opcoes.casas);
                         return { ...o, responsive: false, animation: false, devicePixelRatio: 2 };
                     })(),
                 });
@@ -3713,8 +3826,8 @@
             return `<table style="width:100%;border-collapse:collapse;"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
         }
 
-        async function cxMontarRelatorio() {
-            const modelos = cxResumo?.modelos || [];
+        // Contexto do cabeçalho dos relatórios (logotipo, referência, filial e datas).
+        function cxpContexto() {
             const agora = new Date();
             const geradoEm = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             // logotipo igual ao do painel (respeita a logo trocada pelo usuário)
@@ -3724,13 +3837,17 @@
                 logoOk ? `<img src="${logoImg.src}" alt="Paulicomp" style="height:36px;width:auto;display:block;">`
                        : '<span style="font-size:16px;font-weight:900;letter-spacing:.06em;color:#ffffff;">PAULICOMP</span>'}</div>`;
             const periodoSelRef = document.getElementById('cxPeriodoSelect');
-            const ctx = {
+            return {
                 logo,
                 referencia: periodoSelRef ? periodoSelRef.options[periodoSelRef.selectedIndex].text : 'Últimos 30 dias',
                 filial: 'PAULICOMP ' + CX_FILIAL,
                 geradoEm,
                 ultimaSaida: cxpDataBr(cxResumo?.ultima_saida),
             };
+        }
+        async function cxMontarRelatorio() {
+            const modelos = cxResumo?.modelos || [];
+            const ctx = cxpContexto();
             const TOTAL = 2;
 
             // ---- página 1: consumo por modelo (só quem teve consumo) ----
@@ -3778,14 +3895,15 @@
             raiz.innerHTML = html;
             return raiz;
         }
-        async function cxGerarRelatorio(ev) {
-            if (!cxResumo) return cxToast('Os dados ainda estão carregando. Tente de novo em instantes.', 'error');
-            const btn = document.getElementById('cxBtnRelatorio');
+        async function cxGerarRelatorio(ev, opcoes) {
+            const op = Object.assign({ btnId: 'cxBtnRelatorio', montar: cxMontarRelatorio, prefixo: 'Consumo_de_Embalagens', pronto: () => !!cxResumo }, opcoes || {});
+            if (!op.pronto()) return cxToast('Os dados ainda estão carregando. Tente de novo em instantes.', 'error');
+            const btn = document.getElementById(op.btnId);
             btn.disabled = true;
             cxToast('Gerando o relatório em PDF...', 'info');
             let raiz;
             try {
-                raiz = await cxMontarRelatorio();
+                raiz = await op.montar();
             } catch (err) {
                 btn.disabled = false;
                 console.error('Erro ao montar o relatório:', err);
@@ -3815,7 +3933,7 @@
             try {
                 await html2pdf().set({
                     margin: 0,
-                    filename: `Consumo_de_Embalagens_${CX_FILIAL}_${hoje}.pdf`,
+                    filename: `${op.prefixo}_${CX_FILIAL}_${hoje}.pdf`,
                     image: { type: 'jpeg', quality: 0.96 },
                     html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#070b14' },
                     jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
@@ -3831,6 +3949,263 @@
             }
         }
         document.getElementById('cxBtnRelatorio').addEventListener('click', cxGerarRelatorio);
+
+        // ---------------------------------------------------------------
+        // Controle de insumos (fita, plástico, bobinas, etiquetas). Lançamentos
+        // manuais; insumos com "unidades por embalagem" descontam sozinhos a
+        // cada embalagem expedida (cálculo no servidor, lib/caixa-insumos.js).
+        // ---------------------------------------------------------------
+        let cxInsumosDados = null;      // { insumos, movimentos }
+        let cxInsMovTipo = 'entrada';   // entrada | saida | contagem
+        let cxInsEditandoId = null;     // null = novo insumo
+
+        async function cxInsumosApi(method, body) {
+            const resp = await fetch(`/api/caixa-movimentacoes?recurso=insumos&filial=${CX_FILIAL}${method === 'GET' ? '&limit=25' : ''}`, {
+                method,
+                headers: body ? { 'Content-Type': 'application/json' } : undefined,
+                body: body ? JSON.stringify(body) : undefined,
+            });
+            const json = await resp.json().catch(() => ({}));
+            if (!resp.ok) throw new Error(json.error || 'Erro no controle de insumos.');
+            return json;
+        }
+
+        const cxQtd = n => Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+        const CX_INS_STATUS = {
+            crit: ['crit', 'Comprar agora'], warn: ['warn', 'Atenção'], ok: ['ok', 'OK'],
+            sem_config: ['sem_config', 'Definir prazo ou mínimo'], inativo: ['nao_controlada', 'Inativo'],
+        };
+        function cxInsBadge(status) {
+            const [cls, rotulo] = CX_INS_STATUS[status] || CX_INS_STATUS.sem_config;
+            return `<span class="cx-badge ${cls}"><span class="d"></span>${rotulo}</span>`;
+        }
+
+        async function cxCarregarInsumos() {
+            cxInsumosDados = await cxInsumosApi('GET');
+            cxRenderInsumos();
+        }
+
+        function cxRenderInsumos() {
+            const insumos = cxInsumosDados?.insumos || [];
+            const corpo = document.getElementById('cxInsumosBody');
+            if (insumos.length === 0) {
+                corpo.innerHTML = '<tr><td colspan="8" class="cx-note">Nenhum insumo cadastrado.</td></tr>';
+            } else {
+                corpo.innerHTML = insumos.map(i => {
+                    const baixa = i.automatico
+                        ? `<span style="color:#93c5fd;">${cxQtd(i.consumo_por_embalagem)} por embalagem</span><div class="cx-box-sub">desde ${cxpDataBr(i.auto_desde)}${i.auto_inclui_fulfillment ? ' · com Fulfillment' : ''}</div>`
+                        : `<span style="color:#94a3b8;">manual</span>${i.ativo && i.dias_sem_lancamento !== null && i.dias_sem_lancamento >= 21 ? `<div class="cx-box-sub" style="color:#fcd34d;">sem lançamento há ${i.dias_sem_lancamento} dias</div>` : ''}`;
+                    return `<tr style="${i.ativo ? '' : 'opacity:.55;'}">
+                        <td><div class="cx-box-name">${cxEsc(i.nome)}</div><div class="cx-box-sub">${cxEsc(i.unidade)}${i.lead_time_dias ? ' · entrega ' + i.lead_time_dias + ' dias' : ''}</div></td>
+                        <td class="num"><b style="color:#f1f5f9;">${cxQtd(i.estoque_atual)}</b> <span class="cx-box-sub">${cxEsc(i.unidade)}</span></td>
+                        <td class="num">${i.consumo_dia > 0 ? cxQtd(i.consumo_dia) : '—'}</td>
+                        <td class="num">${i.cobertura_dias !== null ? i.cobertura_dias + ' dias' : '—'}</td>
+                        <td class="num">${i.ponto_reposicao !== null ? cxQtd(i.ponto_reposicao) : '—'}${i.estoque_minimo !== null ? '<div class="cx-box-sub">mínimo definido</div>' : ''}</td>
+                        <td>${cxInsBadge(i.status)}</td>
+                        <td>${baixa}</td>
+                        <td class="num"><button type="button" class="cx-btn" style="padding:5px 10px;font-size:11.5px;" data-ins-editar="${i.id}">Editar</button></td>
+                    </tr>`;
+                }).join('');
+            }
+            const movs = cxInsumosDados?.movimentos || [];
+            document.getElementById('cxInsumosMovs').innerHTML = movs.length === 0
+                ? '<div class="cx-note">Nenhum lançamento registrado.</div>'
+                : movs.map(m => {
+                    const entrada = m.tipo === 'entrada';
+                    const rotulo = entrada ? (m.conta_consumo === false ? 'ajuste' : 'entrada') : (m.conta_consumo === false ? 'ajuste' : 'uso');
+                    const icone = entrada ? 'M12 19V5M5 12l7 7 7-7' : 'M12 5v14M5 12l7-7 7 7';
+                    return `<div class="cx-movrow">
+                        <div class="cx-movicon ${entrada ? 'in' : 'out'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="${icone}"/></svg></div>
+                        <div class="cx-movtext"><div class="t1">${cxEsc(m.insumo_nome)}</div><div class="t2">${cxpDataBr(m.data)} · ${rotulo}${m.observacao ? ' — ' + cxEsc(m.observacao) : ''}</div></div>
+                        <div class="cx-movqty ${entrada ? 'in' : 'out'}">${entrada ? '+' : '−'}${cxQtd(m.quantidade)} ${cxEsc(m.unidade)}</div>
+                    </div>`;
+                }).join('');
+        }
+
+        async function cxAbrirInsumos() {
+            document.getElementById('cxInsumosModal').hidden = false;
+            document.getElementById('cxInsumosBody').innerHTML = '<tr><td colspan="8" class="cx-note">Carregando...</td></tr>';
+            try {
+                await cxCarregarInsumos();
+            } catch (err) {
+                document.getElementById('cxInsumosBody').innerHTML = `<tr><td colspan="8" class="cx-note">${cxEsc(err.message)}</td></tr>`;
+                document.getElementById('cxInsumosMovs').innerHTML = '';
+            }
+        }
+
+        // ---- movimentação (entrada, saída ou contagem) ----
+        function cxInsMovDica() {
+            const sel = document.getElementById('cxInsMovInsumo');
+            const i = (cxInsumosDados?.insumos || []).find(x => String(x.id) === sel.value);
+            const dica = document.getElementById('cxInsMovDica');
+            if (!i) { dica.textContent = ''; return; }
+            dica.textContent = cxInsMovTipo === 'contagem'
+                ? `Estoque atual no sistema: ${cxQtd(i.estoque_atual)} ${i.unidade}. A diferença vira um ajuste e não conta como consumo.`
+                : `Estoque atual: ${cxQtd(i.estoque_atual)} ${i.unidade}.`;
+        }
+        function cxInsMovSetTipo(tipo) {
+            cxInsMovTipo = tipo;
+            document.getElementById('cxInsMovEntrada').classList.toggle('on', tipo === 'entrada');
+            document.getElementById('cxInsMovSaida').classList.toggle('on', tipo === 'saida');
+            document.getElementById('cxInsMovContagem').classList.toggle('on', tipo === 'contagem');
+            document.getElementById('cxInsMovQtdLabel').textContent = tipo === 'contagem' ? 'Quantidade contada' : 'Quantidade';
+            cxInsMovDica();
+        }
+        function cxAbrirInsumoMov() {
+            const ativos = (cxInsumosDados?.insumos || []).filter(i => i.ativo);
+            if (ativos.length === 0) return cxToast('Carregue os insumos primeiro (migração 014 rodada?).', 'error');
+            document.getElementById('cxInsMovInsumo').innerHTML = ativos.map(i => `<option value="${i.id}">${cxEsc(i.nome)} (${cxEsc(i.unidade)})</option>`).join('');
+            document.getElementById('cxInsMovQtd').value = '';
+            document.getElementById('cxInsMovData').value = cxTodayIso();
+            document.getElementById('cxInsMovObs').value = '';
+            cxInsMovSetTipo('entrada');
+            document.getElementById('cxInsumoMovModal').hidden = false;
+        }
+        async function cxSalvarInsumoMov() {
+            const insumoId = Number(document.getElementById('cxInsMovInsumo').value);
+            const qtd = document.getElementById('cxInsMovQtd').value;
+            const data = document.getElementById('cxInsMovData').value;
+            const obs = document.getElementById('cxInsMovObs').value.trim();
+            if (qtd === '' || Number(qtd) < 0 || (cxInsMovTipo !== 'contagem' && Number(qtd) <= 0)) return cxToast('Informe uma quantidade válida.', 'error');
+            if (!data) return cxToast('Informe a data.', 'error');
+            const btn = document.getElementById('cxBtnSaveInsumoMov');
+            btn.disabled = true;
+            try {
+                const resp = cxInsMovTipo === 'contagem'
+                    ? await cxInsumosApi('POST', { acao: 'contagem', insumo_id: insumoId, quantidade_contada: Number(qtd), data })
+                    : await cxInsumosApi('POST', { insumo_id: insumoId, tipo: cxInsMovTipo, quantidade: Number(qtd), data, observacao: obs || null });
+                cxToast(cxInsMovTipo === 'contagem' ? (resp.diferenca === 0 ? 'Contagem igual ao estoque: nada a ajustar.' : `Ajuste lançado (${resp.diferenca > 0 ? '+' : ''}${cxQtd(resp.diferenca)}).`) : 'Lançamento registrado.', 'success');
+                document.getElementById('cxInsumoMovModal').hidden = true;
+                await cxCarregarInsumos();
+            } catch (err) {
+                cxToast('Erro: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // ---- cadastro (novo ou edição) ----
+        function cxAbrirInsumoCad(id) {
+            cxInsEditandoId = id || null;
+            const i = id ? (cxInsumosDados?.insumos || []).find(x => x.id === id) : null;
+            document.getElementById('cxInsumoCadTitle').textContent = i ? 'Editar insumo' : 'Novo insumo';
+            document.getElementById('cxInsCadNome').value = i ? i.nome : '';
+            document.getElementById('cxInsCadUnidade').value = i ? i.unidade : '';
+            document.getElementById('cxInsCadLead').value = i && i.lead_time_dias !== null ? i.lead_time_dias : '';
+            document.getElementById('cxInsCadSeg').value = i ? Math.round(i.estoque_seguranca_pct * 100) : 20;
+            document.getElementById('cxInsCadMin').value = i && i.estoque_minimo !== null ? i.estoque_minimo : '';
+            document.getElementById('cxInsCadCpe').value = i && i.consumo_por_embalagem !== null ? i.consumo_por_embalagem : '';
+            document.getElementById('cxInsCadDesde').value = i && i.auto_desde ? i.auto_desde : '';
+            document.getElementById('cxInsCadFulf').checked = !!(i && i.auto_inclui_fulfillment);
+            document.getElementById('cxInsCadAtivo').checked = i ? !!i.ativo : true;
+            document.getElementById('cxInsCadAtivoWrap').style.display = i ? 'flex' : 'none';
+            document.getElementById('cxInsumoCadModal').hidden = false;
+        }
+        async function cxSalvarInsumoCad() {
+            const v = id => document.getElementById(id).value;
+            const nome = v('cxInsCadNome').trim();
+            if (!nome) return cxToast('Informe o nome do insumo.', 'error');
+            const cpe = v('cxInsCadCpe') === '' ? null : Number(v('cxInsCadCpe'));
+            if (cpe !== null && !v('cxInsCadDesde')) return cxToast('Pra baixa automática, informe a data em "A partir de".', 'error');
+            const corpo = {
+                nome, unidade: v('cxInsCadUnidade').trim() || 'un',
+                lead_time_dias: v('cxInsCadLead') === '' ? null : Number(v('cxInsCadLead')),
+                estoque_seguranca_pct: (v('cxInsCadSeg') === '' ? 20 : Number(v('cxInsCadSeg'))) / 100,
+                estoque_minimo: v('cxInsCadMin') === '' ? null : Number(v('cxInsCadMin')),
+                consumo_por_embalagem: cpe, auto_desde: cpe === null ? null : v('cxInsCadDesde'),
+                auto_inclui_fulfillment: document.getElementById('cxInsCadFulf').checked,
+            };
+            const btn = document.getElementById('cxBtnSaveInsumoCad');
+            btn.disabled = true;
+            try {
+                if (cxInsEditandoId) await cxInsumosApi('PUT', { id: cxInsEditandoId, ...corpo, ativo: document.getElementById('cxInsCadAtivo').checked });
+                else await cxInsumosApi('POST', { acao: 'insumo', ...corpo });
+                cxToast(cxInsEditandoId ? 'Insumo atualizado.' : 'Insumo cadastrado.', 'success');
+                document.getElementById('cxInsumoCadModal').hidden = true;
+                await cxCarregarInsumos();
+            } catch (err) {
+                cxToast('Erro: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // ---- relatório PDF de insumos (2 páginas, mesmo estilo do de embalagens) ----
+        async function cxMontarRelatorioInsumos() {
+            const ctx = cxpContexto();
+            ctx.referencia = 'Últimos 30 dias'; // o consumo dos insumos é sempre a média dos últimos 30 dias
+            ctx.ultimaSaida = cxpDataBr(cxTodayIso());
+            const insumos = (cxInsumosDados?.insumos || []).filter(i => i.ativo);
+            const movs = cxInsumosDados?.movimentos || [];
+            const COR = { crit: '#fda4af', warn: '#fcd34d', ok: '#6ee7b7', sem_config: '#cbd5e1' };
+            const linhas = insumos.map(i => [
+                `<b style="color:#f1f5f9;">${cxEsc(i.nome)}</b>`, cxEsc(i.unidade),
+                `<b style="color:#f1f5f9;">${cxQtd(i.estoque_atual)}</b>`,
+                i.consumo_dia > 0 ? cxQtd(i.consumo_dia) + '/dia' : '—',
+                i.cobertura_dias !== null ? `<span style="color:${COR[i.status] || '#cbd5e1'};font-weight:700;">${i.cobertura_dias} dias</span>` : '—',
+                i.ponto_reposicao !== null ? cxQtd(i.ponto_reposicao) : '—',
+                `<span style="color:${COR[i.status] || '#cbd5e1'};font-weight:700;">${(CX_INS_STATUS[i.status] || CX_INS_STATUS.sem_config)[1]}</span>`,
+                i.automatico ? `${cxQtd(i.consumo_por_embalagem)} por embalagem` : 'manual',
+            ]);
+            const tabela = cxpTabela(
+                [{ titulo: 'Insumo' }, { titulo: 'Unidade' }, { titulo: 'Estoque', num: true }, { titulo: 'Consumo', num: true }, { titulo: 'Cobertura', num: true }, { titulo: 'Ponto de reposição', num: true }, { titulo: 'Situação' }, { titulo: 'Baixa' }],
+                linhas, { compacto: true, fonte: 11 });
+            const comConsumo = insumos.filter(i => i.consumo_dia > 0).sort((a, b) => b.consumo_dia - a.consumo_dia);
+            const grafico = comConsumo.length
+                ? cxpBarras({ labels: comConsumo.map(i => i.nome), values: comConsumo.map(i => i.consumo_dia) }, 'un/dia', 'Consumo por insumo', 1000, { casas: 2, corte: 0.005, altura: Math.min(300, 70 + comConsumo.length * 38) })
+                : '<div style="color:#64748b;font-size:12px;padding:10px 0;">Nenhum insumo teve consumo nos últimos 30 dias.</div>';
+            const p1 = `
+                <div>${tabela}</div>
+                <div style="margin-top:14px;background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px 18px;">
+                    <div style="font-size:13px;font-weight:700;">Consumo médio por insumo</div>
+                    <div style="font-size:10.5px;color:#64748b;margin:2px 0 8px;">Média por dia nos últimos 30 dias, na unidade de cada insumo (só quem teve consumo)</div>
+                    ${grafico}
+                </div>`;
+            const rotulo = m => m.tipo === 'entrada' ? (m.conta_consumo === false ? 'ajuste' : 'entrada') : (m.conta_consumo === false ? 'ajuste' : 'uso');
+            const tabMovs = movs.length ? cxpTabela(
+                [{ titulo: 'Data' }, { titulo: 'Insumo' }, { titulo: 'Tipo' }, { titulo: 'Qtd', num: true }, { titulo: 'Observação' }],
+                movs.map(m => [cxpDataBr(m.data), cxEsc(m.insumo_nome), rotulo(m), (m.tipo === 'entrada' ? '+' : '−') + cxQtd(m.quantidade) + ' ' + cxEsc(m.unidade), cxEsc((m.observacao || '').slice(0, 60))]),
+                { compacto: true, fonte: 10.5 }) : '<div style="font-size:11.5px;color:#64748b;">Nenhum lançamento registrado.</div>';
+            const p2 = `<div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;margin:0 0 6px;">Últimos lançamentos</div>${tabMovs}`;
+            const raiz = document.createElement('div');
+            raiz.id = 'cxRelatorioRaiz';
+            raiz.style.cssText = 'width:1123px;background:#070b14;';
+            raiz.innerHTML = [
+                cxpPagina('Controle de Insumos SP', 'Estoque, consumo e ponto de reposição dos insumos', p1, 1, 2, ctx),
+                cxpPagina('Movimentação de insumos', 'Lançamentos mais recentes de entrada, saída e ajuste', p2, 2, 2, ctx),
+            ].join('');
+            return raiz;
+        }
+
+        document.getElementById('cxBtnInsumos').addEventListener('click', cxAbrirInsumos);
+        document.getElementById('cxBtnCloseInsumos').addEventListener('click', () => { document.getElementById('cxInsumosModal').hidden = true; });
+        document.getElementById('cxBtnFecharInsumos').addEventListener('click', () => { document.getElementById('cxInsumosModal').hidden = true; });
+        document.getElementById('cxInsumosModal').addEventListener('click', e => {
+            if (e.target.id === 'cxInsumosModal') e.target.hidden = true;
+            const b = e.target.closest('[data-ins-editar]');
+            if (b) cxAbrirInsumoCad(Number(b.dataset.insEditar));
+        });
+        document.getElementById('cxBtnInsumoNovo').addEventListener('click', () => cxAbrirInsumoCad(null));
+        document.getElementById('cxBtnInsumoMov').addEventListener('click', cxAbrirInsumoMov);
+        document.getElementById('cxBtnInsumosRelatorio').addEventListener('click', ev => cxGerarRelatorio(ev, {
+            btnId: 'cxBtnInsumosRelatorio', montar: cxMontarRelatorioInsumos, prefixo: 'Controle_de_Insumos', pronto: () => !!cxInsumosDados,
+        }));
+        ['cxInsMovEntrada', 'cxInsMovSaida', 'cxInsMovContagem'].forEach(id => document.getElementById(id).addEventListener('click', e => cxInsMovSetTipo(e.currentTarget.dataset.tipo)));
+        document.getElementById('cxInsMovInsumo').addEventListener('change', cxInsMovDica);
+        document.getElementById('cxBtnCloseInsumoMov').addEventListener('click', () => { document.getElementById('cxInsumoMovModal').hidden = true; });
+        document.getElementById('cxBtnCancelInsumoMov').addEventListener('click', () => { document.getElementById('cxInsumoMovModal').hidden = true; });
+        document.getElementById('cxBtnSaveInsumoMov').addEventListener('click', cxSalvarInsumoMov);
+        document.getElementById('cxInsumoMovModal').addEventListener('click', e => { if (e.target.id === 'cxInsumoMovModal') e.target.hidden = true; });
+        document.getElementById('cxBtnCloseInsumoCad').addEventListener('click', () => { document.getElementById('cxInsumoCadModal').hidden = true; });
+        document.getElementById('cxBtnCancelInsumoCad').addEventListener('click', () => { document.getElementById('cxInsumoCadModal').hidden = true; });
+        document.getElementById('cxBtnSaveInsumoCad').addEventListener('click', cxSalvarInsumoCad);
+        document.getElementById('cxInsumoCadModal').addEventListener('click', e => { if (e.target.id === 'cxInsumoCadModal') e.target.hidden = true; });
+        document.addEventListener('keydown', e => {
+            if (e.key !== 'Escape') return;
+            // fecha só a janela de cima (cadastro e lançamento abrem por cima da lista)
+            const aberta = ['cxInsumoCadModal', 'cxInsumoMovModal', 'cxInsumosModal'].map(id => document.getElementById(id)).find(m => !m.hidden);
+            if (aberta) aberta.hidden = true;
+        });
 
         document.getElementById('cxDiaSelect').value = cxTodayIso();
         document.getElementById('cxFulfillmentDiaSelect').value = cxTodayIso();
