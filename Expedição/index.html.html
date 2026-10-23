@@ -4160,13 +4160,18 @@
                 linhas, { compacto: true, fonte: 11 });
             const comConsumo = insumos.filter(i => i.consumo_dia > 0).sort((a, b) => b.consumo_dia - a.consumo_dia);
             const grafico = comConsumo.length
-                ? cxpBarras({ labels: comConsumo.map(i => i.nome), values: comConsumo.map(i => i.consumo_dia) }, 'un/dia', 'Consumo por insumo', 1000, { casas: 2, corte: 0.005, altura: Math.min(300, 70 + comConsumo.length * 38) })
+                // O estoque é contado em rolos/bobinas, mas o consumo se entende melhor na unidade
+                // de uso: insumo com "unidades por rolo" (ex: etiqueta) aparece em etiquetas por dia.
+                ? cxpBarras({
+                    labels: comConsumo.map(i => (i.unidades_por_estoque > 1) ? `${i.nome} (${/etiqueta/i.test(i.nome) ? 'etiquetas' : 'un'}/dia)` : `${i.nome} (${i.unidade}/dia)`),
+                    values: comConsumo.map(i => i.consumo_dia * (i.unidades_por_estoque > 1 ? i.unidades_por_estoque : 1)),
+                }, 'un/dia', 'Consumo por insumo', 1000, { casas: 2, corte: 0.005, altura: Math.min(300, 70 + comConsumo.length * 38) })
                 : '<div style="color:#64748b;font-size:12px;padding:10px 0;">Nenhum insumo teve consumo nos últimos 30 dias.</div>';
             const p1 = `
                 <div>${tabela}</div>
                 <div style="margin-top:14px;background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:12px 18px;">
                     <div style="font-size:13px;font-weight:700;">Consumo médio por insumo</div>
-                    <div style="font-size:10.5px;color:#64748b;margin:2px 0 8px;">Média por dia nos últimos 30 dias, na unidade de cada insumo (só quem teve consumo)</div>
+                    <div style="font-size:10.5px;color:#64748b;margin:2px 0 8px;">Média por dia nos últimos 30 dias, na unidade de uso de cada insumo (só quem teve consumo)</div>
                     ${grafico}
                 </div>`;
             const rotulo = m => m.tipo === 'entrada' ? (m.conta_consumo === false ? 'ajuste' : 'entrada') : (m.conta_consumo === false ? 'ajuste' : 'uso');
