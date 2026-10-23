@@ -125,16 +125,20 @@ function consumoInsumoTexto(i) {
 }
 const qtdBr = n => Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
-function montarEmail({ itens, itensInsumos = [], dadosAntigos }) {
+function montarEmail({ itens, itensInsumos = [], dadosAntigos, teste = false }) {
   const status = [...itens.map(i => i.m.status), ...itensInsumos.map(i => i.i.status)];
   const crit = status.filter(s => s === 'crit').length;
   const warn = status.filter(s => s === 'warn').length;
   const partes = [];
   if (crit) partes.push(`${crit} para comprar agora`);
   if (warn) partes.push(`${warn} em atenção`);
-  const assunto = status.length
+  const assunto = (teste ? '[TESTE] ' : '') + (status.length
     ? `Controle de Caixas e Insumos: ${partes.join(' e ')}`
-    : 'Controle de Caixas: dados de consumo desatualizados';
+    : 'Controle de Caixas: dados de consumo desatualizados');
+  const faixaTeste = teste ? `
+    <p style="background:#eff6ff;border:1px solid #93c5fd;padding:10px;border-radius:6px;font-size:13px;">
+      <b>E-mail de teste.</b> Os números abaixo são simulados só pra mostrar como o aviso fica; nada foi alterado no estoque.
+    </p>` : '';
 
   const linhas = itens.map(({ m, motivo }) => `
     <tr>
@@ -191,7 +195,7 @@ function montarEmail({ itens, itensInsumos = [], dadosAntigos }) {
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a;max-width:760px;">
       <h2 style="margin:0 0 4px;">Controle de Caixas e Insumos — Paulicomp SP</h2>
-      ${aviso}${tabela}${tabelaInsumos}
+      ${faixaTeste}${aviso}${tabela}${tabelaInsumos}
       <p style="margin-top:16px;"><a href="${URL_PAINEL}" style="color:#2563eb;">Abrir o Controle de Caixas</a></p>
       <p style="color:#94a3b8;font-size:11px;">Aviso automático. Ele só é enviado quando um modelo ou insumo muda de situação; se continuar igual, repete uma vez por semana.</p>
     </div>`;
@@ -338,4 +342,34 @@ export async function avisarFalhaBaixa(sql, filial, mensagem) {
   const envio = await enviarEmail('Controle de Caixas: a baixa automática falhou', html, `A baixa automática de caixas falhou: ${mensagem}`);
   await gravarEstado(sql, filial, ESTADO_FALHA_BAIXA, 'falha', true);
   return { enviado: true, id_resend: envio.id };
+}
+
+
+// E-mail de teste com UM insumo simulado abaixo do mínimo (mostra o formato real do aviso).
+// Não grava nada no estoque nem no estado dos avisos; vale o mesmo limite de 1 teste a cada 5 minutos.
+export async function enviarTesteInsumo(sql, filial, para) {
+  let alvo = null;
+  if (para) {
+    alvo = destinos().filter(d => d.toLowerCase() === String(para).toLowerCase());
+    if (alvo.length === 0) return { enviado: false, motivo: 'O endereço precisa estar na lista de destinos.' };
+  }
+  const estado = await lerEstado(sql, filial);
+  const r = estado.get(ESTADO_TESTE);
+  if (r && diasDesde(r.notificado_em) < 5 / 1440) {
+    return { enviado: false, motivo: 'Já foi enviado um teste há menos de 5 minutos.' };
+  }
+  const insumos = (await calcularInsumos(sql, filial)).filter(i => i.ativo);
+  const base = insumos.find(i => /fita marrom/i.test(i.nome)) || insumos[0];
+  if (!base) return { enviado: false, motivo: 'Nenhum insumo cadastrado.' };
+  const minimo = base.ponto_reposicao ?? 10;
+  const estoque = Math.max(0, minimo - 2);
+  const consumo = base.consumo_dia > 0 ? base.consumo_dia : 2;
+  const simulado = {
+    ...base, estoque_atual: estoque, status: 'crit', consumo_dia: consumo,
+    cobertura_dias: Math.round(estoque / consumo), ponto_reposicao: minimo, em_pedido: 0,
+  };
+  const { assunto, html, texto } = montarEmail({ itens: [], itensInsumos: [{ i: simulado, motivo: 'novo' }], dadosAntigos: null, teste: true });
+  const envio = await enviarEmail(assunto, html, texto, alvo);
+  await gravarEstado(sql, filial, ESTADO_TESTE, 'teste', true);
+  return { enviado: true, id_resend: envio.id, remetente: envio.remetente, destinos: alvo || destinos(), simulado: { insumo: simulado.nome, estoque: simulado.estoque_atual, minimo, unidade: simulado.unidade } };
 }
