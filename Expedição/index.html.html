@@ -3955,7 +3955,9 @@
 
             const html = [
                 cxpPagina('Consumo de Embalagens SP', 'Consumo médio diário por modelo de embalagem', p1, 1, TOTAL, ctx),
-                cxpPagina('Modelos de caixa', 'Estoque, consumo, ponto de reposição e status, por urgência de compra', p2, 2, TOTAL, ctx),
+                // a tabela de modelos usa sempre a média de 30 dias (ponto de reposição e cobertura),
+                // independente do período escolhido no ranking: o cabeçalho dela diz 30 dias
+                cxpPagina('Modelos de caixa', 'Estoque, consumo, ponto de reposição e status, por urgência de compra', p2, 2, TOTAL, Object.assign({}, ctx, { referencia: 'Últimos 30 dias' })),
             ].join('') + (insumosOk ? cxpPaginasInsumos(ctx, 3, TOTAL) : '');
             const raiz = document.createElement('div');
             raiz.id = 'cxRelatorioRaiz';
