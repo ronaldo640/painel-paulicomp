@@ -51,6 +51,19 @@ export async function calcularInsumos(sql, filial) {
   `;
   const porInsumo = new Map(movs.map(m => [m.insumo_id, m]));
 
+  // quantidade já pedida e ainda não recebida (quadro de Compras; migração 016 — tolerante)
+  const emPedido = new Map();
+  try {
+    const ped = await sql`
+      SELECT insumo_id, SUM(quantidade)::float AS qtd
+      FROM caixa_compras
+      WHERE filial = ${filial} AND insumo_id IS NOT NULL AND status IN ('solicitado','em_transito')
+      GROUP BY insumo_id`;
+    ped.forEach(p => emPedido.set(p.insumo_id, p.qtd));
+  } catch (err) {
+    if (!/insumo_id/.test(err.message || '')) throw err;
+  }
+
   const resultado = [];
   for (const i of insumos) {
     const m = porInsumo.get(i.id) || { saldo_manual: 0, saida_30d: 0, ultimo_lancamento: null };
@@ -100,6 +113,7 @@ export async function calcularInsumos(sql, filial) {
       automatico,
       baixa_automatica_acumulada: Math.round(baixaAutomatica * 100) / 100,
       embalagens_30d: embalagens30d,
+      em_pedido: emPedido.get(i.id) || 0,
       ultimo_lancamento: m.ultimo_lancamento,
       dias_sem_lancamento: diasSemLancamento,
     });

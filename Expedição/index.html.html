@@ -759,7 +759,8 @@
                 <div>
                     <p class="cx-modal-section-title">Nova cotação</p>
                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end;">
-                        <div class="cx-field"><label>Modelo</label><select id="cxCpModelo"></select></div>
+                        <div class="cx-field"><label>Tipo</label><select id="cxCpTipo"><option value="embalagem">Embalagem</option><option value="insumo">Insumo</option></select></div>
+                        <div class="cx-field"><label>Item</label><select id="cxCpModelo"></select></div>
                         <div class="cx-field"><label>Fornecedor</label><input type="text" id="cxCpFornecedor" placeholder="ex: Embalagens Alfa"></div>
                         <div class="cx-field"><label>Quantidade</label><input type="number" min="1" step="1" id="cxCpQtd"></div>
                         <div class="cx-field"><label>Preço unit. (R$)</label><input type="number" min="0" step="0.0001" id="cxCpPreco"></div>
@@ -2960,9 +2961,9 @@
         }
 
         async function cxOpenComprasModal() {
-            const modelos = (cxResumo?.modelos || []).filter(m => m.status !== 'nao_controlada')
-                .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-            document.getElementById('cxCpModelo').innerHTML = modelos.map(m => `<option value="${m.id}">${cxEsc(m.nome)}</option>`).join('');
+            // os insumos também entram nas compras (lista atualizada ao abrir)
+            try { cxInsumosDados = await cxInsumosApi('GET'); } catch (err) { /* sem insumos: o quadro segue só com embalagens */ }
+            cxCpPopularItens();
             document.getElementById('cxComprasModal').hidden = false;
             cxCpAtualizaHint();
             ['cxCpCotacoes', 'cxCpPedidos', 'cxCpRecebidos'].forEach(id => { document.getElementById(id).innerHTML = '<div class="cx-note">Carregando...</div>'; });
@@ -2975,10 +2976,54 @@
         }
         function cxCloseComprasModal() { document.getElementById('cxComprasModal').hidden = true; }
 
+        const cxCpTipo = () => document.getElementById('cxCpTipo').value;
+
+        // Lista de itens do formulário: modelos de embalagem ou insumos, conforme o tipo.
+        function cxCpPopularItens() {
+            const sel = document.getElementById('cxCpModelo');
+            if (cxCpTipo() === 'insumo') {
+                const ativos = (cxInsumosDados?.insumos || []).filter(i => i.ativo);
+                sel.innerHTML = ativos.length
+                    ? ativos.map(i => `<option value="${i.id}">${cxEsc(i.nome)} (${cxEsc(i.unidade)})</option>`).join('')
+                    : '<option value="">Nenhum insumo carregado</option>';
+            } else {
+                const modelos = (cxResumo?.modelos || []).filter(m => m.status !== 'nao_controlada')
+                    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+                sel.innerHTML = modelos.map(m => `<option value="${m.id}">${cxEsc(m.nome)}</option>`).join('');
+            }
+        }
+
+        // Situação de um item de compra (embalagem ou insumo) no mesmo formato.
+        function cxCpInfo(tipo, id) {
+            if (tipo === 'insumo') {
+                const i = (cxInsumosDados?.insumos || []).find(x => x.id === Number(id));
+                return i ? { unidade: i.unidade, estoque: i.estoque_atual, consumo: i.consumo_dia, emPedido: i.em_pedido || 0, sugestao: null } : null;
+            }
+            const m = cxModeloResumo(id);
+            return m ? { unidade: 'un', estoque: m.estoque_atual, consumo: m.consumo_planejamento ?? m.consumo_30d, emPedido: m.em_pedido || 0, sugestao: m.sugestao_compra } : null;
+        }
+
         // Dica abaixo do formulário: situação do modelo escolhido + prévia
         // do custo efetivo e de quantos dias a quantidade digitada cobre.
         function cxCpAtualizaHint() {
             const hint = document.getElementById('cxCpHint');
+            if (cxCpTipo() === 'insumo') {
+                const info = cxCpInfo('insumo', document.getElementById('cxCpModelo').value);
+                if (!info) { hint.innerHTML = ''; return; }
+                const partes = [`Estoque ${cxQtd(info.estoque)} ${info.unidade}`, info.consumo > 0 ? `consumo ${cxQtd(info.consumo)} ${info.unidade}/dia` : 'sem consumo registrado'];
+                if (info.emPedido > 0) partes.push(`${cxQtd(info.emPedido)} ${info.unidade} já em pedido`);
+                const q = Number(document.getElementById('cxCpQtd').value);
+                const pr = Number(document.getElementById('cxCpPreco').value);
+                const fr = Number(document.getElementById('cxCpFrete').value) || 0;
+                let previa = '';
+                if (q > 0 && pr > 0) {
+                    const total = pr * q + fr;
+                    previa = ` · total ${cxBrl(total)} (${cxBrl(total / q)}/${info.unidade})`;
+                    if (info.consumo > 0) previa += ` · cobre ~${Math.round(q / info.consumo)} dias`;
+                }
+                hint.innerHTML = partes.join(' · ') + previa;
+                return;
+            }
             const m = cxModeloResumo(document.getElementById('cxCpModelo').value);
             if (!m) { hint.innerHTML = ''; return; }
             const partes = [`Estoque ${m.estoque_atual} un`, `consumo ${(m.consumo_planejamento ?? m.consumo_30d).toFixed(1)}/dia`];
@@ -3015,14 +3060,14 @@
 
         async function cxAddCotacao() {
             const body = {
-                modelo_id: Number(document.getElementById('cxCpModelo').value),
+                ...(cxCpTipo() === 'insumo' ? { insumo_id: Number(document.getElementById('cxCpModelo').value) } : { modelo_id: Number(document.getElementById('cxCpModelo').value) }),
                 fornecedor: document.getElementById('cxCpFornecedor').value.trim(),
                 quantidade: Number(document.getElementById('cxCpQtd').value),
                 preco_unitario: document.getElementById('cxCpPreco').value,
                 frete: document.getElementById('cxCpFrete').value,
                 prazo_dias: document.getElementById('cxCpPrazo').value,
             };
-            if (!body.modelo_id) return cxToast('Escolha o modelo.', 'error');
+            if (!(body.modelo_id || body.insumo_id)) return cxToast('Escolha o item.', 'error');
             if (!body.fornecedor) return cxToast('Informe o fornecedor.', 'error');
             if (!(body.quantidade > 0)) return cxToast('Informe a quantidade.', 'error');
             if (body.preco_unitario === '') return cxToast('Informe o preço unitário.', 'error');
@@ -3080,18 +3125,18 @@
                 wrapCot.innerHTML = '<div class="cx-note" style="padding:8px 0;">Nenhuma cotação em aberto. Adicione acima pra comparar fornecedores.</div>';
             } else {
                 const porModelo = new Map();
-                cotacoes.forEach(c => { if (!porModelo.has(c.modelo_id)) porModelo.set(c.modelo_id, []); porModelo.get(c.modelo_id).push(c); });
-                wrapCot.innerHTML = [...porModelo.entries()].map(([modeloId, lista]) => {
-                    const m = cxModeloResumo(modeloId);
+                cotacoes.forEach(c => { const k = c.item_tipo + ':' + (c.insumo_id ?? c.modelo_id); if (!porModelo.has(k)) porModelo.set(k, []); porModelo.get(k).push(c); });
+                wrapCot.innerHTML = [...porModelo.entries()].map(([chave, lista]) => {
+                    const m = cxCpInfo(lista[0].item_tipo, lista[0].insumo_id ?? lista[0].modelo_id);
                     const menorCusto = Math.min(...lista.map(c => cxCustoTotal(c) / c.quantidade));
                     const prazos = lista.filter(c => c.prazo_dias != null).map(c => c.prazo_dias);
                     const menorPrazo = prazos.length > 1 ? Math.min(...prazos) : null;
                     const comparavel = lista.length > 1;
-                    const info = m ? `estoque ${m.estoque_atual} un · consumo ${(m.consumo_planejamento ?? m.consumo_30d).toFixed(1)}/dia${m.em_pedido > 0 ? ' · ' + m.em_pedido + ' un em pedido' : ''}${m.sugestao_compra > 0 ? ' · sugestão ' + m.sugestao_compra + ' un' : ''}` : '';
+                    const info = m ? `estoque ${cxQtd(m.estoque)} ${m.unidade} · consumo ${cxQtd(m.consumo)}/dia${m.emPedido > 0 ? ' · ' + cxQtd(m.emPedido) + ' ' + m.unidade + ' em pedido' : ''}${m.sugestao > 0 ? ' · sugestão ' + m.sugestao + ' un' : ''}` : '';
                     const linhas = lista.map(c => {
                         const total = cxCustoTotal(c);
                         const custoUn = total / c.quantidade;
-                        const consPlan = m ? (m.consumo_planejamento ?? m.consumo_30d) : 0;
+                        const consPlan = m ? m.consumo : 0;
                         const cobre = consPlan > 0 ? Math.round(c.quantidade / consPlan) + ' dias' : '—';
                         const tags = (comparavel && custoUn === menorCusto ? ' <span class="cx-badge ok"><span class="d"></span>Mais barata</span>' : '')
                             + (comparavel && menorPrazo !== null && c.prazo_dias === menorPrazo ? ' <span class="cx-badge info"><span class="d"></span>Menor prazo</span>' : '');
@@ -3112,7 +3157,7 @@
                     }).join('');
                     return `<div style="margin-bottom:14px;">
                         <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px;">
-                            <span class="cx-box-name">${cxEsc(lista[0].modelo_nome)}</span><span class="cx-box-sub">${info}</span>
+                            <span class="cx-box-name">${cxEsc(lista[0].modelo_nome)}${lista[0].item_tipo === 'insumo' ? ' <span class="cx-box-sub">insumo</span>' : ''}</span><span class="cx-box-sub">${info}</span>
                         </div>
                         <div class="cx-scroll-x"><table class="cx-table cx-cadastro-table" style="min-width:820px;">
                             <thead><tr><th>Fornecedor</th><th class="num">Qtd</th><th class="num">Preço unit.</th><th class="num">Frete</th><th class="num">Total</th><th class="num" title="(preço x qtd + frete) / qtd">Custo/un</th><th class="num">Prazo</th><th class="num" title="Quantidade ÷ consumo/dia atual">Cobre</th><th></th></tr></thead>
@@ -3129,7 +3174,7 @@
                 wrapPed.innerHTML = '<div class="cx-note" style="padding:8px 0;">Nenhum pedido em andamento.</div>';
             } else {
                 wrapPed.innerHTML = `<div class="cx-scroll-x"><table class="cx-table cx-cadastro-table" style="min-width:820px;">
-                    <thead><tr><th>Modelo</th><th>Fornecedor</th><th class="num">Qtd</th><th class="num">Total</th><th class="num">Pedido em</th><th class="num">Previsão</th><th>Status</th><th></th></tr></thead>
+                    <thead><tr><th>Item</th><th>Fornecedor</th><th class="num">Qtd</th><th class="num">Total</th><th class="num">Pedido em</th><th class="num">Previsão</th><th>Status</th><th></th></tr></thead>
                     <tbody>${pedidos.map(c => {
                         const recebendo = cxCpReceberId === c.id;
                         const acoes = recebendo
@@ -3143,7 +3188,7 @@
                                <button type="button" class="cx-btn primary" style="${btnSm}" data-cp-receber="${c.id}">Recebido</button>
                                <button type="button" class="cx-btn" style="${btnSm}" data-cp-cancelar="${c.id}">Cancelar</button>`;
                         return `<tr>
-                            <td>${cxEsc(c.modelo_nome)}</td>
+                            <td>${cxEsc(c.modelo_nome)}${c.item_tipo === 'insumo' ? ' <span class="cx-box-sub">insumo</span>' : ''}</td>
                             <td>${cxEsc(c.fornecedor)}</td>
                             <td class="num">${c.quantidade}</td>
                             <td class="num">${cxBrl(cxCustoTotal(c))}</td>
@@ -3162,11 +3207,11 @@
                 wrapRec.innerHTML = '<div class="cx-note" style="padding:8px 0;">Nenhum recebimento ainda.</div>';
             } else {
                 wrapRec.innerHTML = `<div class="cx-scroll-x"><table class="cx-table cx-cadastro-table" style="min-width:820px;">
-                    <thead><tr><th>Modelo</th><th>Fornecedor</th><th class="num">Pedido</th><th class="num">Recebido</th><th class="num">Chegou em</th><th class="num">Custo/un</th><th>Entrada no estoque</th></tr></thead>
+                    <thead><tr><th>Item</th><th>Fornecedor</th><th class="num">Pedido</th><th class="num">Recebido</th><th class="num">Chegou em</th><th class="num">Custo/un</th><th>Entrada no estoque</th></tr></thead>
                     <tbody>${recebidos.map(c => {
                         const dif = c.qtd_recebida !== c.quantidade ? ` style="color:#fcd34d;" title="Diferente do pedido (${c.quantidade})"` : '';
                         return `<tr>
-                            <td>${cxEsc(c.modelo_nome)}</td>
+                            <td>${cxEsc(c.modelo_nome)}${c.item_tipo === 'insumo' ? ' <span class="cx-box-sub">insumo</span>' : ''}</td>
                             <td>${cxEsc(c.fornecedor)}</td>
                             <td class="num">${c.quantidade}</td>
                             <td class="num"><b${dif}>${c.qtd_recebida}</b></td>
@@ -3186,6 +3231,16 @@
             const c = cxCompras.find(x => x.id === id);
             if (!c) return;
             cxCloseComprasModal();
+            if (c.insumo_id) {
+                cxAbrirInsumoMov(); // usa a lista de insumos já carregada ao abrir Compras
+                cxInsCompraId = c.id;
+                document.getElementById('cxInsMovInsumo').value = String(c.insumo_id);
+                document.getElementById('cxInsMovQtd').value = c.qtd_recebida;
+                if (c.data_recebimento) document.getElementById('cxInsMovData').value = c.data_recebimento;
+                document.getElementById('cxInsMovObs').value = `Compra #${c.id} — ${c.fornecedor}`;
+                cxInsMovDica();
+                return;
+            }
             cxOpenMovModal();
             cxMovCompraId = c.id;
             document.getElementById('cxMovModelo').value = String(c.modelo_id);
@@ -3685,6 +3740,7 @@
         document.getElementById('cxComprasModal').addEventListener('click', cxComprasCliques);
         document.getElementById('cxBtnAddCotacao').addEventListener('click', cxAddCotacao);
         ['cxCpModelo', 'cxCpQtd', 'cxCpPreco', 'cxCpFrete'].forEach(id => document.getElementById(id).addEventListener('input', cxCpAtualizaHint));
+        document.getElementById('cxCpTipo').addEventListener('change', () => { cxCpPopularItens(); cxCpAtualizaHint(); });
 
         document.getElementById('cxBtnCadastro').addEventListener('click', cxOpenCadastroModal);
         document.getElementById('cxBtnCloseCadastro').addEventListener('click', cxCloseCadastroModal);
@@ -3970,6 +4026,7 @@
         let cxInsumosDados = null;      // { insumos, movimentos }
         let cxInsMovTipo = 'entrada';   // entrada | saida | contagem
         let cxInsEditandoId = null;     // null = novo insumo
+        let cxInsCompraId = null;       // compra de insumo cuja entrada está sendo lançada
 
         async function cxInsumosApi(method, body) {
             const resp = await fetch(`/api/caixa-movimentacoes?recurso=insumos&filial=${CX_FILIAL}${method === 'GET' ? '&limit=25' : ''}`, {
@@ -4016,7 +4073,7 @@
                         : `<span style="color:#94a3b8;">manual</span>${i.ativo && i.dias_sem_lancamento !== null && i.dias_sem_lancamento >= 21 ? `<div class="cx-box-sub" style="color:#fcd34d;">sem lançamento há ${i.dias_sem_lancamento} dias</div>` : ''}`;
                     return `<tr style="${i.ativo ? '' : 'opacity:.55;'}">
                         <td><div class="cx-box-name" data-ins-editar="${i.id}" style="cursor:pointer;" title="Clique para editar: prazo de entrega, estoque mínimo e baixa automática">${cxEsc(i.nome)} <span style="font-size:11px;font-weight:600;color:#60a5fa;">editar</span></div><div class="cx-box-sub">${cxEsc(i.unidade)}${i.lead_time_dias ? ' · entrega ' + i.lead_time_dias + ' dias' : ''}</div></td>
-                        <td class="num"><b style="color:#f1f5f9;">${cxQtd(i.estoque_atual)}</b> <span class="cx-box-sub">${cxEsc(i.unidade)}</span></td>
+                        <td class="num"><b style="color:#f1f5f9;">${cxQtd(i.estoque_atual)}</b> <span class="cx-box-sub">${cxEsc(i.unidade)}</span>${i.em_pedido > 0 ? '<div class="cx-box-sub" style="color:#93c5fd;">+' + cxQtd(i.em_pedido) + ' em pedido</div>' : ''}</td>
                         <td class="num">${(() => { const c = cxConsumoUso(i); return c ? `${cxQtd(c.valor)} <span class="cx-box-sub">${cxEsc(c.unidade)}</span>` : '—'; })()}</td>
                         <td class="num">${i.cobertura_dias !== null ? i.cobertura_dias + ' dias' : '—'}</td>
                         <td class="num">${i.ponto_reposicao !== null ? cxQtd(i.ponto_reposicao) : '—'}${i.estoque_minimo !== null ? '<div class="cx-box-sub">mínimo definido</div>' : ''}</td>
@@ -4074,6 +4131,7 @@
             const ativos = (cxInsumosDados?.insumos || []).filter(i => i.ativo);
             if (ativos.length === 0) return cxToast('Carregue os insumos primeiro (migração 014 rodada?).', 'error');
             document.getElementById('cxInsMovInsumo').innerHTML = ativos.map(i => `<option value="${i.id}">${cxEsc(i.nome)} (${cxEsc(i.unidade)})</option>`).join('');
+            cxInsCompraId = null; // só o fluxo "Lançar entrada" (Compras) preenche isso, depois de abrir
             document.getElementById('cxInsMovQtd').value = '';
             document.getElementById('cxInsMovData').value = cxTodayIso();
             document.getElementById('cxInsMovObs').value = '';
@@ -4094,6 +4152,11 @@
                     ? await cxInsumosApi('POST', { acao: 'contagem', insumo_id: insumoId, quantidade_contada: Number(qtd), data })
                     : await cxInsumosApi('POST', { insumo_id: insumoId, tipo: cxInsMovTipo, quantidade: Number(qtd), data, observacao: obs || null });
                 cxToast(cxInsMovTipo === 'contagem' ? (resp.diferenca === 0 ? 'Contagem igual ao estoque: nada a ajustar.' : `Ajuste lançado (${resp.diferenca > 0 ? '+' : ''}${cxQtd(resp.diferenca)}).`) : 'Lançamento registrado.', 'success');
+                if (cxInsCompraId && cxInsMovTipo === 'entrada') {
+                    // veio de "Lançar entrada" numa compra recebida: marca como lançada
+                    await cxComprasApi('PUT', '', { id: cxInsCompraId, acao: 'entrada_lancada' }).catch(() => {});
+                    cxInsCompraId = null;
+                }
                 document.getElementById('cxInsumoMovModal').hidden = true;
                 await cxCarregarInsumos();
             } catch (err) {

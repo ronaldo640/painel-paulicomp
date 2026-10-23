@@ -19,28 +19,53 @@ export default async function handlerCompras(req, res, sql) {
     if (req.method === 'GET') {
       // Cotações e pedidos em andamento ficam sempre; recebidos só se a
       // entrada ainda não foi lançada ou chegaram nos últimos 60 dias.
-      const abertos = await sql`
-        SELECT c.id, c.modelo_id, cm.nome AS modelo_nome, c.filial, c.status, c.fornecedor,
-               c.quantidade, c.preco_unitario::float AS preco_unitario, c.frete::float AS frete, c.prazo_dias,
-               TO_CHAR(c.data_cotacao, 'YYYY-MM-DD') AS data_cotacao,
-               TO_CHAR(c.data_pedido, 'YYYY-MM-DD') AS data_pedido,
-               TO_CHAR(c.previsao_chegada, 'YYYY-MM-DD') AS previsao_chegada,
-               TO_CHAR(c.data_recebimento, 'YYYY-MM-DD') AS data_recebimento,
-               c.qtd_recebida, c.entrada_lancada, c.observacao
-        FROM caixa_compras c JOIN caixa_modelos cm ON cm.id = c.modelo_id
-        WHERE c.filial = ${filial}
-          AND (c.status IN ('cotacao','solicitado','em_transito')
-               OR (c.status = 'recebido' AND (c.entrada_lancada = false OR c.data_recebimento >= current_date - interval '60 days')))
-        ORDER BY c.id DESC
-      `;
-      return res.status(200).json(abertos);
+      let abertos;
+      try {
+        abertos = await sql`
+          SELECT c.id, c.modelo_id, c.insumo_id, COALESCE(cm.nome, i.nome) AS modelo_nome,
+                 CASE WHEN c.insumo_id IS NOT NULL THEN 'insumo' ELSE 'embalagem' END AS item_tipo,
+                 i.unidade AS unidade_insumo, c.filial, c.status, c.fornecedor,
+                 c.quantidade, c.preco_unitario::float AS preco_unitario, c.frete::float AS frete, c.prazo_dias,
+                 TO_CHAR(c.data_cotacao, 'YYYY-MM-DD') AS data_cotacao,
+                 TO_CHAR(c.data_pedido, 'YYYY-MM-DD') AS data_pedido,
+                 TO_CHAR(c.previsao_chegada, 'YYYY-MM-DD') AS previsao_chegada,
+                 TO_CHAR(c.data_recebimento, 'YYYY-MM-DD') AS data_recebimento,
+                 c.qtd_recebida, c.entrada_lancada, c.observacao
+          FROM caixa_compras c
+          LEFT JOIN caixa_modelos cm ON cm.id = c.modelo_id
+          LEFT JOIN insumos i ON i.id = c.insumo_id
+          WHERE c.filial = ${filial}
+            AND (c.status IN ('cotacao','solicitado','em_transito')
+                 OR (c.status = 'recebido' AND (c.entrada_lancada = false OR c.data_recebimento >= current_date - interval '60 days')))
+          ORDER BY c.id DESC
+        `;
+      } catch (err) {
+        // migração 016 (insumo_id) ainda não rodada: lista só as compras de embalagem, como antes
+        if (!/insumo_id|insumos/.test(err.message || '')) throw err;
+        abertos = await sql`
+          SELECT c.id, c.modelo_id, NULL::int AS insumo_id, cm.nome AS modelo_nome, 'embalagem' AS item_tipo,
+                 NULL::text AS unidade_insumo, c.filial, c.status, c.fornecedor,
+                 c.quantidade, c.preco_unitario::float AS preco_unitario, c.frete::float AS frete, c.prazo_dias,
+                 TO_CHAR(c.data_cotacao, 'YYYY-MM-DD') AS data_cotacao,
+                 TO_CHAR(c.data_pedido, 'YYYY-MM-DD') AS data_pedido,
+                 TO_CHAR(c.previsao_chegada, 'YYYY-MM-DD') AS previsao_chegada,
+                 TO_CHAR(c.data_recebimento, 'YYYY-MM-DD') AS data_recebimento,
+                 c.qtd_recebida, c.entrada_lancada, c.observacao
+          FROM caixa_compras c JOIN caixa_modelos cm ON cm.id = c.modelo_id
+          WHERE c.filial = ${filial}
+            AND (c.status IN ('cotacao','solicitado','em_transito')
+                 OR (c.status = 'recebido' AND (c.entrada_lancada = false OR c.data_recebimento >= current_date - interval '60 days')))
+          ORDER BY c.id DESC
+        `;
+      }      return res.status(200).json(abertos);
     }
 
     if (req.method === 'POST') {
-      const { modelo_id, fornecedor, quantidade, preco_unitario, frete, prazo_dias, observacao } = req.body || {};
+      const { modelo_id, insumo_id, fornecedor, quantidade, preco_unitario, frete, prazo_dias, observacao } = req.body || {};
       const qtd = Number(quantidade);
       const preco = Number(preco_unitario);
-      if (!modelo_id) return res.status(400).json({ error: 'Escolha o modelo de caixa.' });
+      if (!modelo_id && !insumo_id) return res.status(400).json({ error: 'Escolha o modelo de caixa ou o insumo.' });
+      if (modelo_id && insumo_id) return res.status(400).json({ error: 'Uma compra é de um item só: modelo de caixa ou insumo.' });
       if (!fornecedor || !String(fornecedor).trim()) return res.status(400).json({ error: 'Informe o fornecedor.' });
       if (!Number.isInteger(qtd) || qtd <= 0) return res.status(400).json({ error: 'Quantidade deve ser um inteiro maior que zero.' });
       if (!(preco >= 0) || preco_unitario === '' || preco_unitario === null || preco_unitario === undefined) {
@@ -49,11 +74,16 @@ export default async function handlerCompras(req, res, sql) {
       const prazo = prazo_dias === '' || prazo_dias === null || prazo_dias === undefined ? null : Number(prazo_dias);
       if (prazo !== null && (!Number.isInteger(prazo) || prazo < 0)) return res.status(400).json({ error: 'Prazo inválido.' });
 
-      const rows = await sql`
-        INSERT INTO caixa_compras (filial, modelo_id, fornecedor, quantidade, preco_unitario, frete, prazo_dias, observacao)
-        VALUES (${filial}, ${modelo_id}, ${String(fornecedor).trim()}, ${qtd}, ${preco}, ${Number(frete) || 0}, ${prazo}, ${observacao || null})
-        RETURNING id
-      `;
+      // Insumo precisa da migração 016 (insumo_id); embalagem segue pelo INSERT de sempre.
+      const rows = insumo_id
+        ? await sql`
+            INSERT INTO caixa_compras (filial, insumo_id, fornecedor, quantidade, preco_unitario, frete, prazo_dias, observacao)
+            VALUES (${filial}, ${Number(insumo_id)}, ${String(fornecedor).trim()}, ${qtd}, ${preco}, ${Number(frete) || 0}, ${prazo}, ${observacao || null})
+            RETURNING id`
+        : await sql`
+            INSERT INTO caixa_compras (filial, modelo_id, fornecedor, quantidade, preco_unitario, frete, prazo_dias, observacao)
+            VALUES (${filial}, ${modelo_id}, ${String(fornecedor).trim()}, ${qtd}, ${preco}, ${Number(frete) || 0}, ${prazo}, ${observacao || null})
+            RETURNING id`;
       return res.status(201).json(rows[0]);
     }
 
@@ -109,6 +139,9 @@ export default async function handlerCompras(req, res, sql) {
     return res.status(405).json({ error: 'Método não permitido.' });
   } catch (error) {
     console.error('Erro caixa-compras:', error);
+    if (/insumo_id|caixa_compras_item_check/.test(error.message || '')) {
+      return res.status(500).json({ error: 'Migração 016 pendente: rode sql/016_compras_insumos.sql no Neon para comprar insumos.' });
+    }
     if (erroMigracao(error)) {
       return res.status(500).json({ error: `Falha em caixa_compras (migração 009 pendente?): ${error.message}` });
     }
