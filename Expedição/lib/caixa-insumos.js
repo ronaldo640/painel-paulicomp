@@ -17,7 +17,7 @@ const num = v => (v === null || v === undefined || v === '' ? null : Number(v));
 
 // Resumo de todos os insumos: estoque, consumo/dia, cobertura, ponto de
 // reposição e situação (crit | warn | ok | sem_config).
-export async function calcularInsumos(sql, filial) {
+export async function calcularInsumos(sql, filial, diasPeriodo = DIAS_CONSUMO) {
   // unidades_por_estoque (migração 015) é lida à parte: sem ela, tudo segue com fator 1
   let insumos;
   try {
@@ -44,6 +44,7 @@ export async function calcularInsumos(sql, filial) {
     SELECT insumo_id,
            COALESCE(SUM(CASE WHEN tipo = 'entrada' THEN quantidade ELSE -quantidade END), 0)::float AS saldo_manual,
            COALESCE(SUM(quantidade) FILTER (WHERE tipo = 'saida' AND conta_consumo = true AND data > current_date - ${DIAS_CONSUMO} * interval '1 day'), 0)::float AS saida_30d,
+           COALESCE(SUM(quantidade) FILTER (WHERE tipo = 'saida' AND conta_consumo = true AND data > current_date - ${diasPeriodo} * interval '1 day'), 0)::float AS saida_periodo,
            TO_CHAR(MAX(data), 'YYYY-MM-DD') AS ultimo_lancamento
     FROM insumo_movimentacoes
     WHERE filial = ${filial}
@@ -66,8 +67,9 @@ export async function calcularInsumos(sql, filial) {
 
   const resultado = [];
   for (const i of insumos) {
-    const m = porInsumo.get(i.id) || { saldo_manual: 0, saida_30d: 0, ultimo_lancamento: null };
+    const m = porInsumo.get(i.id) || { saldo_manual: 0, saida_30d: 0, saida_periodo: 0, ultimo_lancamento: null };
     let consumoDia = m.saida_30d / DIAS_CONSUMO;
+    let consumoPeriodo = m.saida_periodo / diasPeriodo;
     let baixaAutomatica = 0;
     let embalagens30d = null;
     const automatico = i.consumo_por_embalagem !== null && i.auto_desde !== null;
@@ -77,7 +79,8 @@ export async function calcularInsumos(sql, filial) {
       // real); com auto_inclui_fulfillment, também as vendas série 2.
       const [e] = await sql`
         SELECT COALESCE(SUM(quantidade) FILTER (WHERE data >= ${i.auto_desde}::date), 0)::float AS desde,
-               COALESCE(SUM(quantidade) FILTER (WHERE data > current_date - ${DIAS_CONSUMO} * interval '1 day'), 0)::float AS ultimos_30d
+               COALESCE(SUM(quantidade) FILTER (WHERE data > current_date - ${DIAS_CONSUMO} * interval '1 day'), 0)::float AS ultimos_30d,
+               COALESCE(SUM(quantidade) FILTER (WHERE data > current_date - ${diasPeriodo} * interval '1 day'), 0)::float AS no_periodo
         FROM caixa_movimentacoes
         WHERE filial = ${filial} AND tipo = 'saida'
           AND ((conta_estoque = true AND conta_consumo = true) OR (${i.auto_inclui_fulfillment}::boolean AND conta_estoque = false))
@@ -87,6 +90,7 @@ export async function calcularInsumos(sql, filial) {
       baixaAutomatica = e.desde * porEmbalagem;
       embalagens30d = e.ultimos_30d;
       consumoDia += (e.ultimos_30d * porEmbalagem) / DIAS_CONSUMO;
+      consumoPeriodo += (e.no_periodo * porEmbalagem) / diasPeriodo;
     }
 
     const estoque = Math.round((m.saldo_manual - baixaAutomatica) * 100) / 100;
@@ -107,6 +111,8 @@ export async function calcularInsumos(sql, filial) {
       ...i,
       estoque_atual: estoque,
       consumo_dia: Math.round(consumoDia * 100) / 100,
+      consumo_periodo: Math.round(consumoPeriodo * 100) / 100,
+      dias_periodo: diasPeriodo,
       cobertura_dias: consumoDia > 0 ? Math.round(estoque / consumoDia) : null,
       ponto_reposicao: ponto ?? null,
       status: i.ativo ? status : 'inativo',
@@ -139,7 +145,8 @@ export default async function handlerInsumos(req, res, sql) {
   try {
     if (req.method === 'GET') {
       const limite = Math.min(Number(req.query.limit) || 20, 200);
-      const [insumos, movimentos] = await Promise.all([calcularInsumos(sql, filial), movimentosRecentes(sql, filial, limite)]);
+      const dias = [30, 60, 90].includes(Number(req.query.dias)) ? Number(req.query.dias) : DIAS_CONSUMO;
+      const [insumos, movimentos] = await Promise.all([calcularInsumos(sql, filial, dias), movimentosRecentes(sql, filial, limite)]);
       return res.status(200).json({ filial, insumos, movimentos });
     }
 
