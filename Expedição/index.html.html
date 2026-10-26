@@ -4101,7 +4101,7 @@
                         <td class="num">${i.ponto_reposicao !== null ? cxQtd(i.ponto_reposicao) : '—'}${i.estoque_minimo !== null ? '<div class="cx-box-sub">mínimo definido</div>' : ''}</td>
                         <td><span data-ins-editar="${i.id}" style="cursor:pointer;" title="Clique para definir o prazo de entrega ou o estoque mínimo">${cxInsBadge(i.status)}</span></td>
                         <td>${baixa}</td>
-                        <td class="num" style="white-space:nowrap;">${i.ativo && !i.automatico ? `<button type="button" class="cx-btn" style="padding:5px 10px;font-size:11.5px;margin-right:6px;" data-ins-abri="${i.id}" title="Dá baixa de 1 ${cxEsc(i.unidade)} (hoje) como consumo">Abri 1</button>` : ''}<button type="button" class="cx-btn" style="padding:5px 10px;font-size:11.5px;" data-ins-editar="${i.id}">Editar</button></td>
+                        <td class="num" style="white-space:nowrap;">${i.ativo && !i.automatico ? `<button type="button" class="cx-btn" style="padding:5px 10px;font-size:11.5px;margin-right:6px;" data-ins-abri="${i.id}" title="Lança o consumo de 1 ${cxEsc(i.unidade)} (hoje)">Consumo</button>` : ''}<button type="button" class="cx-btn" style="padding:5px 10px;font-size:11.5px;" data-ins-editar="${i.id}">Editar</button></td>
                     </tr>`;
                 }).join('');
             }
@@ -4195,14 +4195,14 @@
             }
         }
 
-        // "Abri 1": baixa rápida de 1 unidade (rolo, bobina...) como consumo, com a data de hoje
+        // "Consumo": lançamento rápido do consumo de 1 unidade (rolo, bobina...), com a data de hoje
         async function cxInsumoAbri(id, btn) {
             const i = (cxInsumosDados?.insumos || []).find(x => x.id === id);
-            if (!i || !confirm(`Dar baixa de 1 ${i.unidade} de "${i.nome}" (hoje)?\nEstoque: ${cxQtd(i.estoque_atual)} → ${cxQtd(i.estoque_atual - 1)} ${i.unidade}.`)) return;
+            if (!i || !confirm(`Lançar o consumo de 1 ${i.unidade} de "${i.nome}" (hoje)?\nEstoque: ${cxQtd(i.estoque_atual)} → ${cxQtd(i.estoque_atual - 1)} ${i.unidade}.`)) return;
             btn.disabled = true;
             try {
-                await cxInsumosApi('POST', { insumo_id: id, tipo: 'saida', quantidade: 1, data: cxTodayIso(), observacao: `Abriu 1 ${i.unidade}` });
-                cxToast(`Baixa registrada: 1 ${i.unidade} de ${i.nome}.`, 'success');
+                await cxInsumosApi('POST', { insumo_id: id, tipo: 'saida', quantidade: 1, data: cxTodayIso(), observacao: `Consumo de 1 ${i.unidade}` });
+                cxToast(`Consumo registrado: 1 ${i.unidade} de ${i.nome}.`, 'success');
                 await cxCarregarInsumos();
             } catch (err) {
                 cxToast('Erro: ' + err.message, 'error');
