@@ -169,7 +169,8 @@ export default async function handlerInsumos(req, res, sql) {
         return res.status(201).json(rows[0]);
       }
 
-      // contagem física: lança a diferença como ajuste (não conta como consumo)
+      // contagem física: lança a diferença como ajuste (não conta como consumo), ou como
+      // consumo quando for contagem de rotina
       if (body.acao === 'contagem') {
         const contada = Number(body.quantidade_contada);
         if (!body.insumo_id || !(contada >= 0)) return res.status(400).json({ error: 'Informe o insumo e a quantidade contada.' });
@@ -178,10 +179,13 @@ export default async function handlerInsumos(req, res, sql) {
         if (!atual) return res.status(404).json({ error: 'Insumo não encontrado.' });
         const dif = Math.round((contada - atual.estoque_atual) * 100) / 100;
         if (dif === 0) return res.status(200).json({ ok: true, diferenca: 0 });
+        // contagem de rotina (só insumo manual): o que faltou na prateleira foi usado, então conta
+        // como consumo. Sobra ou insumo com baixa automática continuam sendo ajuste.
+        const consumo = body.rotina === true && !atual.automatico && dif < 0;
         await sql`
           INSERT INTO insumo_movimentacoes (insumo_id, filial, tipo, quantidade, data, observacao, conta_consumo)
-          VALUES (${atual.id}, ${filial}, ${dif > 0 ? 'entrada' : 'saida'}, ${Math.abs(dif)}, ${body.data || new Date().toISOString().slice(0, 10)}, ${'Ajuste de contagem física'}, false)`;
-        return res.status(201).json({ ok: true, diferenca: dif });
+          VALUES (${atual.id}, ${filial}, ${dif > 0 ? 'entrada' : 'saida'}, ${Math.abs(dif)}, ${body.data || new Date().toISOString().slice(0, 10)}, ${consumo ? 'Contagem de rotina (consumo apurado)' : 'Ajuste de contagem física'}, ${consumo})`;
+        return res.status(201).json({ ok: true, diferenca: dif, conta_consumo: consumo });
       }
 
       // lançamento de entrada ou saída

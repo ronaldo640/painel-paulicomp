@@ -860,6 +860,10 @@
                     <div class="cx-field" style="flex:1;"><label id="cxInsMovQtdLabel">Quantidade</label><input type="number" min="0" step="any" id="cxInsMovQtd"></div>
                     <div class="cx-field" style="flex:1;"><label>Data</label><input type="date" id="cxInsMovData"></div>
                 </div>
+                <label id="cxInsMovRotinaWrap" style="display:none;align-items:flex-start;gap:8px;font-size:12.5px;color:#cbd5e1;cursor:pointer;">
+                    <input type="checkbox" id="cxInsMovRotina" checked style="margin-top:3px;">
+                    <span><b>Contagem de rotina:</b> o que faltar em relação ao sistema conta como consumo. Desmarque quando for um acerto de inventário (perda, erro de lançamento).</span>
+                </label>
                 <div class="cx-box-sub" id="cxInsMovDica"></div>
                 <div class="cx-field"><label>Observação (opcional)</label><input type="text" id="cxInsMovObs" placeholder="ex: NF 4821 — fornecedor X"></div>
             </div>
@@ -4097,7 +4101,7 @@
                         <td class="num">${i.ponto_reposicao !== null ? cxQtd(i.ponto_reposicao) : '—'}${i.estoque_minimo !== null ? '<div class="cx-box-sub">mínimo definido</div>' : ''}</td>
                         <td><span data-ins-editar="${i.id}" style="cursor:pointer;" title="Clique para definir o prazo de entrega ou o estoque mínimo">${cxInsBadge(i.status)}</span></td>
                         <td>${baixa}</td>
-                        <td class="num"><button type="button" class="cx-btn" style="padding:5px 10px;font-size:11.5px;" data-ins-editar="${i.id}">Editar</button></td>
+                        <td class="num" style="white-space:nowrap;">${i.ativo && !i.automatico ? `<button type="button" class="cx-btn" style="padding:5px 10px;font-size:11.5px;margin-right:6px;" data-ins-abri="${i.id}" title="Dá baixa de 1 ${cxEsc(i.unidade)} (hoje) como consumo">Abri 1</button>` : ''}<button type="button" class="cx-btn" style="padding:5px 10px;font-size:11.5px;" data-ins-editar="${i.id}">Editar</button></td>
                     </tr>`;
                 }).join('');
             }
@@ -4138,8 +4142,10 @@
             const i = (cxInsumosDados?.insumos || []).find(x => String(x.id) === sel.value);
             const dica = document.getElementById('cxInsMovDica');
             if (!i) { dica.textContent = ''; return; }
+            const rotina = cxInsMovTipo === 'contagem' && !i.automatico;
+            document.getElementById('cxInsMovRotinaWrap').style.display = rotina ? 'flex' : 'none';
             dica.textContent = cxInsMovTipo === 'contagem'
-                ? `Estoque atual no sistema: ${cxQtd(i.estoque_atual)} ${i.unidade}. A diferença vira um ajuste e não conta como consumo.`
+                ? `Estoque atual no sistema: ${cxQtd(i.estoque_atual)} ${i.unidade}. ` + (rotina ? 'A sobra sempre vira ajuste.' : 'Este insumo tem baixa automática: a diferença vira ajuste e não conta como consumo.')
                 : `Estoque atual: ${cxQtd(i.estoque_atual)} ${i.unidade}.`;
         }
         function cxInsMovSetTipo(tipo) {
@@ -4172,9 +4178,9 @@
             btn.disabled = true;
             try {
                 const resp = cxInsMovTipo === 'contagem'
-                    ? await cxInsumosApi('POST', { acao: 'contagem', insumo_id: insumoId, quantidade_contada: Number(qtd), data })
+                    ? await cxInsumosApi('POST', { acao: 'contagem', insumo_id: insumoId, quantidade_contada: Number(qtd), data, rotina: document.getElementById('cxInsMovRotina').checked })
                     : await cxInsumosApi('POST', { insumo_id: insumoId, tipo: cxInsMovTipo, quantidade: Number(qtd), data, observacao: obs || null });
-                cxToast(cxInsMovTipo === 'contagem' ? (resp.diferenca === 0 ? 'Contagem igual ao estoque: nada a ajustar.' : `Ajuste lançado (${resp.diferenca > 0 ? '+' : ''}${cxQtd(resp.diferenca)}).`) : 'Lançamento registrado.', 'success');
+                cxToast(cxInsMovTipo === 'contagem' ? (resp.diferenca === 0 ? 'Contagem igual ao estoque: nada a ajustar.' : (resp.conta_consumo ? `Consumo apurado: ${cxQtd(-resp.diferenca)} no período.` : `Ajuste lançado (${resp.diferenca > 0 ? '+' : ''}${cxQtd(resp.diferenca)}).`)) : 'Lançamento registrado.', 'success');
                 if (cxInsCompraId && cxInsMovTipo === 'entrada') {
                     // veio de "Lançar entrada" numa compra recebida: marca como lançada
                     await cxComprasApi('PUT', '', { id: cxInsCompraId, acao: 'entrada_lancada' }).catch(() => {});
@@ -4185,6 +4191,21 @@
             } catch (err) {
                 cxToast('Erro: ' + err.message, 'error');
             } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // "Abri 1": baixa rápida de 1 unidade (rolo, bobina...) como consumo, com a data de hoje
+        async function cxInsumoAbri(id, btn) {
+            const i = (cxInsumosDados?.insumos || []).find(x => x.id === id);
+            if (!i || !confirm(`Dar baixa de 1 ${i.unidade} de "${i.nome}" (hoje)?\nEstoque: ${cxQtd(i.estoque_atual)} → ${cxQtd(i.estoque_atual - 1)} ${i.unidade}.`)) return;
+            btn.disabled = true;
+            try {
+                await cxInsumosApi('POST', { insumo_id: id, tipo: 'saida', quantidade: 1, data: cxTodayIso(), observacao: `Abriu 1 ${i.unidade}` });
+                cxToast(`Baixa registrada: 1 ${i.unidade} de ${i.nome}.`, 'success');
+                await cxCarregarInsumos();
+            } catch (err) {
+                cxToast('Erro: ' + err.message, 'error');
                 btn.disabled = false;
             }
         }
@@ -4292,6 +4313,8 @@
             if (e.target.id === 'cxInsumosModal') e.target.hidden = true;
             const b = e.target.closest('[data-ins-editar]');
             if (b) cxAbrirInsumoCad(Number(b.dataset.insEditar));
+            const abri = e.target.closest('[data-ins-abri]');
+            if (abri) cxInsumoAbri(Number(abri.dataset.insAbri), abri);
         });
         document.getElementById('cxBtnInsumoNovo').addEventListener('click', () => cxAbrirInsumoCad(null));
         document.getElementById('cxBtnInsumoMov').addEventListener('click', cxAbrirInsumoMov);
