@@ -179,7 +179,7 @@ function montarEmail({ itens, itensInsumos = [], dadosAntigos, teste = false }) 
     <table style="border-collapse:collapse;width:100%;font-size:13px;margin-top:12px;">
       <thead><tr style="background:#f1f5f9;text-align:left;">
         <th style="padding:8px;">Insumo</th><th style="padding:8px;">Situação</th>
-        <th style="padding:8px;text-align:right;">Estoque</th><th style="padding:8px;text-align:right;">Consumo</th>
+        <th style="padding:8px;text-align:right;">Estoque</th><th style="padding:8px;text-align:right;">Consumo médio (30 dias)</th>
         <th style="padding:8px;text-align:right;">Cobertura</th><th style="padding:8px;text-align:right;">Ponto de reposição</th>
         <th style="padding:8px;text-align:right;">Já pedido</th>
       </tr></thead>

@@ -815,7 +815,7 @@
                 </div>
                 <div class="cx-scroll-x">
                     <table class="cx-table cx-cadastro-table" style="min-width:860px;">
-                        <thead><tr><th>Insumo</th><th class="num">Estoque</th><th class="num">Consumo/dia</th><th class="num">Cobertura</th><th class="num">Ponto de reposição</th><th>Situação</th><th>Baixa</th><th></th></tr></thead>
+                        <thead><tr><th>Insumo</th><th class="num">Estoque</th><th class="num" title="Média por dia dos últimos 30 dias (insumos manuais: saídas lançadas; insumos com baixa automática: embalagens expedidas)">Consumo médio</th><th class="num">Cobertura</th><th class="num">Ponto de reposição</th><th>Situação</th><th>Baixa</th><th></th></tr></thead>
                         <tbody id="cxInsumosBody"></tbody>
                     </table>
                 </div>
@@ -4076,7 +4076,7 @@
                     return `<tr style="${i.ativo ? '' : 'opacity:.55;'}">
                         <td><div class="cx-box-name" data-ins-editar="${i.id}" style="cursor:pointer;" title="Clique para editar: prazo de entrega, estoque mínimo e baixa automática">${cxEsc(i.nome)} <span style="font-size:11px;font-weight:600;color:#60a5fa;">editar</span></div><div class="cx-box-sub">${cxEsc(i.unidade)}${i.lead_time_dias ? ' · entrega ' + i.lead_time_dias + ' dias' : ''}</div></td>
                         <td class="num"><b style="color:#f1f5f9;">${cxQtd(i.estoque_atual)}</b> <span class="cx-box-sub">${cxEsc(i.unidade)}</span>${i.em_pedido > 0 ? '<div class="cx-box-sub" style="color:#93c5fd;">+' + cxQtd(i.em_pedido) + ' em pedido</div>' : ''}</td>
-                        <td class="num">${(() => { const c = cxConsumoUso(i); return c ? `${cxQtd(c.valor)} <span class="cx-box-sub">${cxEsc(c.unidade)}</span>` : '—'; })()}</td>
+                        <td class="num">${(() => { const c = cxConsumoUso(i); return c ? `${cxQtd(c.valor)} <span class="cx-box-sub">${cxEsc(c.unidade)}/dia</span><div class="cx-box-sub">média de 30 dias</div>` : '—'; })()}</td>
                         <td class="num">${i.cobertura_dias !== null ? i.cobertura_dias + ' dias' : '—'}</td>
                         <td class="num">${i.ponto_reposicao !== null ? cxQtd(i.ponto_reposicao) : '—'}${i.estoque_minimo !== null ? '<div class="cx-box-sub">mínimo definido</div>' : ''}</td>
                         <td><span data-ins-editar="${i.id}" style="cursor:pointer;" title="Clique para definir o prazo de entrega ou o estoque mínimo">${cxInsBadge(i.status)}</span></td>
@@ -4234,7 +4234,7 @@
                 i.automatico ? `${cxQtd(i.consumo_por_embalagem)} por embalagem` : 'manual',
             ]);
             const tabela = cxpTabela(
-                [{ titulo: 'Insumo' }, { titulo: 'Unidade' }, { titulo: 'Estoque', num: true }, { titulo: 'Consumo', num: true }, { titulo: 'Cobertura', num: true }, { titulo: 'Ponto de reposição', num: true }, { titulo: 'Situação' }, { titulo: 'Baixa' }],
+                [{ titulo: 'Insumo' }, { titulo: 'Unidade' }, { titulo: 'Estoque', num: true }, { titulo: 'Consumo médio (30 dias)', num: true }, { titulo: 'Cobertura', num: true }, { titulo: 'Ponto de reposição', num: true }, { titulo: 'Situação' }, { titulo: 'Baixa' }],
                 linhas, { compacto: true, fonte: 11 });
             const comConsumo = insumos.filter(i => i.consumo_dia > 0).sort((a, b) => b.consumo_dia - a.consumo_dia);
             const grafico = comConsumo.length
