@@ -821,7 +821,7 @@
                 </div>
                 <div class="cx-scroll-x">
                     <table class="cx-table cx-cadastro-table" style="min-width:860px;">
-                        <thead><tr><th>Insumo</th><th class="num">Estoque</th><th class="num" title="Média por dia no período escolhido (insumos manuais: saídas lançadas; insumos com baixa automática: embalagens expedidas)">Consumo diário</th><th class="num" title="Data do último lançamento de entrada ou saída do insumo">Último lançamento</th><th class="num" title="Estoque ÷ consumo médio dos últimos 30 dias">Cobertura</th><th class="num">Ponto de reposição</th><th>Situação</th><th>Baixa</th><th></th></tr></thead>
+                        <thead><tr><th>Insumo</th><th class="num">Estoque</th><th class="num" title="Quantidade consumida no último dia que teve consumo (a data aparece embaixo)">Consumo diário</th><th class="num" id="cxInsThMedia" title="Média por dia no período escolhido (insumos manuais: saídas lançadas; insumos com baixa automática: embalagens expedidas)">Média de 30 dias</th><th class="num" title="Estoque ÷ consumo médio dos últimos 30 dias">Cobertura</th><th class="num">Ponto de reposição</th><th>Situação</th><th>Baixa</th><th></th></tr></thead>
                         <tbody id="cxInsumosBody"></tbody>
                     </table>
                 </div>
@@ -4051,17 +4051,20 @@
         // Consumo por dia na unidade de USO: insumo com "unidades por rolo" (ex: etiqueta) mostra
         // etiquetas por dia, e não a fração de rolo em que o estoque é contado.
         // Sem o período (relatório, Compras), usa a média fixa de 30 dias; a tabela passa o período escolhido.
-        function cxConsumoUso(i, periodo) {
-            const dia = periodo ? (i.consumo_periodo ?? i.consumo_dia) : i.consumo_dia;
-            if (!(dia > 0)) return null;
-            if (i.unidades_por_estoque > 1) return { valor: Math.round(dia * i.unidades_por_estoque), unidade: /etiqueta/i.test(i.nome) ? 'etiquetas' : 'un' };
-            return { valor: dia, unidade: i.unidade };
+        function cxUsoDe(i, qtd) {
+            if (!(qtd > 0)) return null;
+            if (i.unidades_por_estoque > 1) return { valor: Math.round(qtd * i.unidades_por_estoque), unidade: /etiqueta/i.test(i.nome) ? 'etiquetas' : 'un' };
+            return { valor: qtd, unidade: i.unidade };
         }
-        function cxUltimoLancamento(i) {
-            if (!i.ultimo_lancamento) return '<span class="cx-box-sub">sem lançamento</span>';
-            const d = i.dias_sem_lancamento;
-            const quando = d === null ? '' : d <= 0 ? 'hoje' : d === 1 ? 'ontem' : `há ${d} dias`;
-            return `${cxpDataBr(i.ultimo_lancamento)}<div class="cx-box-sub">${quando}</div>`;
+        function cxConsumoUso(i, periodo) {
+            return cxUsoDe(i, periodo ? (i.consumo_periodo ?? i.consumo_dia) : i.consumo_dia);
+        }
+        // Consumo do último dia que teve consumo, com a data embaixo (dd/mm)
+        function cxConsumoUltimoDia(i) {
+            const c = cxUsoDe(i, i.ultimo_consumo_qtd);
+            if (!c || !i.ultimo_consumo_dia) return '<span class="cx-box-sub">sem consumo</span>';
+            const [, mes, dia] = i.ultimo_consumo_dia.split('-');
+            return `<b style="color:#f1f5f9;">${cxQtd(c.valor)}</b> <span class="cx-box-sub">${cxEsc(c.unidade)}</span><div class="cx-box-sub">${dia}/${mes}</div>`;
         }
         const CX_INS_STATUS = {
             crit: ['crit', 'Comprar agora'], warn: ['warn', 'Atenção'], ok: ['ok', 'OK'],
@@ -4080,6 +4083,7 @@
         function cxRenderInsumos() {
             const insumos = cxInsumosDados?.insumos || [];
             const corpo = document.getElementById('cxInsumosBody');
+            document.getElementById('cxInsThMedia').textContent = `Média de ${cxInsDias} dias`;
             if (insumos.length === 0) {
                 corpo.innerHTML = '<tr><td colspan="9" class="cx-note">Nenhum insumo cadastrado.</td></tr>';
             } else {
@@ -4090,8 +4094,8 @@
                     return `<tr style="${i.ativo ? '' : 'opacity:.55;'}">
                         <td><div class="cx-box-name" data-ins-editar="${i.id}" style="cursor:pointer;" title="Clique para editar: prazo de entrega, estoque mínimo e baixa automática">${cxEsc(i.nome)} <span style="font-size:11px;font-weight:600;color:#60a5fa;">editar</span></div><div class="cx-box-sub">${cxEsc(i.unidade)}${i.lead_time_dias ? ' · entrega ' + i.lead_time_dias + ' dias' : ''}</div></td>
                         <td class="num"><b style="color:#f1f5f9;">${cxQtd(i.estoque_atual)}</b> <span class="cx-box-sub">${cxEsc(i.unidade)}</span>${i.em_pedido > 0 ? '<div class="cx-box-sub" style="color:#93c5fd;">+' + cxQtd(i.em_pedido) + ' em pedido</div>' : ''}</td>
-                        <td class="num">${(() => { const c = cxConsumoUso(i, true); return c ? `${cxQtd(c.valor)} <span class="cx-box-sub">${cxEsc(c.unidade)}/dia</span><div class="cx-box-sub">média de ${i.dias_periodo || cxInsDias} dias</div>` : `<span class="cx-box-sub">sem consumo</span><div class="cx-box-sub">em ${i.dias_periodo || cxInsDias} dias</div>`; })()}</td>
-                        <td class="num">${cxUltimoLancamento(i)}</td>
+                        <td class="num">${cxConsumoUltimoDia(i)}</td>
+                        <td class="num">${(() => { const c = cxConsumoUso(i, true); return c ? `<b style="color:#f1f5f9;">${cxQtd(c.valor)}</b> <span class="cx-box-sub">${cxEsc(c.unidade)}/dia</span>` : '<span class="cx-box-sub">sem consumo</span>'; })()}</td>
                         <td class="num">${i.cobertura_dias !== null ? i.cobertura_dias + ' dias' : '—'}</td>
                         <td class="num">${i.ponto_reposicao !== null ? cxQtd(i.ponto_reposicao) : '—'}${i.estoque_minimo !== null ? '<div class="cx-box-sub">mínimo definido</div>' : ''}</td>
                         <td><span data-ins-editar="${i.id}" style="cursor:pointer;" title="Clique para definir o prazo de entrega ou o estoque mínimo">${cxInsBadge(i.status)}</span></td>

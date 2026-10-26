@@ -52,6 +52,19 @@ export async function calcularInsumos(sql, filial, diasPeriodo = DIAS_CONSUMO) {
   `;
   const porInsumo = new Map(movs.map(m => [m.insumo_id, m]));
 
+  // último dia com saída lançada à mão (consumo), por insumo
+  const ultimoDiaManual = new Map();
+  const dias = await sql`
+    SELECT DISTINCT ON (insumo_id) insumo_id, dia, qtd FROM (
+      SELECT insumo_id, TO_CHAR(data, 'YYYY-MM-DD') AS dia, SUM(quantidade)::float AS qtd
+      FROM insumo_movimentacoes
+      WHERE filial = ${filial} AND tipo = 'saida' AND conta_consumo = true
+      GROUP BY insumo_id, data
+    ) t
+    ORDER BY insumo_id, dia DESC
+  `;
+  dias.forEach(d => ultimoDiaManual.set(d.insumo_id, { dia: d.dia, qtd: d.qtd }));
+
   // quantidade já pedida e ainda não recebida (quadro de Compras; migração 016 — tolerante)
   const emPedido = new Map();
   try {
@@ -73,6 +86,7 @@ export async function calcularInsumos(sql, filial, diasPeriodo = DIAS_CONSUMO) {
     let baixaAutomatica = 0;
     let embalagens30d = null;
     const automatico = i.consumo_por_embalagem !== null && i.auto_desde !== null;
+    let ultimoDia = ultimoDiaManual.get(i.id) || null; // { dia, qtd } do último dia com consumo
 
     if (automatico) {
       // embalagens expedidas = saídas de caixa que baixam o estoque (consumo
@@ -91,6 +105,22 @@ export async function calcularInsumos(sql, filial, diasPeriodo = DIAS_CONSUMO) {
       embalagens30d = e.ultimos_30d;
       consumoDia += (e.ultimos_30d * porEmbalagem) / DIAS_CONSUMO;
       consumoPeriodo += (e.no_periodo * porEmbalagem) / diasPeriodo;
+
+      // último dia com embalagens expedidas (soma com a saída manual do mesmo dia, se houver)
+      const [u] = await sql`
+        SELECT TO_CHAR(data, 'YYYY-MM-DD') AS dia, SUM(quantidade)::float AS qtd
+        FROM caixa_movimentacoes
+        WHERE filial = ${filial} AND tipo = 'saida'
+          AND ((conta_estoque = true AND conta_consumo = true) OR (${i.auto_inclui_fulfillment}::boolean AND conta_estoque = false))
+        GROUP BY data
+        ORDER BY data DESC
+        LIMIT 1
+      `;
+      if (u) {
+        const qtdAuto = u.qtd * porEmbalagem;
+        if (!ultimoDia || u.dia > ultimoDia.dia) ultimoDia = { dia: u.dia, qtd: qtdAuto };
+        else if (u.dia === ultimoDia.dia) ultimoDia = { dia: u.dia, qtd: ultimoDia.qtd + qtdAuto };
+      }
     }
 
     const estoque = Math.round((m.saldo_manual - baixaAutomatica) * 100) / 100;
@@ -113,6 +143,8 @@ export async function calcularInsumos(sql, filial, diasPeriodo = DIAS_CONSUMO) {
       consumo_dia: Math.round(consumoDia * 100) / 100,
       consumo_periodo: Math.round(consumoPeriodo * 100) / 100,
       dias_periodo: diasPeriodo,
+      ultimo_consumo_dia: ultimoDia ? ultimoDia.dia : null,
+      ultimo_consumo_qtd: ultimoDia ? Math.round(ultimoDia.qtd * 100) / 100 : null,
       cobertura_dias: consumoDia > 0 ? Math.round(estoque / consumoDia) : null,
       ponto_reposicao: ponto ?? null,
       status: i.ativo ? status : 'inativo',
