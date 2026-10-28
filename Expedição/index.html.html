@@ -125,7 +125,7 @@
 
         .cx-trend { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; font-weight: 700; }
         .cx-trend svg { width: 11px; height: 11px; }
-        .cx-trend.up { color: #f43f5e; } .cx-trend.down { color: #10b981; } .cx-trend.flat { color: #64748b; }
+        .cx-trend.up { color: #10b981; } .cx-trend.down { color: #f43f5e; } .cx-trend.flat { color: #64748b; }
 
         .cx-movlist { display: flex; flex-direction: column; }
         .cx-movrow { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid #1e293b99; }
@@ -3939,7 +3939,7 @@
                 </div>`;
 
             // ---- página 2: tabela de modelos ----
-            const trend = pct => pct === null || pct === undefined ? '—' : `<span style="color:${pct > 0 ? '#f43f5e' : (pct < 0 ? '#10b981' : '#64748b')};font-weight:700;">${pct > 0 ? '▲' : (pct < 0 ? '▼' : '')} ${Math.abs(pct)}%</span>`;
+            const trend = pct => pct === null || pct === undefined ? '—' : `<span style="color:${pct > 0 ? '#10b981' : (pct < 0 ? '#f43f5e' : '#64748b')};font-weight:700;">${pct > 0 ? '▲' : (pct < 0 ? '▼' : '')} ${Math.abs(pct)}%</span>`;
             const linhasModelos = modelos.map(m => m.status === 'nao_controlada'
                 ? [`<b style="color:#f1f5f9;">${cxEsc(m.nome)}</b>`, '—', m.consumo_30d.toFixed(1) + '/dia', '—', '—', '—', '—', trend(m.tendencia_pct), `<span style="color:${CXP_COR_STATUS.nao_controlada};font-weight:700;">${CXP_ROTULO_STATUS.nao_controlada}</span>`]
                 : [
