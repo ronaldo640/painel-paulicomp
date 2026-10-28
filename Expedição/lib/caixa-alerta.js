@@ -125,14 +125,18 @@ function consumoInsumoTexto(i) {
 }
 const qtdBr = n => Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 
-function montarEmail({ itens, itensInsumos = [], dadosAntigos, teste = false }) {
+const NOME_FILIAL = { SP: 'Paulicomp SP', TRADE: 'Comp Trade' };
+
+function montarEmail({ itens, itensInsumos = [], dadosAntigos, teste = false, filial = 'SP' }) {
+  const nomeFilial = NOME_FILIAL[filial] || filial;
   const status = [...itens.map(i => i.m.status), ...itensInsumos.map(i => i.i.status)];
   const crit = status.filter(s => s === 'crit').length;
   const warn = status.filter(s => s === 'warn').length;
   const partes = [];
   if (crit) partes.push(`${crit} para comprar agora`);
   if (warn) partes.push(`${warn} em atenção`);
-  const assunto = (teste ? '[TESTE] ' : '') + (status.length
+  const prefixoFilial = filial === 'SP' ? '' : `${nomeFilial} — `;
+  const assunto = (teste ? '[TESTE] ' : '') + prefixoFilial + (status.length
     ? `Controle de Caixas e Insumos: ${partes.join(' e ')}`
     : 'Controle de Caixas: dados de consumo desatualizados');
   const faixaTeste = teste ? `
@@ -194,7 +198,7 @@ function montarEmail({ itens, itensInsumos = [], dadosAntigos, teste = false }) 
 
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a;max-width:760px;">
-      <h2 style="margin:0 0 4px;">Controle de Caixas e Insumos — Paulicomp SP</h2>
+      <h2 style="margin:0 0 4px;">Controle de Caixas e Insumos — ${esc(nomeFilial)}</h2>
       ${faixaTeste}${aviso}${tabela}${tabelaInsumos}
       <p style="margin-top:16px;"><a href="${URL_PAINEL}" style="color:#2563eb;">Abrir o Controle de Caixas</a></p>
       <p style="color:#94a3b8;font-size:11px;">Aviso automático. Ele só é enviado quando um modelo ou insumo muda de situação; se continuar igual, repete uma vez por semana.</p>
@@ -257,7 +261,8 @@ export async function verificarEAvisar(sql, filial, { simular = false } = {}) {
 
   let dadosAntigos = null;
   const rDados = estado.get(ESTADO_DADOS_ANTIGOS);
-  if (resumo.ultima_saida) {
+  // "dados desatualizados" cobra a baixa automática, que só existe na SP; a Comp Trade é contagem semanal
+  if (filial === 'SP' && resumo.ultima_saida) {
     const dias = diasEntreIso(resumo.ultima_saida);
     if (dias >= DADOS_ANTIGOS_DIAS && (!rDados || rDados.status !== 'antigo' || diasDesde(rDados.notificado_em) >= DADOS_ANTIGOS_DIAS)) {
       dadosAntigos = { ultimaSaida: resumo.ultima_saida, dias };
@@ -282,7 +287,7 @@ export async function verificarEAvisar(sql, filial, { simular = false } = {}) {
     return { enviado: false, ...plano };
   }
 
-  const { assunto, html, texto } = montarEmail({ itens, itensInsumos, dadosAntigos });
+  const { assunto, html, texto } = montarEmail({ itens, itensInsumos, dadosAntigos, filial });
   const envio = await enviarEmail(assunto, html, texto);
 
   for (const i of itens) await gravarEstado(sql, filial, i.m.id, i.m.status, true);

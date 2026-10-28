@@ -8,6 +8,7 @@
 // auto_desde), quando o insumo tem essa configuração.
 
 const DIAS_CONSUMO = 30;
+const FILIAIS = ['SP', 'TRADE']; // a Paulicomp Sul não entra: o estoque dela é o da Trade
 
 function erroMigracao(error) {
   return /insumos|insumo_movimentacoes|unidades_por_estoque/.test(error.message || '');
@@ -40,6 +41,19 @@ export async function calcularInsumos(sql, filial, diasPeriodo = DIAS_CONSUMO) {
       ORDER BY ativo DESC, nome
     `;
   }
+  // Filiais em que cada insumo é controlado (migração 017). Sem a migração,
+  // todos os insumos continuam sendo só da SP.
+  try {
+    const f = await sql`SELECT id, filiais FROM insumos`;
+    const filiaisPorId = new Map(f.map(x => [x.id, x.filiais]));
+    insumos = insumos
+      .map(i => ({ ...i, filiais: filiaisPorId.get(i.id) || ['SP'] }))
+      .filter(i => i.filiais.includes(filial));
+  } catch (err) {
+    if (!/filiais/.test(err.message || '')) throw err;
+    insumos = filial === 'SP' ? insumos.map(i => ({ ...i, filiais: ['SP'] })) : [];
+  }
+
   const movs = await sql`
     SELECT insumo_id,
            COALESCE(SUM(CASE WHEN tipo = 'entrada' THEN quantidade ELSE -quantidade END), 0)::float AS saldo_manual,
@@ -85,7 +99,8 @@ export async function calcularInsumos(sql, filial, diasPeriodo = DIAS_CONSUMO) {
     let consumoPeriodo = m.saida_periodo / diasPeriodo;
     let baixaAutomatica = 0;
     let embalagens30d = null;
-    const automatico = i.consumo_por_embalagem !== null && i.auto_desde !== null;
+    // baixa automática só existe na SP (vem das notas do Tiny); a Comp Trade é por contagem manual
+    const automatico = filial === 'SP' && i.consumo_por_embalagem !== null && i.auto_desde !== null;
     let ultimoDia = ultimoDiaManual.get(i.id) || null; // { dia, qtd } do último dia com consumo
 
     if (automatico) {
@@ -133,6 +148,8 @@ export async function calcularInsumos(sql, filial, diasPeriodo = DIAS_CONSUMO) {
       else if (estoque <= ponto * 1.3) status = 'warn';
       else status = 'ok';
     }
+    // filial sem baixa automática: insumo ainda sem nenhum lançamento é "sem contagem", não "Comprar agora"
+    if (filial !== 'SP' && !porInsumo.has(i.id)) status = 'sem_contagem';
     const diasSemLancamento = m.ultimo_lancamento
       ? Math.floor((Date.now() - new Date(m.ultimo_lancamento + 'T12:00:00').getTime()) / 86400000)
       : null;
@@ -176,6 +193,11 @@ export default async function handlerInsumos(req, res, sql) {
 
   try {
     if (req.method === 'GET') {
+      // catálogo inteiro com as filiais de cada insumo (tela "Itens da filial")
+      if (req.query.todos === '1') {
+        const todos = await sql`SELECT id, nome, unidade, ativo, filiais FROM insumos ORDER BY ativo DESC, nome`;
+        return res.status(200).json({ insumos: todos });
+      }
       const limite = Math.min(Number(req.query.limit) || 20, 200);
       const dias = [30, 60, 90].includes(Number(req.query.dias)) ? Number(req.query.dias) : DIAS_CONSUMO;
       const [insumos, movimentos] = await Promise.all([calcularInsumos(sql, filial, dias), movimentosRecentes(sql, filial, limite)]);
@@ -198,6 +220,8 @@ export default async function handlerInsumos(req, res, sql) {
           INSERT INTO insumos (nome, unidade, lead_time_dias, estoque_seguranca_pct, estoque_minimo, consumo_por_embalagem, auto_desde, auto_inclui_fulfillment, unidades_por_estoque)
           VALUES (${nome}, ${unidade}, ${num(body.lead_time_dias)}, ${seg}, ${num(body.estoque_minimo)}, ${cpe}, ${desde}, ${body.auto_inclui_fulfillment === true}, ${num(body.unidades_por_estoque) > 0 ? num(body.unidades_por_estoque) : 1})
           RETURNING id`;
+        // um insumo criado numa filial passa a ser controlado nela (migração 017)
+        await sql`UPDATE insumos SET filiais = ARRAY[${filial}]::text[] WHERE id = ${rows[0].id}`.catch(err => { if (!/filiais/.test(err.message || '')) throw err; });
         return res.status(201).json(rows[0]);
       }
 
@@ -253,6 +277,15 @@ export default async function handlerInsumos(req, res, sql) {
       if ('auto_desde' in b) await sql`UPDATE insumos SET auto_desde = ${b.auto_desde || null} WHERE id = ${id}`;
       if ('unidades_por_estoque' in b && num(b.unidades_por_estoque) > 0) await sql`UPDATE insumos SET unidades_por_estoque = ${num(b.unidades_por_estoque)} WHERE id = ${id}`;
       if ('auto_inclui_fulfillment' in b) await sql`UPDATE insumos SET auto_inclui_fulfillment = ${b.auto_inclui_fulfillment === true} WHERE id = ${id}`;
+      if ('filiais' in b) {
+        const filiais = (Array.isArray(b.filiais) ? b.filiais : []).map(f => String(f).toUpperCase()).filter(f => FILIAIS.includes(f));
+        try {
+          await sql`UPDATE insumos SET filiais = ${filiais}::text[] WHERE id = ${id}`;
+        } catch (err) {
+          if (/filiais/.test(err.message || '')) return res.status(400).json({ error: 'Migração 017 pendente: rode sql/017_filiais_trade.sql no Neon.' });
+          throw err;
+        }
+      }
       if ('ativo' in b) await sql`UPDATE insumos SET ativo = ${b.ativo === true} WHERE id = ${id}`;
       return res.status(200).json({ ok: true });
     }

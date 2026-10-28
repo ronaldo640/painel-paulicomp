@@ -56,6 +56,32 @@ export async function calcularResumo(sql, filial, limitePendenciasEntrada) {
     WHERE filial = ${filial} AND tipo = 'saida' AND conta_estoque = true AND conta_consumo = true
   `;
 
+  // Filiais em que cada modelo é controlado (migração 017). Sem a migração,
+  // todos os modelos continuam sendo só da SP.
+  let doFilial = null;
+  try {
+    const f = await sql`SELECT id FROM caixa_modelos WHERE ${filial} = ANY(filiais)`;
+    doFilial = new Set(f.map(x => x.id));
+  } catch (err) {
+    if (!/filiais/.test(err.message || '')) throw err;
+    if (filial !== 'SP') doFilial = new Set();
+  }
+  const rowsDaFilial = doFilial ? rows.filter(r => doFilial.has(r.id)) : rows;
+
+  // Filiais sem baixa automática (Comp Trade) são controladas por contagem
+  // manual: modelo que ainda não teve nenhum lançamento é "sem contagem" em
+  // vez de "Comprar agora" com estoque zero. A última movimentação de
+  // qualquer tipo serve pra avisar quando a contagem semanal atrasou.
+  const contagemManual = filial !== 'SP';
+  const comMovimento = new Set();
+  let ultimoLancamento = null;
+  if (contagemManual) {
+    const mv = await sql`SELECT DISTINCT modelo_id FROM caixa_movimentacoes WHERE filial = ${filial}`;
+    mv.forEach(x => comMovimento.add(x.modelo_id));
+    const [{ ultimo }] = await sql`SELECT TO_CHAR(MAX(data), 'YYYY-MM-DD') AS ultimo FROM caixa_movimentacoes WHERE filial = ${filial}`;
+    ultimoLancamento = ultimo;
+  }
+
   // Itens de notas processadas pela baixa automática que caíram sem
   // regra de embalagem (nem mapeamento padrão, nem faixa de qtd que
   // cubra o caso) — cada um vira um alerta convidando a criar a regra.
@@ -175,7 +201,7 @@ export async function calcularResumo(sql, filial, limitePendenciasEntrada) {
       AND data > current_date - ${DIAS_FULFILLMENT} * interval '1 day'
     GROUP BY modelo_id`;
   fl.forEach(f => consumoFulfillment.set(f.modelo_id, Number(f.por_dia)));
-  const modelos = rows.map(r => {
+  const modelos = rowsDaFilial.map(r => {
     if (semControle.has(r.id)) {
       const tendencia = r.consumo_prev7d > 0 ? ((r.consumo_7d - r.consumo_prev7d) / r.consumo_prev7d) * 100 : null;
       return {
@@ -220,6 +246,10 @@ export async function calcularResumo(sql, filial, limitePendenciasEntrada) {
       else if (r.estoque_atual <= pontoReposicao * 1.3) status = 'warn';
       else status = 'ok';
     }
+    if (contagemManual && !comMovimento.has(r.id)) {
+      status = 'sem_contagem'; // ainda não foi contado nesta filial
+      sugestaoCompra = null;
+    }
 
     const tendenciaPct = r.consumo_prev7d > 0
       ? ((r.consumo_7d - r.consumo_prev7d) / r.consumo_prev7d) * 100
@@ -248,7 +278,7 @@ export async function calcularResumo(sql, filial, limitePendenciasEntrada) {
     };
   });
 
-  const urgencia = { crit: 0, warn: 1, sem_config: 2, ok: 3, nao_controlada: 4 };
+  const urgencia = { crit: 0, warn: 1, sem_config: 2, sem_contagem: 2, ok: 3, nao_controlada: 4 };
   modelos.sort((a, b) => {
     const u = urgencia[a.status] - urgencia[b.status];
     if (u !== 0) return u;
@@ -258,5 +288,5 @@ export async function calcularResumo(sql, filial, limitePendenciasEntrada) {
   });
 
 
-  return { filial, ultima_saida, modelos, pendencias_regra: pendenciasRegra };
+  return { filial, ultima_saida, ultimo_lancamento: ultimoLancamento, modelos, pendencias_regra: pendenciasRegra };
 }

@@ -52,6 +52,16 @@
         .cx-tabs a { font-size: 12.5px; font-weight: 600; color: #94a3b8; padding: 7px 14px; border-radius: 7px; text-decoration: none; white-space: nowrap; cursor: pointer; }
         .cx-tabs a.active { background: #3b82f6; color: #fff; }
         .cx-tabs a:not(.active):hover { color: #f1f5f9; }
+        /* Seletor de filial (Paulicomp SP | Comp Trade). Na Comp Trade (controle manual, por contagem) some o que só existe na SP. */
+        .cx-filial-sel { display: inline-flex; }
+        .cx-filial-sel a { padding: 5px 12px; font-size: 12px; }
+        body.cx-filial-manual [data-cx-so-sp] { display: none !important; }
+        body:not(.cx-filial-manual) [data-cx-so-trade] { display: none !important; }
+        body.cx-filial-manual .cx-row-2 { grid-template-columns: 1fr; }
+        .cx-check-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 18px; }
+        .cx-check-list label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #e2e8f0; cursor: pointer; }
+        .cx-check-list input { width: 15px; height: 15px; }
+        .cx-sec-title { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #94a3b8; margin: 4px 0 8px; }
 
         .cx-page-title { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
         .cx-page-title h1 { font-size: 19px; font-weight: 700; margin: 0 0 4px; letter-spacing: -.01em; color: #f1f5f9; }
@@ -516,10 +526,10 @@
                 <h1>Controle de Caixas de Embalagem</h1>
                 <p>Estoque, consumo e ponto de reposição por modelo de caixa</p>
                 <div class="cx-chip-row">
-                    <span class="cx-chip">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1m4 0h1m-6 4h1m4 0h1m-6 4h1m4 0h1"/></svg>
-                        Filial: PAULICOMP SP
-                    </span>
+                    <nav class="cx-tabs cx-filial-sel" title="A Paulicomp Sul não entra: o estoque dela é o da Comp Trade">
+                        <a data-filial="SP" class="active">Paulicomp SP</a>
+                        <a data-filial="TRADE">Comp Trade</a>
+                    </nav>
                     <span class="cx-chip warn" id="cxFreshnessChip" hidden>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4m0 4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"/></svg>
                         <span id="cxFreshnessText"></span>
@@ -539,11 +549,17 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7v10c0 2 1.5 3 3.5 3h9c2 0 3.5-1 3.5-3V7M4 7c0-2 1.5-3 3.5-3h9c2 0 3.5 1 3.5 3M4 7h16"/></svg>
                     Cadastro de modelos
                 </button>
+                <button class="cx-btn" id="cxBtnItensFilial" title="Escolha quais embalagens e insumos esta filial controla">
+                    Itens da filial
+                </button>
+                <button class="cx-btn primary" id="cxBtnContagem" data-cx-so-trade title="Contagem semanal de embalagens e insumos: o que faltou na prateleira vira consumo">
+                    Contagem semanal
+                </button>
                 <button class="cx-btn primary" id="cxBtnOpenMov">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                     Registrar movimentação
                 </button>
-                <button class="cx-btn primary" id="cxBtnOpenRegra">
+                <button class="cx-btn primary" id="cxBtnOpenRegra" data-cx-so-sp>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                     Nova regra
                 </button>
@@ -553,7 +569,7 @@
         <div class="cx-kpis" id="cxKpis"></div>
 
         <div id="cxAlertWrap"></div>
-        <div id="cxPendenciaAlertWrap"></div>
+        <div id="cxPendenciaAlertWrap" data-cx-so-sp></div>
 
         <div class="cx-row-2">
             <div class="cx-card">
@@ -570,7 +586,7 @@
                 <div class="cx-chart-wrap tall"><canvas id="cxConsumoChart"></canvas></div>
             </div>
 
-            <div class="cx-card">
+            <div class="cx-card" data-cx-so-sp>
                 <div class="cx-card-head">
                     <div>
                         <h2>Envio Fulfillment <span class="cx-chip" style="margin-left:6px;">informativo</span></h2>
@@ -612,8 +628,8 @@
                 <div class="cx-chart-stat"><div class="l">Média 30 dias</div><div class="v" id="cxStatAvg30">—</div></div>
                 <div class="cx-chart-stat"><div class="l">Média últimos 7 dias</div><div class="v" id="cxStatAvg7">—</div></div>
                 <div class="cx-chart-stat"><div class="l">Tendência (7d vs 7d anteriores)</div><div class="v" id="cxStatTrend">—</div></div>
-                <div class="cx-chart-stat"><div class="l">Fulfillment — média 30 dias</div><div class="v" id="cxStatFulfillment30">—</div></div>
-                <div class="cx-chart-stat"><div class="l">Total (real + Fulfillment)</div><div class="v" id="cxStatTotal30">—</div></div>
+                <div class="cx-chart-stat" data-cx-so-sp><div class="l">Fulfillment — média 30 dias</div><div class="v" id="cxStatFulfillment30">—</div></div>
+                <div class="cx-chart-stat" data-cx-so-sp><div class="l">Total (real + Fulfillment)</div><div class="v" id="cxStatTotal30">—</div></div>
             </div>
             <div class="cx-chart-wrap"><canvas id="cxSerieChart"></canvas></div>
         </div>
@@ -663,7 +679,7 @@
             <div class="cx-modal-head">
                 <div>
                     <h2 id="cxMovModalTitle">Registrar movimentação</h2>
-                    <p>Entrada (compra) ou saída (uso) de caixas — filial PAULICOMP SP</p>
+                    <p>Entrada (compra) ou saída (uso) de caixas na filial em exibição</p>
                 </div>
                 <button class="cx-modal-close" id="cxBtnCloseMov" aria-label="Fechar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -705,6 +721,52 @@
             <div class="cx-modal-foot">
                 <button class="cx-btn" id="cxBtnCancelMov">Cancelar</button>
                 <button class="cx-btn primary" id="cxBtnSaveMov">Salvar lançamento</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Itens da filial (quais embalagens e insumos cada filial controla) -->
+    <div class="cx-modal-overlay" id="cxItensFilialModal" hidden>
+        <div class="cx-modal-card xwide" role="dialog" aria-modal="true" aria-labelledby="cxItensFilialTitle">
+            <div class="cx-modal-head">
+                <div>
+                    <h2 id="cxItensFilialTitle">Itens da filial</h2>
+                    <p id="cxItensFilialSub">Marque as embalagens e os insumos que esta filial controla. Quem não é marcado não aparece nas telas nem nos avisos dela.</p>
+                </div>
+                <button class="cx-modal-close" id="cxBtnCloseItensFilial" aria-label="Fechar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="cx-modal-body" id="cxItensFilialBody" style="max-height:66vh;"></div>
+            <div class="cx-modal-foot">
+                <button class="cx-btn" id="cxBtnCancelItensFilial">Cancelar</button>
+                <button class="cx-btn primary" id="cxBtnSaveItensFilial">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Contagem semanal (Comp Trade) -->
+    <div class="cx-modal-overlay" id="cxContagemModal" hidden>
+        <div class="cx-modal-card xwide" role="dialog" aria-modal="true" aria-labelledby="cxContagemTitle">
+            <div class="cx-modal-head">
+                <div>
+                    <h2 id="cxContagemTitle">Contagem semanal</h2>
+                    <p>Informe o que há hoje na prateleira. O que faltou em relação ao estoque do sistema vira consumo; o que sobrou vira ajuste. Deixe em branco o que não foi contado.</p>
+                </div>
+                <button class="cx-modal-close" id="cxBtnCloseContagem" aria-label="Fechar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="cx-modal-body" style="max-height:66vh;">
+                <div class="cx-field" style="max-width:220px;">
+                    <label for="cxContagemData">Data da contagem</label>
+                    <input type="date" id="cxContagemData">
+                </div>
+                <div id="cxContagemBody"></div>
+            </div>
+            <div class="cx-modal-foot">
+                <button class="cx-btn" id="cxBtnCancelContagem">Cancelar</button>
+                <button class="cx-btn primary" id="cxBtnSaveContagem">Salvar contagem</button>
             </div>
         </div>
     </div>
@@ -810,6 +872,12 @@
             </div>
             <div class="cx-modal-body" style="max-height:72vh;">
                 <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
+                    <nav class="cx-tabs cx-filial-sel" style="margin-right:auto;" title="A Paulicomp Sul não entra: o estoque dela é o da Comp Trade">
+                        <a data-filial="SP" class="active">Paulicomp SP</a>
+                        <a data-filial="TRADE">Comp Trade</a>
+                    </nav>
+                    <button type="button" class="cx-btn" id="cxBtnInsumoItensFilial" title="Escolha quais embalagens e insumos esta filial controla">Itens da filial</button>
+                    <button type="button" class="cx-btn primary" id="cxBtnInsumoContagem" data-cx-so-trade title="Contagem semanal de embalagens e insumos">Contagem semanal</button>
                     <select id="cxInsPeriodo" title="Período do consumo médio (cobertura, ponto de reposição e situação seguem a média de 30 dias)">
                         <option value="30">Consumo: últimos 30 dias</option>
                         <option value="60">Consumo: últimos 60 dias</option>
@@ -2264,7 +2332,11 @@
     <!-- ============================================================ -->
     <script>
     (function () {
-        const CX_FILIAL = 'SP'; // expandir para 'SUL' / 'TRADE' aqui quando chegar a hora
+        // Filial em exibição: 'SP' (baixa automática pelo Tiny) ou 'TRADE' (contagem semanal manual).
+        // A Paulicomp Sul não entra: o estoque dela é o da Comp Trade. Muda por cxSetFilial().
+        const CX_FILIAIS = { SP: 'Paulicomp SP', TRADE: 'Comp Trade' };
+        let CX_FILIAL = 'SP';
+        try { const salva = localStorage.getItem('cxFilial'); if (CX_FILIAIS[salva]) CX_FILIAL = salva; } catch (e) { /* sem armazenamento: abre na SP */ }
 
         let cxResumo = null;
         let cxRankingChart = null;
@@ -2288,6 +2360,7 @@
                 warn: ['warn', 'Atenção'],
                 ok: ['ok', 'OK'],
                 sem_config: ['sem_config', 'Configurar lead time'],
+                sem_contagem: ['sem_config', 'Sem contagem'],
                 nao_controlada: ['nao_controlada', 'Sem controle de estoque'],
             };
             const [cls, label] = map[status] || map.sem_config;
@@ -2320,17 +2393,18 @@
 
         function cxRenderKpis(modelos) {
             const naoControladas = modelos.filter(m => m.status === 'nao_controlada').length;
-            const total = modelos.length - naoControladas;
+            const total = modelos.length - naoControladas - modelos.filter(m => m.status === 'sem_contagem').length;
             const crit = modelos.filter(m => m.status === 'crit').length;
             const warn = modelos.filter(m => m.status === 'warn').length;
             const semConfig = modelos.filter(m => m.status === 'sem_config').length;
+            const semContagem = modelos.filter(m => m.status === 'sem_contagem').length;
             const ok = modelos.filter(m => m.status === 'ok').length;
 
             document.getElementById('cxKpis').innerHTML = `
                 <div class="cx-kpi">
                     <div class="l">Modelos de caixa</div>
                     <div class="v">${total}</div>
-                    <div class="s">${semConfig} sem lead time configurado${naoControladas ? ' · +' + naoControladas + ' sem controle de estoque' : ''}</div>
+                    <div class="s">${semConfig} sem lead time configurado${naoControladas ? ' · +' + naoControladas + ' sem controle de estoque' : ''}${semContagem ? ' · +' + semContagem + ' ainda sem contagem' : ''}</div>
                 </div>
                 <div class="cx-kpi ok">
                     <div class="l">Estoque saudável</div>
@@ -2366,6 +2440,13 @@
                     <div class="cx-alert">
                         <span class="dot"></span>
                         <span class="cx-txt"><strong>${crit.length} modelo${crit.length > 1 ? 's' : ''} precisa${crit.length > 1 ? 'm' : ''} de compra imediata:</strong> ${nomes}</span>
+                    </div>`;
+            } else if (modelos.some(m => m.status === 'sem_contagem')) {
+                const n = modelos.filter(m => m.status === 'sem_contagem').length;
+                wrap.innerHTML = `
+                    <div class="cx-alert info">
+                        <span class="dot"></span>
+                        <span class="cx-txt"><strong>${n} modelo${n > 1 ? 's' : ''} ainda sem contagem nesta filial:</strong> faça a primeira em "Contagem semanal" para o estoque e o consumo começarem a ser calculados.</span>
                     </div>`;
             } else if (semConfig.length > 0) {
                 wrap.innerHTML = `
@@ -2473,9 +2554,20 @@
             }
         }
 
-        function cxRenderFreshness(ultimaSaida) {
+        function cxRenderFreshness(ultimaSaida, ultimoLancamento) {
             const chip = document.getElementById('cxFreshnessChip');
             const text = document.getElementById('cxFreshnessText');
+            if (CX_FILIAL !== 'SP') {
+                // contagem manual: avisa quando a contagem semanal está atrasada
+                if (!ultimoLancamento) { chip.hidden = false; text.textContent = 'Nenhuma contagem lançada ainda'; return; }
+                const dc = new Date(ultimoLancamento + 'T12:00:00');
+                const h = new Date(); h.setHours(12, 0, 0, 0);
+                const dias = Math.round((h - dc) / 86400000);
+                if (dias < 8) { chip.hidden = true; return; }
+                chip.hidden = false;
+                text.textContent = `Última contagem em ${String(dc.getDate()).padStart(2, '0')}/${String(dc.getMonth() + 1).padStart(2, '0')} — ${dias} dias (a contagem é semanal)`;
+                return;
+            }
             if (!ultimaSaida) {
                 chip.hidden = false;
                 text.textContent = 'Nenhum consumo lançado ainda';
@@ -2783,7 +2875,9 @@
             const selSerie = document.getElementById('cxModelSelect');
             const modeloSerieAtual = selSerie.value;
             selSerie.innerHTML = options;
-            if (modeloSerieAtual) selSerie.value = modeloSerieAtual;
+            // ao trocar de filial o modelo escolhido pode não existir na nova lista
+            if (modeloSerieAtual && sorted.some(m => String(m.id) === modeloSerieAtual)) selSerie.value = modeloSerieAtual;
+            else if (sorted.length) selSerie.value = String(sorted[0].id);
         }
 
         function cxRenderMovList(movs) {
@@ -2800,7 +2894,7 @@
                 return `
                     <div class="cx-movrow">
                         <div class="cx-movicon ${isIn ? 'in' : 'out'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="${iconPath}"/></svg></div>
-                        <div class="cx-movtext"><div class="t1">${m.modelo_nome}</div><div class="t2">${dataFmt} · ${isIn ? 'compra' : (m.envio_fulfillment ? 'envio Fulfillment' : (m.conta_consumo === false ? (/^Ajuste de estoque/.test(m.observacao || '') ? 'ajuste' : 'transferência') : 'uso'))}${m.observacao ? ' — ' + m.observacao : ''}</div></div>
+                        <div class="cx-movtext"><div class="t1">${m.modelo_nome}</div><div class="t2">${dataFmt} · ${/^Contagem semanal/.test(m.observacao || '') ? 'contagem' : isIn ? 'compra' : (m.envio_fulfillment ? 'envio Fulfillment' : (m.conta_consumo === false ? (/^Ajuste de estoque/.test(m.observacao || '') ? 'ajuste' : 'transferência') : 'uso'))}${m.observacao ? ' — ' + m.observacao : ''}</div></div>
                         <div class="cx-movqty ${isIn ? 'in' : 'out'}">${isIn ? '+' : '−'}${m.quantidade}</div>
                     </div>`;
             }).join('');
@@ -2813,7 +2907,7 @@
                 cxRenderKpis(resumo.modelos);
                 cxRenderAlert(resumo.modelos);
                 cxRenderPendenciasRegra(resumo.pendencias_regra);
-                cxRenderFreshness(resumo.ultima_saida);
+                cxRenderFreshness(resumo.ultima_saida, resumo.ultimo_lancamento);
                 cxRenderTable(resumo.modelos);
                 cxRenderMovList(movs);
                 cxPopulateSelects(resumo.modelos);
@@ -2845,7 +2939,7 @@
         // processadas (0 se a aba não estava visível, se deu erro, ou se não
         // tinha nada novo). Quem chama decide se vale a pena atualizar a tela.
         async function cxAutoDeducaoHoje() {
-            if (document.hidden) return 0;
+            if (document.hidden || CX_FILIAL !== 'SP') return 0; // a Comp Trade não tem baixa automática
             try {
                 const resp = await fetch(`/api/caixa-auto-executar?filial=${CX_FILIAL}&data=${cxTodayIso()}`);
                 const json = await resp.json();
@@ -3308,7 +3402,8 @@
                 const estoquePorModelo = new Map((resumo.modelos || []).map(m => [m.id, m.estoque_atual]));
 
                 cxCadastroOriginal = {};
-                tbody.innerHTML = modelos.map(m => {
+                // só os modelos que esta filial controla (migração 017); o catálogo é único
+                tbody.innerHTML = modelos.filter(m => (m.filiais || ['SP']).includes(CX_FILIAL)).map(m => {
                     const controla = m.controla_estoque !== false;
                     const estoqueAtual = estoquePorModelo.get(m.id) ?? 0;
                     cxCadastroOriginal[m.id] = { medida_mm: m.medida_mm, lead_time_dias: m.lead_time_dias, estoque_seguranca_pct: Number(m.estoque_seguranca_pct), estoque_atual: estoqueAtual, controla_estoque: controla, cobertura_desejada_dias: m.cobertura_desejada_dias ?? null, ponto_reposicao_manual: m.ponto_reposicao_manual ?? null };
@@ -3409,7 +3504,7 @@
                 const medida = tr.querySelector('.cx-medida-input').value.trim();
                 const lead = tr.querySelector('.cx-lead-input').value ? Number(tr.querySelector('.cx-lead-input').value) : null;
                 const pct = tr.querySelector('.cx-pct-input').value ? Number(tr.querySelector('.cx-pct-input').value) / 100 : 0.20;
-                novos.push({ nome, medida_mm: medida || null, lead_time_dias: lead, estoque_seguranca_pct: pct });
+                novos.push({ nome, medida_mm: medida || null, lead_time_dias: lead, estoque_seguranca_pct: pct, filial: CX_FILIAL });
             }
 
             if (updates.length === 0 && novos.length === 0 && ajustesEstoque.length === 0) { cxCloseCadastroModal(); return; }
@@ -3811,8 +3906,8 @@
         // gráficos que já estão na tela e os dados já carregados.
         // Shift+clique no botão abre uma prévia na tela em vez de baixar.
         // ---------------------------------------------------------------
-        const CXP_ROTULO_STATUS = { crit: 'Comprar agora', warn: 'Atenção', ok: 'OK', sem_config: 'Configurar lead time', nao_controlada: 'Sem controle de estoque' };
-        const CXP_COR_STATUS = { crit: '#fda4af', warn: '#fcd34d', ok: '#6ee7b7', sem_config: '#cbd5e1', nao_controlada: '#94a3b8' };
+        const CXP_ROTULO_STATUS = { crit: 'Comprar agora', warn: 'Atenção', ok: 'OK', sem_config: 'Configurar lead time', sem_contagem: 'Sem contagem', nao_controlada: 'Sem controle de estoque' };
+        const CXP_COR_STATUS = { crit: '#fda4af', warn: '#fcd34d', ok: '#6ee7b7', sem_config: '#cbd5e1', sem_contagem: '#cbd5e1', nao_controlada: '#94a3b8' };
 
         function cxpDataBr(iso) {
             if (!iso) return '—';
@@ -3932,7 +4027,7 @@
             return {
                 logo,
                 referencia: periodoSelRef ? periodoSelRef.options[periodoSelRef.selectedIndex].text : 'Últimos 30 dias',
-                filial: 'PAULICOMP ' + CX_FILIAL,
+                filial: (CX_FILIAIS[CX_FILIAL] || CX_FILIAL).toUpperCase(),
                 geradoEm,
                 ultimaSaida: cxpDataBr(cxResumo?.ultima_saida),
             };
@@ -3962,7 +4057,7 @@
             const p1 = `
                 <div style="background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:14px 18px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;">
                     <div style="font-size:13.5px;font-weight:700;">Consumo por modelo de caixa</div>
-                    <div style="font-size:10.5px;color:#64748b;margin:2px 0 10px;">Média de consumo diário, somando o consumo real e o Fulfillment</div>
+                    <div style="font-size:10.5px;color:#64748b;margin:2px 0 10px;">${CX_FILIAL === 'SP' ? 'Média de consumo diário, somando o consumo real e o Fulfillment' : 'Média de consumo diário apurado nas contagens semanais'}</div>
                     <div style="flex:1;min-height:0;overflow:hidden;">${cxpBarras(rankingTotal, 'un/dia', 'Consumo por modelo', 1000)}</div>
                 </div>`;
 
@@ -3984,10 +4079,10 @@
             const p2 = cxpTabela(
                 [{ titulo: 'Modelo' }, { titulo: 'Estoque', num: true }, { titulo: 'Consumo/dia', num: true }, { titulo: 'Ponto de reposição', num: true }, { titulo: 'Cobertura', num: true }, { titulo: 'Sugestão de compra', num: true }, { titulo: 'Pedido padrão', num: true }, { titulo: 'Tendência', num: true }, { titulo: 'Status' }],
                 linhasModelos, { compacto: true, fonte: 10.5 })
-                + `<div style="font-size:9.5px;color:#64748b;margin-top:8px;line-height:1.5;">Consumo/dia = média dos últimos 30 dias dos dois envios: Mercado Envios e outros (consumo real) + vendas do Fulfillment. Ponto de reposição = consumo × lead time + segurança. Tendência = últimos 7 dias contra os 7 anteriores (consumo real).</div>`;
+                + `<div style="font-size:9.5px;color:#64748b;margin-top:8px;line-height:1.5;">${CX_FILIAL === 'SP' ? 'Consumo/dia = média dos últimos 30 dias dos dois envios: Mercado Envios e outros (consumo real) + vendas do Fulfillment.' : 'Consumo/dia = média dos últimos 30 dias, apurada nas contagens semanais (o que faltou na prateleira).'} Ponto de reposição = consumo × lead time + segurança. Tendência = últimos 7 dias contra os 7 anteriores (consumo real).</div>`;
 
             const html = [
-                cxpPagina('Consumo de Embalagens SP', 'Consumo médio diário por modelo de embalagem', p1, 1, TOTAL, ctx),
+                cxpPagina('Consumo de Embalagens ' + (CX_FILIAL === 'SP' ? 'SP' : (CX_FILIAIS[CX_FILIAL] || CX_FILIAL)), 'Consumo médio diário por modelo de embalagem', p1, 1, TOTAL, ctx),
                 // a tabela de modelos usa sempre a média de 30 dias (ponto de reposição e cobertura),
                 // independente do período escolhido no ranking: o cabeçalho dela diz 30 dias
                 cxpPagina('Modelos de caixa', 'Estoque, consumo, ponto de reposição e status, por urgência de compra', p2, 2, TOTAL, Object.assign({}, ctx, { referencia: 'Últimos 30 dias' })),
@@ -4096,7 +4191,7 @@
         }
         const CX_INS_STATUS = {
             crit: ['crit', 'Comprar agora'], warn: ['warn', 'Atenção'], ok: ['ok', 'OK'],
-            sem_config: ['sem_config', 'Definir prazo ou mínimo'], inativo: ['nao_controlada', 'Inativo'],
+            sem_config: ['sem_config', 'Definir prazo ou mínimo'], sem_contagem: ['sem_config', 'Sem contagem'], inativo: ['nao_controlada', 'Inativo'],
         };
         function cxInsBadge(status) {
             const [cls, rotulo] = CX_INS_STATUS[status] || CX_INS_STATUS.sem_config;
@@ -4278,7 +4373,7 @@
             ctx.referencia = 'Últimos 30 dias'; // o consumo dos insumos é sempre a média dos últimos 30 dias
             ctx.ultimaSaida = cxpDataBr(cxTodayIso());
             const insumos = (cxInsumosDados?.insumos || []).filter(i => i.ativo);
-            const COR = { crit: '#fda4af', warn: '#fcd34d', ok: '#6ee7b7', sem_config: '#cbd5e1' };
+            const COR = { crit: '#fda4af', warn: '#fcd34d', ok: '#6ee7b7', sem_config: '#cbd5e1', sem_contagem: '#cbd5e1' };
             const linhas = insumos.map(i => [
                 `<b style="color:#f1f5f9;">${cxEsc(i.nome)}</b>`, cxEsc(i.unidade),
                 `<b style="color:#f1f5f9;">${cxQtd(i.estoque_atual)}</b>`,
@@ -4307,7 +4402,7 @@
                     <div style="font-size:10.5px;color:#64748b;margin:2px 0 8px;">Média por dia nos últimos 30 dias, na unidade de uso de cada insumo (só quem teve consumo)</div>
                     ${grafico}
                 </div>`;
-            return cxpPagina('Controle de Insumos SP', 'Estoque, consumo e ponto de reposição dos insumos', p1, numeroInicial, total, ctx);
+            return cxpPagina('Controle de Insumos ' + (CX_FILIAL === 'SP' ? 'SP' : (CX_FILIAIS[CX_FILIAL] || CX_FILIAL)), 'Estoque, consumo e ponto de reposição dos insumos', p1, numeroInicial, total, ctx);
         }
 
         // Relatório só de insumos (botão dentro da janela de insumos)
@@ -4350,6 +4445,186 @@
             const aberta = ['cxInsumoCadModal', 'cxInsumoMovModal', 'cxInsumosModal'].map(id => document.getElementById(id)).find(m => !m.hidden);
             if (aberta) aberta.hidden = true;
         });
+
+        // ---------------------------------------------------------------
+        // Filial: Paulicomp SP | Comp Trade. A Trade não tem baixa automática:
+        // é contagem semanal manual, e o que faltou na prateleira vira consumo.
+        // ---------------------------------------------------------------
+        function cxAplicaFilialUi() {
+            document.querySelectorAll('.cx-filial-sel a[data-filial]').forEach(a => a.classList.toggle('active', a.dataset.filial === CX_FILIAL));
+            document.body.classList.toggle('cx-filial-manual', CX_FILIAL !== 'SP');
+        }
+
+        async function cxSetFilial(f) {
+            if (!CX_FILIAIS[f] || f === CX_FILIAL) return;
+            CX_FILIAL = f;
+            try { localStorage.setItem('cxFilial', f); } catch (e) { /* sem armazenamento: vale só nesta sessão */ }
+            cxAplicaFilialUi();
+            cxResumo = null; cxCompras = []; cxInsumosDados = null;
+            if (!document.getElementById('cxTabCaixas').hidden) await cxRefreshAll();
+            if (!document.getElementById('cxInsumosModal').hidden) {
+                document.getElementById('cxInsumosBody').innerHTML = '<tr><td colspan="9" class="cx-note">Carregando...</td></tr>';
+                try { await cxCarregarInsumos(); } catch (err) {
+                    document.getElementById('cxInsumosBody').innerHTML = `<tr><td colspan="9" class="cx-note">${cxEsc(err.message)}</td></tr>`;
+                }
+            }
+        }
+        document.querySelectorAll('.cx-filial-sel a[data-filial]').forEach(a => a.addEventListener('click', () => cxSetFilial(a.dataset.filial)));
+        cxAplicaFilialUi();
+
+        // Depois de salvar algo em "Itens da filial" ou na contagem, atualiza o que estiver aberto
+        async function cxAtualizaTelasFilial() {
+            if (cxLoaded) await cxRefreshAll();
+            if (!document.getElementById('cxInsumosModal').hidden) {
+                try { await cxCarregarInsumos(); } catch (err) { /* mantém a tabela atual */ }
+            }
+        }
+
+        // ---- Itens da filial: quais embalagens e insumos cada filial controla ----
+        let cxItensOriginal = [];
+        async function cxAbrirItensFilial() {
+            const nome = CX_FILIAIS[CX_FILIAL];
+            document.getElementById('cxItensFilialTitle').textContent = 'Itens da filial — ' + nome;
+            const corpo = document.getElementById('cxItensFilialBody');
+            corpo.innerHTML = '<div class="cx-note">Carregando...</div>';
+            document.getElementById('cxItensFilialModal').hidden = false;
+            try {
+                const [rm, ri] = await Promise.all([
+                    fetch('/api/caixa-modelos'),
+                    fetch('/api/caixa-movimentacoes?recurso=insumos&todos=1'),
+                ]);
+                const modelos = await rm.json();
+                const insumos = await ri.json();
+                if (!rm.ok) throw new Error(modelos.error || 'Erro ao carregar as embalagens.');
+                if (!ri.ok) throw new Error(insumos.error || 'Erro ao carregar os insumos.');
+                cxItensOriginal = [
+                    ...modelos.map(m => ({ tipo: 'modelo', id: m.id, nome: m.nome, filiais: m.filiais || ['SP'] })),
+                    ...insumos.insumos.map(i => ({ tipo: 'insumo', id: i.id, nome: i.nome, filiais: i.filiais || ['SP'] })),
+                ];
+                const lista = tipo => cxItensOriginal.filter(x => x.tipo === tipo).map(x => `
+                    <label><input type="checkbox" data-tipo="${x.tipo}" data-id="${x.id}" ${x.filiais.includes(CX_FILIAL) ? 'checked' : ''}> ${cxEsc(x.nome)}</label>`).join('');
+                corpo.innerHTML = `
+                    <div class="cx-sec-title">Embalagens</div><div class="cx-check-list">${lista('modelo')}</div>
+                    <div class="cx-sec-title" style="margin-top:18px;">Insumos</div><div class="cx-check-list">${lista('insumo')}</div>`;
+            } catch (err) {
+                corpo.innerHTML = `<div class="cx-note">${cxEsc(err.message)}</div>`;
+            }
+        }
+        async function cxSalvarItensFilial() {
+            const mudancas = [];
+            document.querySelectorAll('#cxItensFilialBody input[type=checkbox]').forEach(chk => {
+                const item = cxItensOriginal.find(x => x.tipo === chk.dataset.tipo && String(x.id) === chk.dataset.id);
+                if (!item || item.filiais.includes(CX_FILIAL) === chk.checked) return;
+                const filiais = chk.checked ? [...item.filiais, CX_FILIAL] : item.filiais.filter(f => f !== CX_FILIAL);
+                mudancas.push({ item, filiais });
+            });
+            if (mudancas.length === 0) { document.getElementById('cxItensFilialModal').hidden = true; return; }
+            const btn = document.getElementById('cxBtnSaveItensFilial');
+            btn.disabled = true;
+            try {
+                for (const { item, filiais } of mudancas) {
+                    if (item.tipo === 'modelo') {
+                        const r = await fetch('/api/caixa-modelos', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id, filiais }) });
+                        if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Falha ao salvar ' + item.nome); }
+                    } else {
+                        await cxInsumosApi('PUT', { id: item.id, filiais });
+                    }
+                }
+                cxToast(`Itens da filial atualizados (${mudancas.length}).`, 'success');
+                document.getElementById('cxItensFilialModal').hidden = true;
+                await cxAtualizaTelasFilial();
+            } catch (err) {
+                cxToast('Erro: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+        ['cxBtnItensFilial', 'cxBtnInsumoItensFilial'].forEach(id => document.getElementById(id).addEventListener('click', cxAbrirItensFilial));
+        ['cxBtnCloseItensFilial', 'cxBtnCancelItensFilial'].forEach(id => document.getElementById(id).addEventListener('click', () => { document.getElementById('cxItensFilialModal').hidden = true; }));
+        document.getElementById('cxBtnSaveItensFilial').addEventListener('click', cxSalvarItensFilial);
+
+        // ---- Contagem semanal: embalagens e insumos de uma vez ----
+        let cxContagemDados = { modelos: [], insumos: [] };
+        async function cxAbrirContagem() {
+            document.getElementById('cxContagemTitle').textContent = 'Contagem semanal — ' + CX_FILIAIS[CX_FILIAL];
+            document.getElementById('cxContagemData').value = cxTodayIso();
+            const corpo = document.getElementById('cxContagemBody');
+            corpo.innerHTML = '<div class="cx-note">Carregando...</div>';
+            document.getElementById('cxContagemModal').hidden = false;
+            try {
+                const [resumo, ins] = await Promise.all([cxFetchResumo(), cxInsumosApi('GET')]);
+                cxContagemDados = {
+                    modelos: resumo.modelos.filter(m => m.status !== 'nao_controlada'),
+                    insumos: (ins.insumos || []).filter(i => i.ativo),
+                };
+                if (cxContagemDados.modelos.length === 0 && cxContagemDados.insumos.length === 0) {
+                    corpo.innerHTML = '<div class="cx-note">Nenhum item marcado nesta filial. Use "Itens da filial" para escolher o que ela controla.</div>';
+                    return;
+                }
+                const linhas = (itens, tipo, un) => itens.map(x => `
+                    <tr>
+                        <td><div class="cx-box-name">${cxEsc(x.nome)}</div>${x.status === 'sem_contagem' ? '<div class="cx-box-sub">ainda sem contagem</div>' : ''}</td>
+                        <td class="num">${cxQtd(x.estoque_atual)} ${cxEsc(un(x))}</td>
+                        <td class="num"><input type="number" min="0" step="${tipo === 'modelo' ? 1 : 'any'}" class="cx-cont-inp" data-tipo="${tipo}" data-id="${x.id}" placeholder="—" style="width:110px;text-align:right;"></td>
+                    </tr>`).join('');
+                const tabela = (titulo, itens, tipo, un) => itens.length ? `
+                    <div class="cx-sec-title" style="margin-top:16px;">${titulo}</div>
+                    <div class="cx-scroll-x"><table class="cx-table"><thead><tr><th>Item</th><th class="num">No sistema</th><th class="num">Contado</th></tr></thead><tbody>${linhas(itens, tipo, un)}</tbody></table></div>` : '';
+                corpo.innerHTML = tabela('Embalagens', cxContagemDados.modelos, 'modelo', () => 'un') + tabela('Insumos', cxContagemDados.insumos, 'insumo', x => x.unidade);
+            } catch (err) {
+                corpo.innerHTML = `<div class="cx-note">${cxEsc(err.message)}</div>`;
+            }
+        }
+        async function cxSalvarContagem() {
+            const data = document.getElementById('cxContagemData').value;
+            if (!data) return cxToast('Informe a data da contagem.', 'error');
+            const preenchidos = [...document.querySelectorAll('#cxContagemBody .cx-cont-inp')].filter(i => i.value !== '');
+            if (preenchidos.length === 0) return cxToast('Preencha a quantidade contada de pelo menos um item.', 'error');
+            const btn = document.getElementById('cxBtnSaveContagem');
+            btn.disabled = true;
+            let lancados = 0, consumo = 0, iguais = 0;
+            const erros = [];
+            try {
+                for (const inp of preenchidos) {
+                    const contado = Number(inp.value);
+                    const id = Number(inp.dataset.id);
+                    const modelo = inp.dataset.tipo === 'modelo';
+                    const item = (modelo ? cxContagemDados.modelos : cxContagemDados.insumos).find(x => x.id === id);
+                    if (!item || !(contado >= 0) || (modelo && !Number.isInteger(contado))) { erros.push(`${item ? item.nome : id}: quantidade inválida`); continue; }
+                    try {
+                        if (modelo) {
+                            const dif = contado - item.estoque_atual;
+                            if (dif === 0) { iguais++; continue; }
+                            const obs = dif < 0 ? 'Contagem semanal — consumo apurado'
+                                : (item.status === 'sem_contagem' ? 'Contagem semanal — contagem inicial' : 'Contagem semanal — sobra (ajuste)');
+                            const r = await fetch('/api/caixa-movimentacoes', {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ modelo_id: id, filial: CX_FILIAL, tipo: dif > 0 ? 'entrada' : 'saida', quantidade: Math.abs(dif), data, observacao: obs, saida_tipo: dif < 0 ? 'consumo' : undefined }),
+                            });
+                            if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'erro ao salvar'); }
+                            lancados++;
+                            if (dif < 0) consumo++;
+                        } else {
+                            const resp = await cxInsumosApi('POST', { acao: 'contagem', insumo_id: id, quantidade_contada: contado, data, rotina: true });
+                            if (resp.diferenca === 0) { iguais++; continue; }
+                            lancados++;
+                            if (resp.conta_consumo) consumo++;
+                        }
+                    } catch (err) {
+                        erros.push(`${item.nome}: ${err.message}`);
+                    }
+                }
+                cxToast(`Contagem salva: ${lancados} lançamento(s), ${consumo} com consumo apurado${iguais ? `, ${iguais} igual(is) ao sistema` : ''}.`, erros.length ? 'error' : 'success');
+                if (erros.length) cxToast('Não salvou: ' + erros.join(' · '), 'error');
+                if (erros.length === 0) document.getElementById('cxContagemModal').hidden = true;
+                await cxAtualizaTelasFilial();
+            } finally {
+                btn.disabled = false;
+            }
+        }
+        ['cxBtnContagem', 'cxBtnInsumoContagem'].forEach(id => document.getElementById(id).addEventListener('click', cxAbrirContagem));
+        ['cxBtnCloseContagem', 'cxBtnCancelContagem'].forEach(id => document.getElementById(id).addEventListener('click', () => { document.getElementById('cxContagemModal').hidden = true; }));
+        document.getElementById('cxBtnSaveContagem').addEventListener('click', cxSalvarContagem);
 
         document.getElementById('cxDiaSelect').value = cxTodayIso();
         document.getElementById('cxFulfillmentDiaSelect').value = cxTodayIso();

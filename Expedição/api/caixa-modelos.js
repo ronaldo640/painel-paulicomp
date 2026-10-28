@@ -5,6 +5,8 @@
 
 import { neon } from '@neondatabase/serverless';
 
+const FILIAIS = ['SP', 'TRADE']; // a Paulicomp Sul não entra: o estoque dela é o da Trade
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,OPTIONS');
@@ -37,8 +39,17 @@ export default async function handler(req, res) {
       } catch (err) {
         console.error('Colunas de planejamento indisponíveis (migração 009 pendente?):', err.message);
       }
+      // filiais em que cada modelo é controlado (migração 017); sem ela, todos são só da SP
+      const filiaisPorId = new Map();
+      try {
+        const fl = await sql`SELECT id, filiais FROM caixa_modelos`;
+        fl.forEach(f => filiaisPorId.set(f.id, f.filiais));
+      } catch (err) {
+        console.error('Coluna filiais indisponível (migração 017 pendente?):', err.message);
+      }
       return res.status(200).json(rows.map(r => ({
         ...r,
+        filiais: filiaisPorId.get(r.id) || ['SP'],
         controla_estoque: !semControle.has(r.id),
         cobertura_desejada_dias: extras.get(r.id)?.cobertura_desejada_dias ?? null,
         ponto_reposicao_manual: extras.get(r.id)?.ponto_reposicao_manual ?? null,
@@ -65,6 +76,12 @@ export default async function handler(req, res) {
         )
         RETURNING id, nome, medida_mm, lead_time_dias, estoque_seguranca_pct, ativo
       `;
+      // modelo criado numa filial passa a ser controlado nela (migração 017)
+      const filialCriacao = String(req.body.filial || 'SP').toUpperCase();
+      if (FILIAIS.includes(filialCriacao) && filialCriacao !== 'SP') {
+        await sql`UPDATE caixa_modelos SET filiais = ARRAY[${filialCriacao}]::text[] WHERE id = ${rows[0].id}`
+          .catch(err => { if (!/filiais/.test(err.message || '')) throw err; });
+      }
       return res.status(201).json(rows[0]);
     } catch (error) {
       console.error('Erro POST caixa_modelos:', error);
@@ -95,6 +112,18 @@ export default async function handler(req, res) {
         } catch (err) {
           if (/cobertura_desejada|ponto_reposicao_manual/.test(err.message)) {
             return res.status(400).json({ error: 'Migração 009 pendente: rode sql/009_caixa_compras.sql no Neon antes de alterar cobertura/ponto de reposição.' });
+          }
+          throw err;
+        }
+      }
+
+      if ('filiais' in body) {
+        const filiais = (Array.isArray(body.filiais) ? body.filiais : []).map(f => String(f).toUpperCase()).filter(f => FILIAIS.includes(f));
+        try {
+          await sql`UPDATE caixa_modelos SET filiais = ${filiais}::text[] WHERE id = ${id}`;
+        } catch (err) {
+          if (/filiais/.test(err.message)) {
+            return res.status(400).json({ error: 'Migração 017 pendente: rode sql/017_filiais_trade.sql no Neon.' });
           }
           throw err;
         }

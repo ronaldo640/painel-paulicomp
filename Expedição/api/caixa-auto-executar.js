@@ -282,6 +282,16 @@ export default async function handler(req, res) {
         console.error('Falha no aviso por e-mail:', err);
         alerta = { erro: err.message };
       }
+      // A Comp Trade não tem baixa automática (contagem semanal manual), mas entra
+      // no mesmo aviso: a conferência roda junto com a da SP, num e-mail à parte.
+      if (filial === 'SP') {
+        try {
+          alerta = { sp: alerta, trade: await verificarEAvisar(sql, 'TRADE') };
+        } catch (err) {
+          console.error('Falha no aviso por e-mail (Comp Trade):', err);
+          alerta = { sp: alerta, trade: { erro: err.message } };
+        }
+      }
     }
 
     return res.status(200).json({
