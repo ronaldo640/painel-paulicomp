@@ -54,6 +54,25 @@ export async function calcularInsumos(sql, filial, diasPeriodo = DIAS_CONSUMO) {
     insumos = filial === 'SP' ? insumos.map(i => ({ ...i, filiais: ['SP'] })) : [];
   }
 
+  // Parâmetros próprios da filial (migração 019): prazo, margem e estoque mínimo.
+  // Se existe linha da filial, ela vale por inteiro; sem linha, valem prazo e margem do
+  // catálogo e o estoque mínimo fica em branco (o mínimo fixo do catálogo é o da SP).
+  if (filial !== 'SP') {
+    let porFilial = new Map();
+    try {
+      const o = await sql`SELECT insumo_id, lead_time_dias, estoque_seguranca_pct::float AS estoque_seguranca_pct, estoque_minimo FROM insumo_filial WHERE filial = ${filial}`;
+      porFilial = new Map(o.map(p => [p.insumo_id, p]));
+    } catch (err) {
+      if (!/insumo_filial/.test(err.message || '')) throw err;
+    }
+    insumos = insumos.map(i => {
+      const p = porFilial.get(i.id);
+      return p
+        ? { ...i, lead_time_dias: p.lead_time_dias, estoque_seguranca_pct: p.estoque_seguranca_pct ?? i.estoque_seguranca_pct, estoque_minimo: p.estoque_minimo }
+        : { ...i, estoque_minimo: null };
+    });
+  }
+
   const movs = await sql`
     SELECT insumo_id,
            COALESCE(SUM(CASE WHEN tipo = 'entrada' THEN quantidade ELSE -quantidade END), 0)::float AS saldo_manual,
@@ -270,9 +289,28 @@ export default async function handlerInsumos(req, res, sql) {
       // só grava o que veio no corpo (aceita null pra limpar)
       if ('nome' in b && String(b.nome).trim()) await sql`UPDATE insumos SET nome = ${String(b.nome).trim()} WHERE id = ${id}`;
       if ('unidade' in b && String(b.unidade).trim()) await sql`UPDATE insumos SET unidade = ${String(b.unidade).trim()} WHERE id = ${id}`;
-      if ('lead_time_dias' in b) await sql`UPDATE insumos SET lead_time_dias = ${num(b.lead_time_dias)} WHERE id = ${id}`;
-      if ('estoque_seguranca_pct' in b && num(b.estoque_seguranca_pct) !== null) await sql`UPDATE insumos SET estoque_seguranca_pct = ${num(b.estoque_seguranca_pct)} WHERE id = ${id}`;
-      if ('estoque_minimo' in b) await sql`UPDATE insumos SET estoque_minimo = ${num(b.estoque_minimo)} WHERE id = ${id}`;
+      if (filial === 'SP') {
+        if ('lead_time_dias' in b) await sql`UPDATE insumos SET lead_time_dias = ${num(b.lead_time_dias)} WHERE id = ${id}`;
+        if ('estoque_seguranca_pct' in b && num(b.estoque_seguranca_pct) !== null) await sql`UPDATE insumos SET estoque_seguranca_pct = ${num(b.estoque_seguranca_pct)} WHERE id = ${id}`;
+        if ('estoque_minimo' in b) await sql`UPDATE insumos SET estoque_minimo = ${num(b.estoque_minimo)} WHERE id = ${id}`;
+      } else if (['lead_time_dias', 'estoque_seguranca_pct', 'estoque_minimo'].some(k => k in b)) {
+        // fora da SP, prazo, margem e mínimo são da filial (migração 019): não mexe no catálogo
+        try {
+          const [cat] = await sql`SELECT lead_time_dias, estoque_seguranca_pct::float AS estoque_seguranca_pct FROM insumos WHERE id = ${id}`;
+          const [atual] = await sql`SELECT lead_time_dias, estoque_seguranca_pct::float AS estoque_seguranca_pct, estoque_minimo FROM insumo_filial WHERE insumo_id = ${id} AND filial = ${filial}`;
+          const base = atual || { lead_time_dias: cat.lead_time_dias, estoque_seguranca_pct: cat.estoque_seguranca_pct, estoque_minimo: null };
+          const lead = 'lead_time_dias' in b ? num(b.lead_time_dias) : base.lead_time_dias;
+          const seg = 'estoque_seguranca_pct' in b && num(b.estoque_seguranca_pct) !== null ? num(b.estoque_seguranca_pct) : base.estoque_seguranca_pct;
+          const min = 'estoque_minimo' in b ? num(b.estoque_minimo) : base.estoque_minimo;
+          await sql`
+            INSERT INTO insumo_filial (insumo_id, filial, lead_time_dias, estoque_seguranca_pct, estoque_minimo)
+            VALUES (${id}, ${filial}, ${lead}, ${seg}, ${min})
+            ON CONFLICT (insumo_id, filial) DO UPDATE SET lead_time_dias = EXCLUDED.lead_time_dias, estoque_seguranca_pct = EXCLUDED.estoque_seguranca_pct, estoque_minimo = EXCLUDED.estoque_minimo`;
+        } catch (err) {
+          if (/insumo_filial/.test(err.message || '')) return res.status(400).json({ error: 'Migração 019 pendente: rode sql/019_parametros_por_filial.sql no Neon.' });
+          throw err;
+        }
+      }
       if ('consumo_por_embalagem' in b) await sql`UPDATE insumos SET consumo_por_embalagem = ${num(b.consumo_por_embalagem)} WHERE id = ${id}`;
       if ('auto_desde' in b) await sql`UPDATE insumos SET auto_desde = ${b.auto_desde || null} WHERE id = ${id}`;
       if ('unidades_por_estoque' in b && num(b.unidades_por_estoque) > 0) await sql`UPDATE insumos SET unidades_por_estoque = ${num(b.unidades_por_estoque)} WHERE id = ${id}`;

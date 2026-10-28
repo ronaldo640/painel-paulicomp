@@ -66,7 +66,22 @@ export async function calcularResumo(sql, filial, limitePendenciasEntrada) {
     if (!/filiais/.test(err.message || '')) throw err;
     if (filial !== 'SP') doFilial = new Set();
   }
-  const rowsDaFilial = doFilial ? rows.filter(r => doFilial.has(r.id)) : rows;
+  // Parâmetros próprios da filial (migração 019): prazo, margem, cobertura e
+  // quantidade por pedido. Se existe linha da filial, ela vale por inteiro;
+  // sem linha (ou sem a migração), valem os do catálogo. A SP usa sempre o catálogo.
+  const paramsFilial = new Map();
+  if (filial !== 'SP') {
+    try {
+      const o = await sql`SELECT modelo_id, lead_time_dias, estoque_seguranca_pct, cobertura_desejada_dias, ponto_reposicao_manual FROM caixa_modelo_filial WHERE filial = ${filial}`;
+      o.forEach(p => paramsFilial.set(p.modelo_id, p));
+    } catch (err) {
+      if (!/caixa_modelo_filial/.test(err.message || '')) throw err;
+    }
+  }
+  const rowsDaFilial = (doFilial ? rows.filter(r => doFilial.has(r.id)) : rows).map(r => {
+    const p = paramsFilial.get(r.id);
+    return p ? { ...r, lead_time_dias: p.lead_time_dias, estoque_seguranca_pct: p.estoque_seguranca_pct ?? r.estoque_seguranca_pct } : r;
+  });
 
   // Filiais sem baixa automática (Comp Trade) são controladas por contagem
   // manual: modelo que ainda não teve nenhum lançamento é "sem contagem" em
@@ -171,6 +186,7 @@ export async function calcularResumo(sql, filial, limitePendenciasEntrada) {
   try {
     const pl = await sql`SELECT id, cobertura_desejada_dias, ponto_reposicao_manual FROM caixa_modelos`;
     pl.forEach(p => planejamento.set(p.id, p));
+    paramsFilial.forEach((p, id) => planejamento.set(id, { id, cobertura_desejada_dias: p.cobertura_desejada_dias, ponto_reposicao_manual: p.ponto_reposicao_manual }));
   } catch (err) {
     console.error('Colunas de planejamento indisponíveis (migração 009 pendente?):', err.message);
   }

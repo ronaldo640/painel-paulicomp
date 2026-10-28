@@ -47,12 +47,24 @@ export default async function handler(req, res) {
       } catch (err) {
         console.error('Coluna filiais indisponível (migração 017 pendente?):', err.message);
       }
+      // parâmetros próprios da filial (migração 019): se existe linha, ela vale por inteiro
+      const filialVista = req.query.filial ? String(req.query.filial).toUpperCase() : 'SP';
+      const paramsFilial = new Map();
+      if (filialVista !== 'SP') {
+        try {
+          const o = await sql`SELECT modelo_id, lead_time_dias, estoque_seguranca_pct, cobertura_desejada_dias, ponto_reposicao_manual FROM caixa_modelo_filial WHERE filial = ${filialVista}`;
+          o.forEach(p => paramsFilial.set(p.modelo_id, p));
+        } catch (err) {
+          console.error('Tabela caixa_modelo_filial indisponível (migração 019 pendente?):', err.message);
+        }
+      }
       return res.status(200).json(rows.map(r => ({
         ...r,
+        ...(paramsFilial.has(r.id) ? { lead_time_dias: paramsFilial.get(r.id).lead_time_dias, estoque_seguranca_pct: paramsFilial.get(r.id).estoque_seguranca_pct ?? r.estoque_seguranca_pct } : {}),
         filiais: filiaisPorId.get(r.id) || ['SP'],
         controla_estoque: !semControle.has(r.id),
-        cobertura_desejada_dias: extras.get(r.id)?.cobertura_desejada_dias ?? null,
-        ponto_reposicao_manual: extras.get(r.id)?.ponto_reposicao_manual ?? null,
+        cobertura_desejada_dias: (paramsFilial.get(r.id) || extras.get(r.id))?.cobertura_desejada_dias ?? null,
+        ponto_reposicao_manual: (paramsFilial.get(r.id) || extras.get(r.id))?.ponto_reposicao_manual ?? null,
       })));
     } catch (error) {
       console.error('Erro GET caixa_modelos:', error);
@@ -97,7 +109,41 @@ export default async function handler(req, res) {
       // Estes dois aceitam null (limpar o campo), então o COALESCE usado
       // abaixo não serve: só são gravados se a chave veio no corpo.
       const body = req.body || {};
-      if ('cobertura_desejada_dias' in body || 'ponto_reposicao_manual' in body) {
+
+      // Fora da SP, prazo, margem, cobertura e quantidade por pedido são da filial
+      // (migração 019): grava na tabela da filial e não mexe no catálogo.
+      const filialPut = body.filial ? String(body.filial).toUpperCase() : 'SP';
+      const foraDaSp = filialPut !== 'SP';
+      if (foraDaSp && ['lead_time_dias', 'estoque_seguranca_pct', 'cobertura_desejada_dias', 'ponto_reposicao_manual'].some(k => k in body)) {
+        const num = v => (v === null || v === '' || v === undefined ? null : Number(v));
+        try {
+          const [cat] = await sql`SELECT lead_time_dias, estoque_seguranca_pct::float AS estoque_seguranca_pct, cobertura_desejada_dias, ponto_reposicao_manual FROM caixa_modelos WHERE id = ${id}`;
+          if (!cat) return res.status(404).json({ error: 'Modelo não encontrado.' });
+          const [atual] = await sql`SELECT lead_time_dias, estoque_seguranca_pct::float AS estoque_seguranca_pct, cobertura_desejada_dias, ponto_reposicao_manual FROM caixa_modelo_filial WHERE modelo_id = ${id} AND filial = ${filialPut}`;
+          const base = atual || cat;
+          const lead = 'lead_time_dias' in body ? num(body.lead_time_dias) : base.lead_time_dias;
+          const seg = 'estoque_seguranca_pct' in body && num(body.estoque_seguranca_pct) !== null ? num(body.estoque_seguranca_pct) : base.estoque_seguranca_pct;
+          const cob = 'cobertura_desejada_dias' in body ? num(body.cobertura_desejada_dias) : base.cobertura_desejada_dias;
+          const man = 'ponto_reposicao_manual' in body ? num(body.ponto_reposicao_manual) : base.ponto_reposicao_manual;
+          for (const v of [cob, man]) {
+            if (v !== null && (!Number.isInteger(v) || v < 0)) {
+              return res.status(400).json({ error: 'Cobertura desejada e quantidade por pedido devem ser inteiros maiores ou iguais a zero.' });
+            }
+          }
+          await sql`
+            INSERT INTO caixa_modelo_filial (modelo_id, filial, lead_time_dias, estoque_seguranca_pct, cobertura_desejada_dias, ponto_reposicao_manual)
+            VALUES (${id}, ${filialPut}, ${lead}, ${seg}, ${cob}, ${man})
+            ON CONFLICT (modelo_id, filial) DO UPDATE SET lead_time_dias = EXCLUDED.lead_time_dias, estoque_seguranca_pct = EXCLUDED.estoque_seguranca_pct,
+              cobertura_desejada_dias = EXCLUDED.cobertura_desejada_dias, ponto_reposicao_manual = EXCLUDED.ponto_reposicao_manual`;
+        } catch (err) {
+          if (/caixa_modelo_filial/.test(err.message || '')) {
+            return res.status(400).json({ error: 'Migração 019 pendente: rode sql/019_parametros_por_filial.sql no Neon.' });
+          }
+          throw err;
+        }
+      }
+
+      if (!foraDaSp && ('cobertura_desejada_dias' in body || 'ponto_reposicao_manual' in body)) {
         const num = v => (v === null || v === '' || v === undefined ? null : Number(v));
         const cob = num(body.cobertura_desejada_dias);
         const man = num(body.ponto_reposicao_manual);
@@ -142,8 +188,8 @@ export default async function handler(req, res) {
 
       const rows = await sql`
         UPDATE caixa_modelos SET
-          lead_time_dias = COALESCE(${lead_time_dias ?? null}, lead_time_dias),
-          estoque_seguranca_pct = COALESCE(${estoque_seguranca_pct ?? null}, estoque_seguranca_pct),
+          lead_time_dias = COALESCE(${foraDaSp ? null : (lead_time_dias ?? null)}, lead_time_dias),
+          estoque_seguranca_pct = COALESCE(${foraDaSp ? null : (estoque_seguranca_pct ?? null)}, estoque_seguranca_pct),
           medida_mm = COALESCE(${medida_mm ?? null}, medida_mm),
           ativo = COALESCE(${ativo ?? null}, ativo)
         WHERE id = ${id}

@@ -777,7 +777,7 @@
             <div class="cx-modal-head">
                 <div>
                     <h2 id="cxCadastroModalTitle">Cadastro de modelos de caixa</h2>
-                    <p>Lead time do fornecedor e margem de estoque de segurança, por modelo</p>
+                    <p>Lead time do fornecedor e margem de estoque de segurança, por modelo. Prazo, margem, cobertura e quantidade por pedido valem para a filial em exibição (Paulicomp SP ou Comp Trade).</p>
                 </div>
                 <button class="cx-modal-close" id="cxBtnCloseCadastro" aria-label="Fechar">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -3393,7 +3393,7 @@
             tbody.innerHTML = '<tr><td colspan="9" class="cx-note">Carregando...</td></tr>';
             try {
                 const [resp, resumoResp] = await Promise.all([
-                    fetch('/api/caixa-modelos'),
+                    fetch(`/api/caixa-modelos?filial=${CX_FILIAL}`),
                     fetch(`/api/caixa-resumo?filial=${CX_FILIAL}`),
                 ]);
                 const modelos = await resp.json();
@@ -3477,7 +3477,7 @@
                 const manual = tr.querySelector('.cx-manual-input').value !== '' ? Number(tr.querySelector('.cx-manual-input').value) : null;
                 const mudouPlan = cobDes !== (orig.cobertura_desejada_dias ?? null) || manual !== (orig.ponto_reposicao_manual ?? null);
                 if (medida !== orig.medida_mm || lead !== orig.lead_time_dias || pct !== orig.estoque_seguranca_pct || mudouControle || mudouPlan) {
-                    const u = { id, medida_mm: medida, lead_time_dias: lead, estoque_seguranca_pct: pct };
+                    const u = { id, medida_mm: medida, lead_time_dias: lead, estoque_seguranca_pct: pct, filial: CX_FILIAL };
                     if (mudouControle) u.controla_estoque = controla;
                     if (mudouPlan) { u.cobertura_desejada_dias = cobDes; u.ponto_reposicao_manual = manual; }
                     updates.push(u);
@@ -4490,7 +4490,7 @@
             document.getElementById('cxItensFilialModal').hidden = false;
             try {
                 const [rm, ri] = await Promise.all([
-                    fetch('/api/caixa-modelos'),
+                    fetch(`/api/caixa-modelos?filial=${CX_FILIAL}`),
                     fetch('/api/caixa-movimentacoes?recurso=insumos&todos=1'),
                 ]);
                 const modelos = await rm.json();
