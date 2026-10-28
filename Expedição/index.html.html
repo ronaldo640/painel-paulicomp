@@ -964,7 +964,10 @@
                 <hr class="cx-modal-divider">
 
                 <div>
-                    <input type="text" id="cxRegrasFiltro" placeholder="Filtrar por SKU, produto, caixa ou cliente..." style="width:100%;background:#151f34;border:1px solid #1e293b;color:#f1f5f9;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <select id="cxRegrasFiltroModelo" title="Mostra só as regras da embalagem escolhida. Acompanha o campo &quot;Caixa usada&quot; acima." style="background:#151f34;border:1px solid #1e293b;color:#f1f5f9;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;max-width:100%;"></select>
+                        <input type="text" id="cxRegrasFiltro" placeholder="Filtrar por SKU, produto, caixa ou cliente..." style="flex:1;min-width:200px;background:#151f34;border:1px solid #1e293b;color:#f1f5f9;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit;">
+                    </div>
                     <div class="cx-scroll-x" style="margin-top:10px;">
                         <table class="cx-table" style="min-width:760px;">
                             <thead>
@@ -2773,6 +2776,10 @@
             const options = sorted.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
             document.getElementById('cxMovModelo').innerHTML = options;
             document.getElementById('cxRegraModelo').innerHTML = options;
+            const selFiltroRegras = document.getElementById('cxRegrasFiltroModelo');
+            const filtroRegrasAtual = selFiltroRegras.value;
+            selFiltroRegras.innerHTML = '<option value="">Todas as embalagens</option>' + options;
+            selFiltroRegras.value = filtroRegrasAtual;
             const selSerie = document.getElementById('cxModelSelect');
             const modeloSerieAtual = selSerie.value;
             selSerie.innerHTML = options;
@@ -3519,15 +3526,22 @@
 
         function cxAplicarFiltroRegras() {
             const q = (document.getElementById('cxRegrasFiltro').value || '').trim().toLowerCase();
-            if (!q) { cxRenderRegras(cxRegrasCache); return; }
+            const selModelo = document.getElementById('cxRegrasFiltroModelo');
+            const modeloId = selModelo.value;
+            if (!q && !modeloId) { cxRenderRegras(cxRegrasCache); return; }
             const filtradas = cxRegrasCache.filter(r => {
+                if (modeloId && String(r.modelo_id) !== modeloId) return false;
+                if (!q) return true;
                 const alvo = [
                     r.modelo_nome, r.cliente, r.descricao, r.observacao,
                     ...(r.produtos || []).flatMap(p => [p.sku, p.produto]),
                 ].filter(Boolean).join(' ').toLowerCase();
                 return alvo.includes(q);
             });
-            cxRenderRegras(filtradas, q);
+            const rotulos = [];
+            if (modeloId) rotulos.push(selModelo.options[selModelo.selectedIndex].text);
+            if (q) rotulos.push(q);
+            cxRenderRegras(filtradas, rotulos.join(' + '));
         }
 
         async function cxLoadRegras() {
@@ -3652,6 +3666,9 @@
             document.getElementById('cxRegraQtdCaixas').value = regra?.qtd_caixas ?? 1;
             document.getElementById('cxRegraCliente').value = regra?.cliente ?? '';
             document.getElementById('cxRegraObs').value = regra?.observacao ?? '';
+            document.getElementById('cxRegrasFiltro').value = '';
+            document.getElementById('cxRegrasFiltroModelo').value = document.getElementById('cxRegraModelo').value;
+            cxAplicarFiltroRegras();
             document.getElementById('cxRegraModalTitle').textContent = regra ? 'Editar regra de embalagem' : 'Nova regra de embalagem';
             document.getElementById('cxBtnSaveRegra').textContent = regra ? 'Salvar alterações' : 'Salvar regra';
             document.getElementById('cxRegraModal').hidden = false;
@@ -3755,7 +3772,18 @@
         document.getElementById('cxCadastroModal').addEventListener('click', e => { if (e.target.id === 'cxCadastroModal') cxCloseCadastroModal(); });
 
         document.getElementById('cxBtnOpenRegra').addEventListener('click', () => cxOpenRegraModal());
-        document.getElementById('cxRegrasFiltro').addEventListener('input', cxAplicarFiltroRegras);
+        // digitar na busca procura em todas as embalagens (volta o filtro de embalagem para "Todas")
+        document.getElementById('cxRegrasFiltro').addEventListener('input', e => {
+            if (e.target.value.trim()) document.getElementById('cxRegrasFiltroModelo').value = '';
+            cxAplicarFiltroRegras();
+        });
+        document.getElementById('cxRegrasFiltroModelo').addEventListener('change', cxAplicarFiltroRegras);
+        // escolher a "Caixa usada" no formulário mostra as regras dessa embalagem
+        document.getElementById('cxRegraModelo').addEventListener('change', e => {
+            document.getElementById('cxRegrasFiltroModelo').value = e.target.value;
+            document.getElementById('cxRegrasFiltro').value = '';
+            cxAplicarFiltroRegras();
+        });
         document.getElementById('cxBtnCloseRegra').addEventListener('click', cxCloseRegraModal);
         document.getElementById('cxBtnCancelRegra').addEventListener('click', cxCloseRegraModal);
         document.getElementById('cxBtnSaveRegra').addEventListener('click', cxSaveRegra);
