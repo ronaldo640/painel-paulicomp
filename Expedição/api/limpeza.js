@@ -21,7 +21,7 @@
 
 import { neon } from '@neondatabase/serverless';
 import { del, put } from '@vercel/blob';
-import { papel } from '../lib/limpeza-auth.js';
+import { papel, diagnostico } from '../lib/limpeza-auth.js';
 import { montarAgenda } from '../lib/limpeza-agenda.js';
 
 export const config = { api: { bodyParser: false } };
@@ -61,7 +61,10 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
   const quem = papel(req);
-  if (!quem) return res.status(401).json({ error: 'Link inválido ou expirado.' });
+  if (!quem) {
+    res.setHeader('x-limpeza-diag', diagnostico()); // TEMPORÁRIO, ver lib/limpeza-auth.js
+    return res.status(401).json({ error: 'Link inválido ou expirado.' });
+  }
 
   const sql = neon(process.env.DATABASE_URL);
   const acao = String(req.query.acao || '');
