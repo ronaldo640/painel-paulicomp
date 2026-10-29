@@ -4,12 +4,63 @@
   var papelTela = document.documentElement.getAttribute('data-papel') || 'gestao';
   var CHAVE_LS = 'limpeza_chave_' + papelTela;
 
+  // Chave digitada no campo desta tela; vale mais que a do endereço (?k=), que
+  // pode ser antiga, e cobre o navegador que não deixa guardar nada.
+  var digitada = '';
+
   function chave() {
+    if (digitada) return digitada;
     var k = new URLSearchParams(location.search).get('k') || '';
     try {
       if (k) { localStorage.setItem(CHAVE_LS, k); return k; }
       return localStorage.getItem(CHAVE_LS) || '';
     } catch (e) { return k; }
+  }
+
+  function salvarChave(k) {
+    digitada = k;
+    try { localStorage.setItem(CHAVE_LS, k); } catch (e) {}
+    try {
+      var u = new URL(location.href);
+      if (u.searchParams.has('k')) { u.searchParams.delete('k'); history.replaceState(null, '', u.pathname + u.search + u.hash); }
+    } catch (e) {}
+  }
+
+  // Campo para digitar a chave uma vez só (fica guardada neste aparelho). Aparece
+  // quando não há chave ou ela foi recusada; o texto fica visível de propósito.
+  // aoSalvar() recarrega a tela; motivo é a explicação mostrada abaixo do campo.
+  function pedirChave(aoSalvar, motivo) {
+    var caixa = document.getElementById('acesso');
+    if (!caixa) {
+      caixa = document.createElement('form');
+      caixa.id = 'acesso';
+      caixa.className = 'card';
+      caixa.setAttribute('autocomplete', 'off');
+      caixa.innerHTML =
+        '<h2>Acesso</h2>' +
+        '<div class="field"><label for="acesso-k">Chave de acesso</label>' +
+        '<input type="text" id="acesso-k" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Cole a chave aqui" required></div>' +
+        '<button class="btn grande" type="submit">Entrar</button>' +
+        '<p class="msg" id="acesso-msg" role="status"></p>' +
+        '<span class="muted" style="font-size:.85rem">A chave fica guardada neste aparelho: você só digita uma vez.</span>';
+      var ref = document.getElementById('erro');
+      ref.parentNode.insertBefore(caixa, ref.nextSibling);
+      caixa.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var k = document.getElementById('acesso-k').value.trim();
+        if (!k) return;
+        salvarChave(k);
+        aoSalvar();
+      });
+    }
+    caixa.hidden = false;
+    document.getElementById('acesso-msg').textContent = motivo || '';
+    document.getElementById('acesso-k').focus();
+  }
+
+  function fecharChave() {
+    var caixa = document.getElementById('acesso');
+    if (caixa) caixa.hidden = true;
   }
 
   async function api(caminho, opcoes) {
@@ -95,7 +146,7 @@
   }
 
   window.Limpeza = {
-    chave: chave, api: api, enviarJson: enviarJson,
+    chave: chave, pedirChave: pedirChave, fecharChave: fecharChave, api: api, enviarJson: enviarJson,
     hojeTexto: hojeTexto, diasAte: diasAte, fmtLongo: fmtLongo, fmtCurto: fmtCurto, brl: brl,
     tipoNome: tipoNome, situacao: situacao, esc: esc,
     enviarFoto: enviarFoto, ligarAmpliacao: ligarAmpliacao,

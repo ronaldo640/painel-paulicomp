@@ -210,14 +210,18 @@
     try {
       dados = await L.api('/api/limpeza');
       $('erro').hidden = true;
+      L.fecharChave();
       renderStatus();
       renderFotos();
     } catch (e) {
-      $('erro').hidden = false;
-      $('erro').textContent = e.status === 401
-        ? 'Link inválido ou expirado. Peça um novo link ao responsável pela frota.'
-        : (e.message || 'Não foi possível carregar. Verifique a internet.');
       $('s-pill').textContent = '–';
+      if (e.status === 401) {
+        $('erro').hidden = true;
+        L.pedirChave(carregar, L.chave() ? 'Chave não reconhecida. Confira e tente de novo.' : '');
+        return;
+      }
+      $('erro').hidden = false;
+      $('erro').textContent = e.message || 'Não foi possível carregar. Verifique a internet.';
     }
   }
 

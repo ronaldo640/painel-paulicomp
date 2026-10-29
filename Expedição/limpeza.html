@@ -347,15 +347,19 @@
   async function carregar() {
     try {
       dados = await L.api('/api/limpeza');
-      if (dados.papel !== 'gestao') throw Object.assign(new Error('Este link não é de gestão.'), { status: 401 });
+      if (dados.papel !== 'gestao') throw Object.assign(new Error('Esta chave não é da gestão.'), { status: 401, papelErrado: true });
       $('erro').hidden = true;
+      L.fecharChave();
       render();
     } catch (e) {
-      $('erro').hidden = false;
-      $('erro').textContent = e.status === 401
-        ? 'Link inválido ou expirado. Abra a tela pelo endereço com a chave de gestão (…/limpeza?k=SUA_CHAVE).'
-        : (e.message || 'Não foi possível carregar.');
       $('s-pill').textContent = '–';
+      if (e.status === 401) {
+        $('erro').hidden = true;
+        L.pedirChave(carregar, !L.chave() ? '' : (e.papelErrado ? e.message : 'Chave não reconhecida. Confira e tente de novo.'));
+        return;
+      }
+      $('erro').hidden = false;
+      $('erro').textContent = e.message || 'Não foi possível carregar.';
     }
   }
 
