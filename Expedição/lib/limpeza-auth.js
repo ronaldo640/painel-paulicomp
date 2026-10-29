@@ -15,15 +15,22 @@ function igual(a, b) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-// Valor da variável sem espaço ou quebra de linha nas pontas (sobra ao colar na Vercel).
-const env = (nome) => String(process.env[nome] || '').trim();
+// Cada papel aceita o nome LIMPEZA_KEY_* (o documentado) e LIMPEZA_CHAVE_*
+// (erro comum de nome). Valores sem espaço ou quebra de linha nas pontas, que
+// sobram ao colar na Vercel; variável vazia ou ausente não vale.
+const NOMES = {
+  gestao: ['LIMPEZA_KEY_GESTAO', 'LIMPEZA_CHAVE_GESTAO'],
+  motorista: ['LIMPEZA_KEY_MOTORISTA', 'LIMPEZA_CHAVE_MOTORISTA'],
+};
+const valores = (papelNome) =>
+  NOMES[papelNome].map((n) => String(process.env[n] || '').trim()).filter(Boolean);
 
 // Devolve 'gestao', 'motorista' ou null.
 export function papel(req) {
   const chave = String(req.headers['x-limpeza-key'] || '').trim();
   if (!chave) return null;
-  if (igual(chave, env('LIMPEZA_KEY_GESTAO'))) return 'gestao';
-  if (igual(chave, env('LIMPEZA_KEY_MOTORISTA'))) return 'motorista';
+  if (valores('gestao').some((v) => igual(chave, v))) return 'gestao';
+  if (valores('motorista').some((v) => igual(chave, v))) return 'motorista';
   return null;
 }
 
@@ -36,5 +43,5 @@ export function diagnostico() {
     if (v === '') return 'vazia';
     return `definida (${v.length} caracteres, ${v.trim().length} sem espaços nas pontas)`;
   };
-  return `gestao: ${resumo('LIMPEZA_KEY_GESTAO')}; motorista: ${resumo('LIMPEZA_KEY_MOTORISTA')}`;
+  return Object.values(NOMES).flat().map((n) => `${n}: ${resumo(n)}`).join('; ');
 }
