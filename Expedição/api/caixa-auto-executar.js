@@ -18,6 +18,7 @@
 import { neon } from '@neondatabase/serverless';
 import { verificarEAvisar, enviarTeste, enviarTesteInsumo, avisarFalhaBaixa } from '../lib/caixa-alerta.js';
 import testeDeConsumo from '../lib/caixa-auto-teste.js';
+import { avisarLimpezaAtrasada } from '../lib/limpeza-alerta.js';
 
 const TINY_BASE_URL = 'https://api.tiny.com.br/api2';
 const TINY_FILIAIS = {
@@ -116,6 +117,7 @@ export default async function handler(req, res) {
       if (req.query.alerta === 'simular') return res.status(200).json(await verificarEAvisar(sqlAlerta, filial, { simular: true }));
       if (req.query.alerta === 'teste') return res.status(200).json(await enviarTeste(sqlAlerta, filial, req.query.para));
       if (req.query.alerta === 'teste-insumo') return res.status(200).json(await enviarTesteInsumo(sqlAlerta, filial, req.query.para));
+      if (req.query.alerta === 'limpeza-simular') return res.status(200).json(await avisarLimpezaAtrasada(sqlAlerta, { simular: true }));
       return res.status(400).json({ error: 'Parâmetro "alerta" deve ser "simular" ou "teste".' });
     } catch (error) {
       console.error('Erro nos avisos por e-mail:', error);
@@ -317,8 +319,20 @@ export default async function handler(req, res) {
       }
     }
 
+    // Limpeza da Fiorino atrasada (lib/limpeza-alerta.js): roda junto, uma vez
+    // por dia, só quando é a rotina da SP.
+    let alertaLimpeza = null;
+    if (ehCron && filial === 'SP') {
+      try {
+        alertaLimpeza = await avisarLimpezaAtrasada(sql);
+      } catch (err) {
+        console.error('Falha no aviso de limpeza atrasada:', err);
+        alertaLimpeza = { erro: err.message };
+      }
+    }
+
     return res.status(200).json({
-      filial, dataInicial: dataInicialBr, dataFinal: dataFinalBr, alerta,
+      filial, dataInicial: dataInicialBr, dataFinal: dataFinalBr, alerta, alerta_limpeza: alertaLimpeza,
       notas_encontradas: notas.length,
       notas_novas_processadas: notasNovas,
       notas_ja_processadas_antes: notasJaProcessadas,

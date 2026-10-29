@@ -60,5 +60,16 @@ O link antigo para de funcionar na hora.
   para adivinhar). Quem tiver o endereço exato abre a foto.
 - Se o envio das fotos funcionar e o registro falhar, as fotos ficam no Blob sem
   registro (arquivos órfãos). O custo é desprezível.
-- Não há aviso por e-mail de limpeza atrasada: o plano Hobby só permite 2 crons e
-  os dois já estão em uso. Dá para encaixar na rotina diária de `api/caixa-auto-executar.js`.
+## Aviso por e-mail de limpeza atrasada
+
+`lib/limpeza-alerta.js`, chamado no fim da rotina diária das 5h
+(`api/caixa-auto-executar.js`, a mesma dos caixas; o Hobby só permite 2 crons).
+Quando a próxima limpeza da agenda passa da data, sai um e-mail no 1º dia de
+atraso e se repete a cada 7 dias (atraso 1, 8, 15...) até alguém registrar a
+limpeza. Não guarda estado nem precisa de migração. Usa o Resend, o remetente e
+os destinos do aviso de caixas (`ALERTA_EMAIL_DESTINOS`, padrão ronaldo@paulicomp.com).
+
+- Liga com `LIMPEZA_ALERTA_ATIVO=true`; sem essa variável vale
+  `ALERTA_EMAIL_ATIVO` (a chave do aviso de caixas).
+- Conferir sem enviar: `/api/caixa-auto-executar?alerta=limpeza-simular` mostra
+  a data prevista, o atraso, se o aviso está ligado e o e-mail que sairia.
