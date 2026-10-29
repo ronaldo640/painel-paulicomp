@@ -14,8 +14,10 @@ navegador e manda no cabeçalho `x-limpeza-key`. Sem chave válida a API devolve
 ## Para ativar
 
 1. **Banco**: rodar `sql/020_limpeza_veiculo.sql` no SQL Editor do Neon.
-2. **Blob** (fotos): na Vercel, projeto → Storage → Create → Blob e conectar ao
-   projeto. Isso cria `BLOB_READ_WRITE_TOKEN` sozinho.
+2. **Blob** (fotos): na Vercel, projeto → Storage → Create → Blob, com acesso
+   **Público** (não dá para trocar depois) e conectado ao projeto nos três
+   ambientes. A Vercel cria `BLOB_STORE_ID` sozinha e o `@vercel/blob` autentica
+   por OIDC; `BLOB_READ_WRITE_TOKEN` não é necessária.
 3. **Chaves**: em Settings → Environment Variables, criar duas variáveis com
    textos longos e aleatórios (30+ caracteres, só letras e números):
    - `LIMPEZA_KEY_GESTAO`
@@ -38,9 +40,15 @@ O link antigo para de funcionar na hora.
   `?acao=fotos&id=N` (acrescentar fotos), PUT `?acao=config`, DELETE `?id=N`.
   O motorista só recebe as 5 últimas limpezas e **sem custo**; configurar e
   excluir são só da gestão.
-- `api/limpeza-foto.js`: recebe uma foto por vez e grava no Vercel Blob (pasta
-  `limpeza-veiculo/`, nome com sufixo aleatório). O navegador reduz a foto antes
-  (lado maior 1600 px, JPEG), por causa do limite de 4,5 MB do corpo da requisição.
+- Foto: `POST /api/limpeza?acao=foto` (mesmo arquivo), uma por vez, grava no
+  Vercel Blob (pasta `limpeza-veiculo/`, nome com sufixo aleatório). O navegador
+  reduz a foto antes (lado maior 1600 px, JPEG), por causa do limite de 4,5 MB
+  do corpo da requisição.
+- **Limite de 12 funções do plano Hobby:** o projeto já usava as 12. Por isso a
+  foto mora em `api/limpeza.js` e o teste de consumo (`caixa-auto-teste`) foi
+  para `lib/caixa-auto-teste.js`, chamado por `caixa-auto-executar?modo=teste`
+  (o endereço antigo `/api/caixa-auto-teste` segue valendo por rewrite). Nova
+  função em `api/` só trocando por outra ou migrando para o plano Pro.
 - Tabelas: `limpeza_config` (uma linha) e `limpezas` (fotos como lista JSON de URLs).
 - Páginas estáticas: `limpeza.html`, `limpeza-motorista.html`, mais
   `limpeza.css` e `limpeza-comum.js`. As URLs sem `.html` vêm de `rewrites` no

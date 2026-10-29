@@ -17,6 +17,7 @@
 
 import { neon } from '@neondatabase/serverless';
 import { verificarEAvisar, enviarTeste, enviarTesteInsumo, avisarFalhaBaixa } from '../lib/caixa-alerta.js';
+import testeDeConsumo from '../lib/caixa-auto-teste.js';
 
 const TINY_BASE_URL = 'https://api.tiny.com.br/api2';
 const TINY_FILIAIS = {
@@ -97,6 +98,11 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Método não permitido.' });
+
+  // Teste de leitura do consumo de um dia (lib/caixa-auto-teste.js, não grava
+  // nada). O endereço antigo /api/caixa-auto-teste continua valendo por um
+  // rewrite no vercel.json. Mora aqui pra liberar uma das 12 funções do Hobby.
+  if (req.query.modo === 'teste') return testeDeConsumo(req, res);
 
   const filial = req.query.filial ? String(req.query.filial).toUpperCase() : 'SP';
 

@@ -3,17 +3,48 @@
 // Acesso por link secreto (x-limpeza-key, ver lib/limpeza-auth.js).
 //   GET                      estado: config, agenda prevista e registros.
 //                            Motorista recebe só os 5 últimos, sem custo.
+//   POST ?acao=foto          recebe UMA foto (corpo cru da imagem) e grava no
+//                            Vercel Blob; devolve o endereço dela.
 //   POST                     registra uma limpeza (motorista ou gestão).
 //                            Exige no mínimo 3 fotos já enviadas por
-//                            /api/limpeza-foto.
+//                            ?acao=foto.
 //   POST ?acao=fotos&id=N    acrescenta fotos a uma limpeza já registrada.
 //   PUT  ?acao=config        ritmo, primeira limpeza e placa (só gestão).
 //   DELETE ?id=N             exclui a limpeza e as fotos (só gestão).
+//
+// A foto mora aqui pra não gastar outra das 12 funções do plano Hobby da
+// Vercel. Por isso o parser de JSON da Vercel fica desligado (a foto chega
+// como corpo cru) e o JSON das outras ações é lido por lerJson().
+//
+// O Blob autentica sozinho por OIDC (BLOB_STORE_ID, criada pela Vercel ao
+// conectar o store ao projeto); o store precisa ser Público.
 
 import { neon } from '@neondatabase/serverless';
-import { del } from '@vercel/blob';
+import { del, put } from '@vercel/blob';
 import { papel } from '../lib/limpeza-auth.js';
 import { montarAgenda } from '../lib/limpeza-agenda.js';
+
+export const config = { api: { bodyParser: false } };
+
+const TIPOS_FOTO = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+const MAX_BYTES_FOTO = 4 * 1024 * 1024; // limite de corpo da Vercel é 4,5 MB
+const MAX_BYTES_JSON = 64 * 1024;
+
+async function lerJson(req) {
+  const pedacos = [];
+  let total = 0;
+  for await (const p of req) {
+    total += p.length;
+    if (total > MAX_BYTES_JSON) throw Object.assign(new Error('Corpo grande demais.'), { status: 413 });
+    pedacos.push(p);
+  }
+  if (!total) return {};
+  try {
+    return JSON.parse(Buffer.concat(pedacos).toString('utf8'));
+  } catch {
+    throw Object.assign(new Error('JSON inválido.'), { status: 400 });
+  }
+}
 
 const MIN_FOTOS = 3;
 const MAX_FOTOS = 12;
@@ -36,6 +67,28 @@ export default async function handler(req, res) {
   const acao = String(req.query.acao || '');
 
   try {
+    if (req.method === 'POST' && acao === 'foto') {
+      const tipo = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+      const extensao = TIPOS_FOTO[tipo];
+      if (!extensao) return res.status(415).json({ error: 'Envie a foto em JPG, PNG ou WebP.' });
+      const tamanho = parseInt(req.headers['content-length'] || '0', 10);
+      if (!tamanho) return res.status(400).json({ error: 'Foto vazia.' });
+      if (tamanho > MAX_BYTES_FOTO) return res.status(413).json({ error: 'Foto grande demais (máximo 4 MB).' });
+      try {
+        const blob = await put(`limpeza-veiculo/foto.${extensao}`, req, {
+          access: 'public',
+          contentType: tipo,
+          addRandomSuffix: true,
+        });
+        return res.status(200).json({ url: blob.url });
+      } catch (error) {
+        console.error('Erro ao gravar foto no Blob:', error);
+        return res.status(500).json({ error: 'Não foi possível guardar a foto. Confira se o Blob (público) está conectado ao projeto.' });
+      }
+    }
+
+    if (req.method === 'POST' || req.method === 'PUT') req.body = await lerJson(req);
+
     if (req.method === 'GET') {
       const [cfg] = await sql`
         SELECT frequencia, TO_CHAR(inicio, 'YYYY-MM-DD') AS inicio, placa
@@ -125,6 +178,7 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ error: 'Método não permitido.' });
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
     console.error('Erro em /api/limpeza:', error);
     return res.status(500).json({ error: 'Falha ao acessar o banco. Confira se a migração 020 foi executada.' });
   }

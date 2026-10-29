@@ -80,7 +80,7 @@
 
   async function enviarFoto(arquivo) {
     var blob = await reduzir(arquivo);
-    var r = await api('/api/limpeza-foto', { method: 'POST', headers: { 'content-type': blob.type || 'image/jpeg' }, body: blob });
+    var r = await api('/api/limpeza?acao=foto', { method: 'POST', headers: { 'content-type': blob.type || 'image/jpeg' }, body: blob });
     return r.url;
   }
 
