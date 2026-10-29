@@ -71,9 +71,7 @@
     try { j = await r.json(); } catch (e) { j = null; }
     if (!r.ok) {
       var erro = new Error((j && j.error) || 'Erro ' + r.status);
-      erro.status = r.status;
-      erro.diag = (j && j.diag) || ''; // TEMPORÁRIO: diagnóstico de acesso do servidor
-      throw erro;
+      erro.status = r.status;      throw erro;
     }
     return j;
   }
