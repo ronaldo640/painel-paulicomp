@@ -6,7 +6,7 @@
 //   LIMPEZA_KEY_MOTORISTA  só ver a próxima limpeza e registrar (com fotos)
 // Sem a variável definida, aquele papel fica desligado (ninguém entra com ele).
 
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 
 function igual(a, b) {
   if (!a || !b) return false;
@@ -34,14 +34,19 @@ export function papel(req) {
   return null;
 }
 
-// TEMPORÁRIO (diagnóstico de acesso): diz se cada variável existe e quantos
-// caracteres tem, nunca o valor. Sai no cabeçalho x-limpeza-diag do 401.
-export function diagnostico() {
+// TEMPORÁRIO (diagnóstico de acesso): diz se cada variável existe, quantos
+// caracteres tem e uma impressão digital curta (6 letras de um SHA-256), nunca
+// o valor. Faz o mesmo com a chave recebida, pra comparar. Sai no cabeçalho
+// x-limpeza-diag e no campo "diag" do 401.
+export function diagnostico(req) {
+  const digital = (s) => createHash('sha256').update(s).digest('hex').slice(0, 6);
   const resumo = (nome) => {
     const v = process.env[nome];
     if (v == null) return 'ausente';
     if (v === '') return 'vazia';
-    return `definida (${v.length} caracteres, ${v.trim().length} sem espaços nas pontas)`;
+    return `definida (${v.length} caracteres, digital ${digital(v.trim())})`;
   };
-  return Object.values(NOMES).flat().map((n) => `${n}: ${resumo(n)}`).join('; ');
+  const recebida = String((req && req.headers['x-limpeza-key']) || '').trim();
+  const partes = [`recebida: ${recebida.length} caracteres, digital ${recebida ? digital(recebida) : '-'}`];
+  return partes.concat(Object.values(NOMES).flat().map((n) => `${n}: ${resumo(n)}`)).join('; ');
 }

@@ -62,8 +62,9 @@ export default async function handler(req, res) {
 
   const quem = papel(req);
   if (!quem) {
-    res.setHeader('x-limpeza-diag', diagnostico()); // TEMPORÁRIO, ver lib/limpeza-auth.js
-    return res.status(401).json({ error: 'Link inválido ou expirado.' });
+    const diag = diagnostico(req); // TEMPORÁRIO, ver lib/limpeza-auth.js
+    res.setHeader('x-limpeza-diag', encodeURIComponent(diag));
+    return res.status(401).json({ error: 'Link inválido ou expirado.', diag });
   }
 
   const sql = neon(process.env.DATABASE_URL);

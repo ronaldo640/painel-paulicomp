@@ -355,7 +355,7 @@
       $('s-pill').textContent = '–';
       if (e.status === 401) {
         $('erro').hidden = true;
-        L.pedirChave(carregar, !L.chave() ? '' : (e.papelErrado ? e.message : 'Chave não reconhecida. Confira e tente de novo.'));
+        L.pedirChave(carregar, !L.chave() ? '' : (e.papelErrado ? e.message : 'Chave não reconhecida. Confira e tente de novo.' + (e.diag ? ' [' + e.diag + ']' : '')));
         return;
       }
       $('erro').hidden = false;

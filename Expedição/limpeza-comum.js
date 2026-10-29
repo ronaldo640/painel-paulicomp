@@ -72,6 +72,7 @@
     if (!r.ok) {
       var erro = new Error((j && j.error) || 'Erro ' + r.status);
       erro.status = r.status;
+      erro.diag = (j && j.diag) || ''; // TEMPORÁRIO: diagnóstico de acesso do servidor
       throw erro;
     }
     return j;
