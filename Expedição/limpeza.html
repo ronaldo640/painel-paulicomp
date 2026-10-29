@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-papel="gestao">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Limpeza da Fiorino | Gestão</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/limpeza.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="kicker">Frota · Entregas e transferência entre depósitos</div>
+      <h1 id="titulo">Limpeza da Fiorino</h1>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+      <div class="field">
+        <span class="lbl">Frequência</span>
+        <div class="seg" role="group" aria-label="Frequência da limpeza">
+          <button type="button" id="b-mensal" aria-pressed="true">Mensal</button>
+          <button type="button" id="b-quinzenal" aria-pressed="false">Quinzenal</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="c-inicio">Primeira limpeza</label>
+        <input type="date" id="c-inicio">
+      </div>
+      <div class="field">
+        <label for="c-placa">Placa</label>
+        <input type="text" id="c-placa" maxlength="10" placeholder="ABC-1D23" style="width:9rem">
+      </div>
+    </div>
+  </header>
+
+  <div class="aviso bad" id="erro" hidden></div>
+  <p class="msg" id="msg-cfg" role="status" style="margin-top:-8px"></p>
+
+  <section class="status" aria-live="polite">
+    <div>
+      <div class="kicker">Próxima limpeza</div>
+      <div class="quando num" id="s-quando">–</div>
+    </div>
+    <div class="oque">
+      <span class="pill neutral" id="s-pill">Carregando…</span>
+      <span class="muted" id="s-detalhe"></span>
+    </div>
+  </section>
+
+  <div class="cols">
+    <section class="card">
+      <h2>Agenda prevista</h2>
+      <div class="rolagem">
+        <table>
+          <thead><tr><th>Data</th><th>Serviço</th><th class="r">Situação</th></tr></thead>
+          <tbody id="agenda"></tbody>
+        </table>
+      </div>
+      <p class="muted" style="margin:0;font-size:.88rem" id="agenda-nota"></p>
+    </section>
+
+    <form class="card" id="form" autocomplete="off">
+      <h2>Registrar limpeza feita</h2>
+      <div class="grid2">
+        <div class="field">
+          <label for="f-data">Data</label>
+          <input type="date" id="f-data" required>
+        </div>
+        <div class="field">
+          <label for="f-tipo">Serviço</label>
+          <select id="f-tipo">
+            <option value="completa">Completa</option>
+            <option value="simples">Simples</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="f-custo">Valor pago (R$)</label>
+          <input type="number" id="f-custo" min="0" step="0.01" inputmode="decimal" placeholder="0,00">
+        </div>
+        <div class="field">
+          <label for="f-nome">Quem levou</label>
+          <input type="text" id="f-nome" maxlength="60" placeholder="Nome do motorista">
+        </div>
+        <div class="field wide">
+          <label for="f-obs">Observação</label>
+          <input type="text" id="f-obs" maxlength="200" placeholder="Ex.: sujeira forte no piso do compartimento de carga">
+        </div>
+      </div>
+      <div class="field">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+          <label for="f-fotos">Fotos (mínimo 3)</label>
+          <span class="contador" id="contador">0 de 3</span>
+        </div>
+        <input type="file" id="f-fotos" accept="image/*" multiple style="font-size:.9rem">
+        <div class="fotos-grade" id="grade"></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <button class="btn" type="submit" id="f-enviar" disabled>Faltam 3 fotos</button>
+        <p class="msg" id="msg" role="status"></p>
+      </div>
+    </form>
+  </div>
+
+  <section class="card">
+    <div class="top">
+      <h2>Histórico</h2>
+      <div class="resumo">
+        <div><b class="num" id="t-qtd">0</b><span>limpezas</span></div>
+        <div><b class="num" id="t-total">R$ 0,00</b><span>total gasto</span></div>
+        <div><b class="num" id="t-medio">R$ 0,00</b><span>média por limpeza</span></div>
+      </div>
+    </div>
+    <p class="msg" id="msg2" role="status"></p>
+    <div class="rolagem">
+      <table>
+        <thead><tr><th>Data</th><th>Serviço</th><th>Fotos</th><th>Quem levou</th><th>Observação</th><th class="r">Valor</th><th></th></tr></thead>
+        <tbody id="hist"></tbody>
+      </table>
+    </div>
+    <input type="file" id="add-fotos" accept="image/*" multiple hidden>
+  </section>
+
+  <section class="card">
+    <h2>O que combinar com o lava-rápido</h2>
+    <div class="listas">
+      <div>
+        <h3>Limpeza completa</h3>
+        <ul>
+          <li>Lavagem externa com rodas e caixas de roda</li>
+          <li>Aspiração da cabine, bancos e tapetes</li>
+          <li>Compartimento de carga: aspirar e lavar piso e laterais, retirar restos de papelão e fita</li>
+          <li>Painel, volante, câmbio e portas com hidratante de plásticos</li>
+          <li>Vidros por dentro e por fora, retrovisores incluídos</li>
+          <li>Soleiras das portas e porta traseira</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Limpeza simples</h3>
+        <ul>
+          <li>Lavagem externa rápida</li>
+          <li>Aspiração da cabine e do compartimento de carga</li>
+          <li>Vidros e retrovisores</li>
+        </ul>
+        <p class="muted">Entra só no ritmo quinzenal, intercalada com a completa.</p>
+      </div>
+      <div>
+        <h3>Rotina do motorista</h3>
+        <ul>
+          <li>Todo dia: tirar lixo, caixas e etiquetas da cabine e do compartimento de carga</li>
+          <li>Toda semana: varrer o piso do compartimento de carga e passar pano seco no painel</li>
+          <li>Avisar quando houver derramamento de líquido ou carga que sujou o piso, sem esperar a data</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="lb" hidden>
+  <img id="lb-img" alt="Foto da limpeza ampliada">
+  <button type="button" id="lb-x">Fechar</button>
+</div>
+
+<script src="/limpeza-comum.js"></script>
+<script>
+(function () {
+  var L = window.Limpeza;
+  var $ = function (id) { return document.getElementById(id); };
+  var MAX = 12;
+  var dados = null;
+  var pend = [];
+  var ocupado = false;
+  var alvoFotos = null;
+  var armado = null;
+  var abrirFoto = L.ligarAmpliacao();
+
+  function min() { return (dados && dados.minFotos) || 3; }
+  function dizer(id, texto, ok) { var m = $(id); m.textContent = texto; m.className = 'msg' + (ok ? ' ok' : ''); }
+
+  function render() {
+    var cfg = dados.config;
+    $('titulo').textContent = cfg.placa ? 'Limpeza da Fiorino · ' + cfg.placa : 'Limpeza da Fiorino';
+    $('b-mensal').setAttribute('aria-pressed', String(cfg.frequencia === 'mensal'));
+    $('b-quinzenal').setAttribute('aria-pressed', String(cfg.frequencia === 'quinzenal'));
+    if (document.activeElement !== $('c-inicio')) $('c-inicio').value = cfg.inicio;
+    if (document.activeElement !== $('c-placa')) $('c-placa').value = cfg.placa || '';
+
+    var prox = dados.agenda[0];
+    var s = L.situacao(prox.data);
+    $('s-quando').textContent = L.fmtLongo(prox.data);
+    $('s-pill').className = 'pill ' + s.cls;
+    $('s-pill').textContent = s.texto;
+    $('s-detalhe').textContent = 'Limpeza ' + L.tipoNome(prox.tipo).toLowerCase() + ' · ritmo ' + cfg.frequencia;
+    if (!ocupado && document.activeElement !== $('f-tipo')) $('f-tipo').value = prox.tipo;
+
+    $('agenda').innerHTML = dados.agenda.map(function (a, i) {
+      var sit = i === 0 ? L.situacao(a.data) : { cls: 'neutral', texto: 'Prevista' };
+      return '<tr><td class="num">' + L.esc(L.fmtLongo(a.data)) + '</td><td>' + L.tipoNome(a.tipo) +
+        '</td><td class="r"><span class="pill ' + sit.cls + '">' + sit.texto + '</span></td></tr>';
+    }).join('');
+    var regs = dados.registros;
+    $('agenda-nota').textContent = regs.length
+      ? 'As datas seguem a última limpeza registrada (' + L.fmtCurto(regs[0].data) + ').'
+      : 'Sem registros ainda: a contagem parte da data da primeira limpeza.';
+
+    var total = regs.reduce(function (t, r) { return t + (Number(r.custo) || 0); }, 0);
+    var comValor = regs.filter(function (r) { return Number(r.custo) > 0; }).length;
+    $('t-qtd').textContent = String(regs.length);
+    $('t-total').textContent = L.brl(total);
+    $('t-medio').textContent = L.brl(comValor ? total / comValor : 0);
+
+    $('hist').innerHTML = regs.length ? regs.map(linha).join('')
+      : '<tr><td colspan="7" class="vazio">Nenhuma limpeza registrada. Use o formulário acima quando a Fiorino voltar do lava-rápido.</td></tr>';
+    renderFotos();
+  }
+
+  function linha(r) {
+    var f = r.fotos || [];
+    var th = f.map(function (u, i) {
+      return '<div class="th"><button type="button" class="abrir" data-foto="' + L.esc(u) + '" aria-label="Ampliar foto ' + (i + 1) +
+        ' da limpeza de ' + L.fmtCurto(r.data) + '"><img loading="lazy" alt="" src="' + L.esc(u) + '"></button></div>';
+    }).join('');
+    var falta = Math.max(0, min() - f.length);
+    var pill = falta ? '<span class="pill warn">Faltam ' + falta + (falta === 1 ? ' foto' : ' fotos') + '</span>' : '';
+    return '<tr><td class="num">' + L.fmtCurto(r.data) + '</td><td>' + L.tipoNome(r.tipo) +
+      '</td><td><div class="fotos-linha">' + th + '</div><div class="acoes">' + pill +
+      '<button type="button" class="btn ghost" data-add="' + r.id + '">+ Fotos</button></div></td><td>' + L.esc(r.responsavel) +
+      '</td><td>' + L.esc(r.obs) + '</td><td class="r num">' + (Number(r.custo) ? L.brl(r.custo) : '–') +
+      '</td><td class="r"><button type="button" class="btn ghost" data-del="' + r.id + '">Excluir</button></td></tr>';
+  }
+
+  function renderFotos() {
+    $('grade').innerHTML = pend.map(function (p, i) {
+      return '<div class="th"><img alt="Foto ' + (i + 1) + ' selecionada" src="' + p.preview + '">' +
+        (p.url ? '<span class="ok-marca">enviada</span>' : '') +
+        '<button type="button" class="x" data-rm="' + i + '" aria-label="Remover foto ' + (i + 1) + '">×</button></div>';
+    }).join('');
+    var n = pend.length, m = min();
+    $('contador').textContent = n + ' de ' + m;
+    $('contador').className = 'contador' + (n >= m ? ' ok' : '');
+    var btn = $('f-enviar');
+    btn.disabled = ocupado || n < m;
+    btn.textContent = ocupado ? 'Enviando…' : (n < m ? 'Faltam ' + (m - n) + (m - n === 1 ? ' foto' : ' fotos') : 'Salvar registro');
+  }
+
+  async function salvarCfg(patch) {
+    var nova = Object.assign({}, dados.config, patch);
+    try {
+      await L.enviarJson('/api/limpeza?acao=config', 'PUT', nova);
+      dizer('msg-cfg', '', true);
+      await carregar();
+    } catch (e) { dizer('msg-cfg', e.message || 'Não foi possível salvar a configuração.', false); }
+  }
+  $('b-mensal').addEventListener('click', function () { salvarCfg({ frequencia: 'mensal' }); });
+  $('b-quinzenal').addEventListener('click', function () { salvarCfg({ frequencia: 'quinzenal' }); });
+  $('c-inicio').addEventListener('change', function (e) { if (e.target.value) salvarCfg({ inicio: e.target.value }); });
+  $('c-placa').addEventListener('change', function (e) { salvarCfg({ placa: e.target.value.trim().toUpperCase() }); });
+
+  $('f-fotos').addEventListener('change', function (e) {
+    Array.prototype.forEach.call(e.target.files, function (f) {
+      if (pend.length < MAX && /^image\//.test(f.type || 'image/')) pend.push({ arquivo: f, preview: URL.createObjectURL(f), url: null });
+    });
+    e.target.value = '';
+    renderFotos();
+  });
+  $('grade').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-rm]');
+    if (!b || ocupado) return;
+    var p = pend.splice(Number(b.getAttribute('data-rm')), 1)[0];
+    if (p) URL.revokeObjectURL(p.preview);
+    renderFotos();
+  });
+
+  $('form').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    if (ocupado || pend.length < min()) return;
+    ocupado = true;
+    renderFotos();
+    try {
+      for (var i = 0; i < pend.length; i++) {
+        if (pend[i].url) continue;
+        dizer('msg', 'Enviando foto ' + (i + 1) + ' de ' + pend.length + '…', true);
+        pend[i].url = await L.enviarFoto(pend[i].arquivo);
+        renderFotos();
+      }
+      var custo = parseFloat($('f-custo').value);
+      await L.enviarJson('/api/limpeza', 'POST', {
+        data: $('f-data').value, tipo: $('f-tipo').value, custo: isNaN(custo) ? 0 : custo,
+        responsavel: $('f-nome').value.trim(), obs: $('f-obs').value.trim(),
+        fotos: pend.map(function (p) { return p.url; })
+      });
+      pend.forEach(function (p) { URL.revokeObjectURL(p.preview); });
+      pend = [];
+      $('f-custo').value = ''; $('f-obs').value = '';
+      dizer('msg', 'Registro salvo.', true);
+      ocupado = false;
+      await carregar();
+    } catch (e) {
+      dizer('msg', e.message || 'Não foi possível salvar.', false);
+    } finally {
+      ocupado = false;
+      renderFotos();
+    }
+  });
+
+  $('hist').addEventListener('click', async function (ev) {
+    var f = ev.target.closest('[data-foto]');
+    if (f) { abrirFoto(f.getAttribute('data-foto')); return; }
+    var a = ev.target.closest('[data-add]');
+    if (a && !ocupado) { alvoFotos = a.getAttribute('data-add'); $('add-fotos').click(); return; }
+    var d = ev.target.closest('[data-del]');
+    if (!d) return;
+    var id = d.getAttribute('data-del');
+    if (armado !== id) {
+      armado = id;
+      d.textContent = 'Confirmar?'; d.classList.add('confirma');
+      setTimeout(function () { if (armado === id) { armado = null; d.textContent = 'Excluir'; d.classList.remove('confirma'); } }, 3500);
+      return;
+    }
+    armado = null;
+    try { await L.api('/api/limpeza?id=' + encodeURIComponent(id), { method: 'DELETE' }); await carregar(); }
+    catch (e) { dizer('msg2', e.message || 'Não foi possível excluir.', false); }
+  });
+
+  $('add-fotos').addEventListener('change', async function (e) {
+    var arqs = Array.prototype.slice.call(e.target.files).filter(function (f) { return /^image\//.test(f.type || 'image/'); }).slice(0, MAX);
+    e.target.value = '';
+    if (!arqs.length || !alvoFotos || ocupado) return;
+    ocupado = true;
+    try {
+      var urls = [];
+      for (var i = 0; i < arqs.length; i++) {
+        dizer('msg2', 'Enviando foto ' + (i + 1) + ' de ' + arqs.length + '…', true);
+        urls.push(await L.enviarFoto(arqs[i]));
+      }
+      await L.enviarJson('/api/limpeza?acao=fotos&id=' + encodeURIComponent(alvoFotos), 'POST', { fotos: urls });
+      dizer('msg2', urls.length + (urls.length === 1 ? ' foto adicionada.' : ' fotos adicionadas.'), true);
+      ocupado = false;
+      await carregar();
+    } catch (err) {
+      dizer('msg2', err.message || 'Não foi possível enviar as fotos.', false);
+    } finally { ocupado = false; }
+  });
+
+  $('f-data').value = L.hojeTexto();
+
+  async function carregar() {
+    try {
+      dados = await L.api('/api/limpeza');
+      if (dados.papel !== 'gestao') throw Object.assign(new Error('Este link não é de gestão.'), { status: 401 });
+      $('erro').hidden = true;
+      render();
+    } catch (e) {
+      $('erro').hidden = false;
+      $('erro').textContent = e.status === 401
+        ? 'Link inválido ou expirado. Abra a tela pelo endereço com a chave de gestão (…/limpeza?k=SUA_CHAVE).'
+        : (e.message || 'Não foi possível carregar.');
+      $('s-pill').textContent = '–';
+    }
+  }
+
+  carregar();
+})();
+</script>
+</body>
+</html>

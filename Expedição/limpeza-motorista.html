@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-papel="motorista">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Limpeza da Fiorino | Motorista</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/limpeza.css">
+</head>
+<body>
+<div class="wrap estreito">
+  <header>
+    <div class="kicker">Frota · Limpeza no lava-rápido</div>
+    <h1 id="titulo">Fiorino</h1>
+  </header>
+
+  <div class="aviso bad" id="erro" hidden></div>
+
+  <section class="status" aria-live="polite">
+    <div>
+      <div class="kicker">Próxima limpeza</div>
+      <div class="quando num" id="s-quando">–</div>
+    </div>
+    <div class="oque">
+      <span class="pill neutral" id="s-pill">Carregando…</span>
+      <span class="muted" id="s-detalhe"></span>
+    </div>
+  </section>
+
+  <div class="aviso ok" id="sucesso" hidden role="status"></div>
+
+  <form class="card" id="form" autocomplete="off" hidden>
+    <h2>Registrar limpeza feita</h2>
+
+    <div class="field">
+      <label for="f-data">Data</label>
+      <input type="date" id="f-data" required>
+    </div>
+
+    <div class="field">
+      <span class="lbl">Serviço</span>
+      <div class="escolha">
+        <label><input type="radio" name="tipo" value="completa" checked><span>Completa</span></label>
+        <label><input type="radio" name="tipo" value="simples"><span>Simples</span></label>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="field">
+        <label for="f-custo">Valor pago (R$)</label>
+        <input type="number" id="f-custo" min="0" step="0.01" inputmode="decimal" placeholder="0,00">
+      </div>
+      <div class="field">
+        <label for="f-nome">Seu nome</label>
+        <input type="text" id="f-nome" maxlength="60" autocomplete="name">
+      </div>
+      <div class="field wide">
+        <label for="f-obs">Observação (opcional)</label>
+        <input type="text" id="f-obs" maxlength="200" placeholder="Ex.: piso do compartimento de carga muito sujo">
+      </div>
+    </div>
+
+    <div class="field">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+        <span class="lbl">Fotos (mínimo 3)</span>
+        <span class="contador" id="contador">0 de 3</span>
+      </div>
+      <div class="fotos-grade" id="grade"></div>
+      <div class="grid2">
+        <button type="button" class="btn sec" id="b-cam">Tirar foto</button>
+        <button type="button" class="btn sec" id="b-gal">Escolher da galeria</button>
+      </div>
+      <input type="file" id="in-cam" accept="image/*" capture="environment" hidden>
+      <input type="file" id="in-gal" accept="image/*" multiple hidden>
+      <span class="muted" style="font-size:.85rem">Mostre o exterior, a cabine e o compartimento de carga.</span>
+    </div>
+
+    <button class="btn grande" type="submit" id="f-enviar" disabled>Faltam 3 fotos</button>
+    <p class="msg" id="msg" role="status"></p>
+  </form>
+
+  <section class="card" id="ultimas" hidden>
+    <h2>Últimas limpezas</h2>
+    <div class="lista-ult" id="lista"></div>
+  </section>
+</div>
+
+<script src="/limpeza-comum.js"></script>
+<script>
+(function () {
+  var L = window.Limpeza;
+  var $ = function (id) { return document.getElementById(id); };
+  var MAX = 12;
+  var dados = null;
+  var pend = [];
+  var ocupado = false;
+
+  function min() { return (dados && dados.minFotos) || 3; }
+
+  function dizer(texto, ok) {
+    $('msg').textContent = texto;
+    $('msg').className = 'msg' + (ok ? ' ok' : '');
+  }
+
+  function renderStatus() {
+    var cfg = dados.config;
+    $('titulo').textContent = cfg.placa ? 'Fiorino · ' + cfg.placa : 'Fiorino';
+    var prox = dados.agenda[0];
+    var s = L.situacao(prox.data);
+    $('s-quando').textContent = L.fmtLongo(prox.data);
+    $('s-pill').className = 'pill ' + s.cls;
+    $('s-pill').textContent = s.texto;
+    $('s-detalhe').textContent = 'Limpeza ' + L.tipoNome(prox.tipo).toLowerCase();
+    var radio = document.querySelector('input[name="tipo"][value="' + prox.tipo + '"]');
+    if (radio && !ocupado) radio.checked = true;
+
+    $('lista').innerHTML = dados.registros.length ? dados.registros.map(function (r) {
+      var n = (r.fotos || []).length;
+      var falta = Math.max(0, min() - n);
+      return '<div class="item"><div><b class="num">' + L.fmtCurto(r.data) + '</b> · ' + L.tipoNome(r.tipo) +
+        (r.responsavel ? '<div class="muted" style="font-size:.85rem">' + L.esc(r.responsavel) + '</div>' : '') + '</div>' +
+        '<span class="pill ' + (falta ? 'warn' : 'ok') + '">' + n + (n === 1 ? ' foto' : ' fotos') + '</span></div>';
+    }).join('') : '<div class="vazio">Nenhuma limpeza registrada ainda.</div>';
+    $('ultimas').hidden = false;
+    $('form').hidden = false;
+  }
+
+  function renderFotos() {
+    $('grade').innerHTML = pend.map(function (p, i) {
+      return '<div class="th"><img alt="Foto ' + (i + 1) + ' selecionada" src="' + p.preview + '">' +
+        (p.url ? '<span class="ok-marca">enviada</span>' : '') +
+        '<button type="button" class="x" data-rm="' + i + '" aria-label="Remover foto ' + (i + 1) + '">×</button></div>';
+    }).join('');
+    var n = pend.length, m = min();
+    $('contador').textContent = n + ' de ' + m;
+    $('contador').className = 'contador' + (n >= m ? ' ok' : '');
+    var btn = $('f-enviar');
+    btn.disabled = ocupado || n < m;
+    btn.textContent = ocupado ? 'Enviando…' : (n < m ? 'Faltam ' + (m - n) + (m - n === 1 ? ' foto' : ' fotos') : 'Enviar registro');
+  }
+
+  function adicionar(lista) {
+    Array.prototype.forEach.call(lista, function (f) {
+      if (pend.length < MAX && /^image\//.test(f.type || 'image/')) {
+        pend.push({ arquivo: f, preview: URL.createObjectURL(f), url: null });
+      }
+    });
+    renderFotos();
+  }
+
+  $('b-cam').addEventListener('click', function () { $('in-cam').click(); });
+  $('b-gal').addEventListener('click', function () { $('in-gal').click(); });
+  $('in-cam').addEventListener('change', function (e) { adicionar(e.target.files); e.target.value = ''; });
+  $('in-gal').addEventListener('change', function (e) { adicionar(e.target.files); e.target.value = ''; });
+  $('grade').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-rm]');
+    if (!b || ocupado) return;
+    var p = pend.splice(Number(b.getAttribute('data-rm')), 1)[0];
+    if (p) URL.revokeObjectURL(p.preview);
+    renderFotos();
+  });
+
+  try { $('f-nome').value = localStorage.getItem('limpeza_nome') || ''; } catch (e) {}
+  $('f-data').value = L.hojeTexto();
+
+  $('form').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    if (ocupado || pend.length < min()) return;
+    ocupado = true;
+    $('sucesso').hidden = true;
+    renderFotos();
+    try {
+      for (var i = 0; i < pend.length; i++) {
+        if (pend[i].url) continue;
+        dizer('Enviando foto ' + (i + 1) + ' de ' + pend.length + '…', true);
+        pend[i].url = await L.enviarFoto(pend[i].arquivo);
+        renderFotos();
+      }
+      dizer('Salvando o registro…', true);
+      var custo = parseFloat($('f-custo').value);
+      var nome = $('f-nome').value.trim();
+      await L.enviarJson('/api/limpeza', 'POST', {
+        data: $('f-data').value,
+        tipo: document.querySelector('input[name="tipo"]:checked').value,
+        custo: isNaN(custo) ? 0 : custo,
+        responsavel: nome,
+        obs: $('f-obs').value.trim(),
+        fotos: pend.map(function (p) { return p.url; })
+      });
+      try { localStorage.setItem('limpeza_nome', nome); } catch (e) {}
+      pend.forEach(function (p) { URL.revokeObjectURL(p.preview); });
+      pend = [];
+      $('f-custo').value = ''; $('f-obs').value = ''; $('f-data').value = L.hojeTexto();
+      dizer('', true);
+      $('sucesso').textContent = 'Limpeza registrada. Obrigado!';
+      $('sucesso').hidden = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      ocupado = false;
+      await carregar();
+    } catch (e) {
+      dizer(e.status === 401 ? 'Link inválido. Peça um novo link ao responsável.' : (e.message || 'Não foi possível enviar. Verifique a internet e tente de novo.'), false);
+    } finally {
+      ocupado = false;
+      renderFotos();
+    }
+  });
+
+  async function carregar() {
+    try {
+      dados = await L.api('/api/limpeza');
+      $('erro').hidden = true;
+      renderStatus();
+      renderFotos();
+    } catch (e) {
+      $('erro').hidden = false;
+      $('erro').textContent = e.status === 401
+        ? 'Link inválido ou expirado. Peça um novo link ao responsável pela frota.'
+        : (e.message || 'Não foi possível carregar. Verifique a internet.');
+      $('s-pill').textContent = '–';
+    }
+  }
+
+  carregar();
+})();
+</script>
+</body>
+</html>
