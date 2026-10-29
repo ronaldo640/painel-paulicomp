@@ -166,8 +166,12 @@ export default async function handler(req, res) {
   try {
     const notas = await buscarNotasPeriodo(token, dataInicialBr, dataFinalBr);
 
-    const produtoCaixaRows = await sql`SELECT sku, modelo_id FROM produto_caixa`;
+    const produtoCaixaRows = await sql`SELECT sku, modelo_id, produto FROM produto_caixa`;
     const produtoCaixaMap = new Map(produtoCaixaRows.map(r => [r.sku, r.modelo_id]));
+    const produtoNomeMap = new Map(produtoCaixaRows.map(r => [r.sku, r.produto]));
+    // "Tela" é o produto (nome começa com Tela), não o modelo de caixa: carcaça e base com
+    // teclado usam a mesma Caixa tela. Serve para o insumo que gasta mais por embalagem de tela.
+    const ehTela = item => /^\s*tela\b/i.test(item.descricao || '') || /^\s*tela\b/i.test(produtoNomeMap.get(item.sku) || '');
 
     const regraRows = await sql`
       SELECT r.id, r.qtd_min, r.qtd_max, r.modelo_id, r.qtd_caixas, r.cliente, rp.sku,
@@ -225,6 +229,7 @@ export default async function handler(req, res) {
       }
 
       const consumoDaNota = new Map(); // modelo_id -> qtd_caixas
+      const telasDaNota = new Map(); // modelo_id -> qtd_caixas cujo produto é tela
       let algumaPendencia = false;
 
       for (const item of itens) {
@@ -248,6 +253,7 @@ export default async function handler(req, res) {
           continue;
         }
         consumoDaNota.set(resolucao.modelo_id, (consumoDaNota.get(resolucao.modelo_id) || 0) + resolucao.qtd_caixas);
+        if (ehTela(item)) telasDaNota.set(resolucao.modelo_id, (telasDaNota.get(resolucao.modelo_id) || 0) + resolucao.qtd_caixas);
       }
 
       // Fulfillment é gravado só como informação (conta_estoque = false): o
@@ -262,11 +268,22 @@ export default async function handler(req, res) {
         : 'Auto — NF ' + nota.numero;
 
       for (const [modeloId, qtdCaixas] of consumoDaNota) {
-        const [mov] = await sql`
-          INSERT INTO caixa_movimentacoes (modelo_id, filial, tipo, quantidade, data, observacao, automatica, conta_estoque)
-          VALUES (${modeloId}, ${filial}, 'saida', ${qtdCaixas}, ${nota.dataIso}, ${observacaoBase}, true, ${contaEstoque})
-          RETURNING id
-        `;
+        const qtdTela = Math.min(telasDaNota.get(modeloId) || 0, qtdCaixas);
+        let mov;
+        try {
+          [mov] = await sql`
+            INSERT INTO caixa_movimentacoes (modelo_id, filial, tipo, quantidade, data, observacao, automatica, conta_estoque, qtd_tela)
+            VALUES (${modeloId}, ${filial}, 'saida', ${qtdCaixas}, ${nota.dataIso}, ${observacaoBase}, true, ${contaEstoque}, ${qtdTela})
+            RETURNING id
+          `;
+        } catch (err) {
+          if (!/qtd_tela/.test(err.message || '')) throw err; // migração 021 pendente: grava como antes
+          [mov] = await sql`
+            INSERT INTO caixa_movimentacoes (modelo_id, filial, tipo, quantidade, data, observacao, automatica, conta_estoque)
+            VALUES (${modeloId}, ${filial}, 'saida', ${qtdCaixas}, ${nota.dataIso}, ${observacaoBase}, true, ${contaEstoque})
+            RETURNING id
+          `;
+        }
         movimentosGravados.push({ id: mov.id, nota: nota.numero, modelo_id: modeloId, qtd_caixas: qtdCaixas, conta_estoque: contaEstoque });
       }
 

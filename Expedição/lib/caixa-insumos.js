@@ -111,6 +111,16 @@ export async function calcularInsumos(sql, filial, diasPeriodo = DIAS_CONSUMO) {
     if (!/insumo_id/.test(err.message || '')) throw err;
   }
 
+  // consumo por embalagem de TELA (migração 021): o produto tela gasta mais que os demais.
+  // Sem a migração, todas as embalagens seguem com o consumo_por_embalagem de sempre.
+  const cpeTela = new Map();
+  try {
+    const t = await sql`SELECT id, consumo_por_embalagem_tela::float AS cpe_tela FROM insumos WHERE consumo_por_embalagem_tela IS NOT NULL`;
+    t.forEach(x => cpeTela.set(x.id, x.cpe_tela));
+  } catch (err) {
+    if (!/consumo_por_embalagem_tela/.test(err.message || '')) throw err;
+  }
+
   const resultado = [];
   for (const i of insumos) {
     const m = porInsumo.get(i.id) || { saldo_manual: 0, saida_30d: 0, saida_periodo: 0, ultimo_lancamento: null };
@@ -125,33 +135,63 @@ export async function calcularInsumos(sql, filial, diasPeriodo = DIAS_CONSUMO) {
     if (automatico) {
       // embalagens expedidas = saídas de caixa que baixam o estoque (consumo
       // real); com auto_inclui_fulfillment, também as vendas série 2.
-      const [e] = await sql`
-        SELECT COALESCE(SUM(quantidade) FILTER (WHERE data >= ${i.auto_desde}::date), 0)::float AS desde,
-               COALESCE(SUM(quantidade) FILTER (WHERE data > current_date - ${DIAS_CONSUMO} * interval '1 day'), 0)::float AS ultimos_30d,
-               COALESCE(SUM(quantidade) FILTER (WHERE data > current_date - ${diasPeriodo} * interval '1 day'), 0)::float AS no_periodo
-        FROM caixa_movimentacoes
-        WHERE filial = ${filial} AND tipo = 'saida'
-          AND ((conta_estoque = true AND conta_consumo = true) OR (${i.auto_inclui_fulfillment}::boolean AND conta_estoque = false))
-      `;
+      const comTela = cpeTela.has(i.id);
+      let e;
+      if (comTela) {
+        // telas = embalagens cujo produto é tela (coluna qtd_tela, gravada na baixa automática)
+        [e] = await sql`
+          SELECT COALESCE(SUM(quantidade) FILTER (WHERE data >= ${i.auto_desde}::date), 0)::float AS desde,
+                 COALESCE(SUM(quantidade) FILTER (WHERE data > current_date - ${DIAS_CONSUMO} * interval '1 day'), 0)::float AS ultimos_30d,
+                 COALESCE(SUM(quantidade) FILTER (WHERE data > current_date - ${diasPeriodo} * interval '1 day'), 0)::float AS no_periodo,
+                 COALESCE(SUM(qtd_tela) FILTER (WHERE data >= ${i.auto_desde}::date), 0)::float AS tela_desde,
+                 COALESCE(SUM(qtd_tela) FILTER (WHERE data > current_date - ${DIAS_CONSUMO} * interval '1 day'), 0)::float AS tela_30d,
+                 COALESCE(SUM(qtd_tela) FILTER (WHERE data > current_date - ${diasPeriodo} * interval '1 day'), 0)::float AS tela_periodo
+          FROM caixa_movimentacoes
+          WHERE filial = ${filial} AND tipo = 'saida'
+            AND ((conta_estoque = true AND conta_consumo = true) OR (${i.auto_inclui_fulfillment}::boolean AND conta_estoque = false))
+        `;
+      } else {
+        [e] = await sql`
+          SELECT COALESCE(SUM(quantidade) FILTER (WHERE data >= ${i.auto_desde}::date), 0)::float AS desde,
+                 COALESCE(SUM(quantidade) FILTER (WHERE data > current_date - ${DIAS_CONSUMO} * interval '1 day'), 0)::float AS ultimos_30d,
+                 COALESCE(SUM(quantidade) FILTER (WHERE data > current_date - ${diasPeriodo} * interval '1 day'), 0)::float AS no_periodo,
+                 0::float AS tela_desde, 0::float AS tela_30d, 0::float AS tela_periodo
+          FROM caixa_movimentacoes
+          WHERE filial = ${filial} AND tipo = 'saida'
+            AND ((conta_estoque = true AND conta_consumo = true) OR (${i.auto_inclui_fulfillment}::boolean AND conta_estoque = false))
+        `;
+      }
       // consumo_por_embalagem está na unidade de consumo (ex: etiquetas); o estoque, na de estoque (ex: rolos)
       const porEmbalagem = i.consumo_por_embalagem / (i.unidades_por_estoque || 1);
-      baixaAutomatica = e.desde * porEmbalagem;
+      // embalagem de tela gasta mais: só a diferença entra como acréscimo sobre o consumo normal
+      const extraTela = comTela ? (cpeTela.get(i.id) - i.consumo_por_embalagem) / (i.unidades_por_estoque || 1) : 0;
+      baixaAutomatica = e.desde * porEmbalagem + e.tela_desde * extraTela;
       embalagens30d = e.ultimos_30d;
-      consumoDia += (e.ultimos_30d * porEmbalagem) / DIAS_CONSUMO;
-      consumoPeriodo += (e.no_periodo * porEmbalagem) / diasPeriodo;
+      consumoDia += (e.ultimos_30d * porEmbalagem + e.tela_30d * extraTela) / DIAS_CONSUMO;
+      consumoPeriodo += (e.no_periodo * porEmbalagem + e.tela_periodo * extraTela) / diasPeriodo;
 
       // último dia com embalagens expedidas (soma com a saída manual do mesmo dia, se houver)
-      const [u] = await sql`
-        SELECT TO_CHAR(data, 'YYYY-MM-DD') AS dia, SUM(quantidade)::float AS qtd
-        FROM caixa_movimentacoes
-        WHERE filial = ${filial} AND tipo = 'saida'
-          AND ((conta_estoque = true AND conta_consumo = true) OR (${i.auto_inclui_fulfillment}::boolean AND conta_estoque = false))
-        GROUP BY data
-        ORDER BY data DESC
-        LIMIT 1
-      `;
+      const [u] = comTela
+        ? await sql`
+            SELECT TO_CHAR(data, 'YYYY-MM-DD') AS dia, SUM(quantidade)::float AS qtd, COALESCE(SUM(qtd_tela), 0)::float AS tela
+            FROM caixa_movimentacoes
+            WHERE filial = ${filial} AND tipo = 'saida'
+              AND ((conta_estoque = true AND conta_consumo = true) OR (${i.auto_inclui_fulfillment}::boolean AND conta_estoque = false))
+            GROUP BY data
+            ORDER BY data DESC
+            LIMIT 1
+          `
+        : await sql`
+            SELECT TO_CHAR(data, 'YYYY-MM-DD') AS dia, SUM(quantidade)::float AS qtd, 0::float AS tela
+            FROM caixa_movimentacoes
+            WHERE filial = ${filial} AND tipo = 'saida'
+              AND ((conta_estoque = true AND conta_consumo = true) OR (${i.auto_inclui_fulfillment}::boolean AND conta_estoque = false))
+            GROUP BY data
+            ORDER BY data DESC
+            LIMIT 1
+          `;
       if (u) {
-        const qtdAuto = u.qtd * porEmbalagem;
+        const qtdAuto = u.qtd * porEmbalagem + u.tela * extraTela;
         if (!ultimoDia || u.dia > ultimoDia.dia) ultimoDia = { dia: u.dia, qtd: qtdAuto };
         else if (u.dia === ultimoDia.dia) ultimoDia = { dia: u.dia, qtd: ultimoDia.qtd + qtdAuto };
       }
