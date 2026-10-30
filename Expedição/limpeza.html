@@ -227,7 +227,7 @@
     var f = r.fotos || [];
     var th = f.map(function (u, i) {
       return '<div class="th"><button type="button" class="abrir" data-foto="' + L.esc(u) + '" aria-label="Ampliar foto ' + (i + 1) +
-        ' da limpeza de ' + L.fmtCurto(r.data) + '"><img loading="lazy" decoding="async" alt="" src="' + L.esc(u) + '"></button></div>';
+        ' da limpeza de ' + L.fmtCurto(r.data) + '"><img loading="lazy" decoding="async" alt="" data-full="' + L.esc(u) + '" src="' + L.esc(L.miniDe(u)) + '"></button></div>';
     }).join('');
     var falta = Math.max(0, min() - f.length);
     var pill = falta ? '<span class="pill warn">Faltam ' + falta + (falta === 1 ? ' foto' : ' fotos') + '</span>' : '';
@@ -311,6 +311,13 @@
       renderFotos();
     }
   });
+
+  // Miniatura que não carregou (foto antiga ou envio da miniatura que falhou): usa a foto inteira.
+  $('hist').addEventListener('error', function (ev) {
+    var im = ev.target;
+    var cheia = im.getAttribute && im.getAttribute('data-full');
+    if (cheia && im.getAttribute('src') !== cheia) im.src = cheia;
+  }, true);
 
   $('hist').addEventListener('click', async function (ev) {
     var f = ev.target.closest('[data-foto]');

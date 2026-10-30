@@ -46,6 +46,10 @@ O link antigo para de funcionar na hora.
   reduz a foto antes (lado maior 1280 px, JPEG 75%): o corpo da requisição na
   Vercel é limitado a 4,5 MB, e foto menor sobe e abre mais rápido. O histórico da
   gestão mostra as 10 limpezas mais recentes e o botão "Mostrar mais" abre as outras.
+  Cada foto sobe com uma **miniatura** de 240 px (~10 KB) ao lado (`<uuid>.jpg` e
+  `<uuid>-m.jpg`, 2 gravações no Blob por foto); o histórico carrega só as
+  miniaturas e a foto inteira abre ao clicar. Fotos antigas (sem miniatura) caem
+  na foto inteira sozinhas. Ao excluir a limpeza, foto e miniatura são apagadas.
 - **Limite de 12 funções do plano Hobby:** o projeto já usava as 12. Por isso a
   foto mora em `api/limpeza.js` e o teste de consumo (`caixa-auto-teste`) foi
   para `lib/caixa-auto-teste.js`, chamado por `caixa-auto-executar?modo=teste`

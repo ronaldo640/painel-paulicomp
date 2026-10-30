@@ -116,24 +116,49 @@
   // abre mais rápido (e gasta menos da cota grátis do Blob).
   var LADO_MAX = 1280;
   var QUALIDADE = 0.75;
-  async function reduzir(arquivo) {
+  // Miniatura (~10 KB) gravada ao lado de cada foto: o histórico carrega só ela.
+  var LADO_MINI = 240;
+  var QUALIDADE_MINI = 0.7;
+  async function reduzir(arquivo, lado, qualidade) {
     try {
       var bmp = await createImageBitmap(arquivo, { imageOrientation: 'from-image' });
-      var escala = Math.min(1, LADO_MAX / Math.max(bmp.width, bmp.height));
+      var escala = Math.min(1, lado / Math.max(bmp.width, bmp.height));
       var c = document.createElement('canvas');
       c.width = Math.round(bmp.width * escala);
       c.height = Math.round(bmp.height * escala);
       c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-      var blob = await new Promise(function (ok) { c.toBlob(ok, 'image/jpeg', QUALIDADE); });
+      var blob = await new Promise(function (ok) { c.toBlob(ok, 'image/jpeg', qualidade); });
       return blob || arquivo;
     } catch (e) {
       return arquivo;
     }
   }
 
+  function novoId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, function () {
+      return Math.floor(Math.random() * 16).toString(16);
+    });
+  }
+
+  // Endereço da miniatura de uma foto enviada por enviarFoto (o nome da foto é um
+  // UUID e a miniatura é o mesmo nome com "-m.jpg"); fotos antigas não têm.
+  var FOTO_COM_MINI = /\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(jpg|png|webp)$/;
+  function miniDe(url) {
+    return FOTO_COM_MINI.test(url) ? url.replace(FOTO_COM_MINI, '/$1-m.jpg') : url;
+  }
+
   async function enviarFoto(arquivo) {
-    var blob = await reduzir(arquivo);
-    var r = await api('/api/limpeza?acao=foto', { method: 'POST', headers: { 'content-type': blob.type || 'image/jpeg' }, body: blob });
+    var blob = await reduzir(arquivo, LADO_MAX, QUALIDADE);
+    var id = novoId();
+    var r = await api('/api/limpeza?acao=foto&nome=' + id, { method: 'POST', headers: { 'content-type': blob.type || 'image/jpeg' }, body: blob });
+    // A miniatura é só um adianto: se falhar, a tela mostra a foto inteira.
+    try {
+      var mini = await reduzir(blob, LADO_MINI, QUALIDADE_MINI);
+      if (mini !== blob && mini.type === 'image/jpeg') {
+        await api('/api/limpeza?acao=foto&mini=1&nome=' + id, { method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: mini });
+      }
+    } catch (e) {}
     return r.url;
   }
 
@@ -151,6 +176,6 @@
     chave: chave, pedirChave: pedirChave, fecharChave: fecharChave, api: api, enviarJson: enviarJson,
     hojeTexto: hojeTexto, diasAte: diasAte, fmtLongo: fmtLongo, fmtCurto: fmtCurto, brl: brl,
     tipoNome: tipoNome, situacao: situacao, esc: esc,
-    enviarFoto: enviarFoto, ligarAmpliacao: ligarAmpliacao,
+    enviarFoto: enviarFoto, miniDe: miniDe, ligarAmpliacao: ligarAmpliacao,
   };
 })();

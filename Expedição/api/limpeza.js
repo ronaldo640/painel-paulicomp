@@ -4,7 +4,9 @@
 //   GET                      estado: config, agenda prevista e registros.
 //                            Motorista recebe só os 5 últimos, sem custo.
 //   POST ?acao=foto          recebe UMA foto (corpo cru da imagem) e grava no
-//                            Vercel Blob; devolve o endereço dela.
+//                            Vercel Blob; devolve o endereço dela. Com &nome=<uuid>
+//                            o arquivo leva esse nome, e &mini=1 grava a miniatura
+//                            ("<uuid>-m.jpg") que o histórico da gestão usa.
 //   POST                     registra uma limpeza (motorista ou gestão).
 //                            Exige no mínimo 3 fotos já enviadas por
 //                            ?acao=foto.
@@ -53,6 +55,12 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 // Só aceitamos endereços do nosso próprio Blob, na pasta da limpeza.
 const URL_FOTO = /^https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\/limpeza-veiculo\//;
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const FOTO_COM_MINI = /\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(jpg|png|webp)$/;
+// A foto enviada com nome (UUID) tem miniatura no mesmo lugar, com "-m.jpg".
+const comMiniaturas = (urls) =>
+  urls.flatMap((u) => (FOTO_COM_MINI.test(u) ? [u, u.replace(FOTO_COM_MINI, '/$1-m.jpg')] : [u]));
+
 const dataValida = (s) => ISO.test(s) && !Number.isNaN(Date.parse(s + 'T12:00:00Z'));
 const fotosValidas = (l) =>
   Array.isArray(l) && l.every((u) => typeof u === 'string' && u.length < 500 && URL_FOTO.test(u));
@@ -74,11 +82,20 @@ export default async function handler(req, res) {
       const tamanho = parseInt(req.headers['content-length'] || '0', 10);
       if (!tamanho) return res.status(400).json({ error: 'Foto vazia.' });
       if (tamanho > MAX_BYTES_FOTO) return res.status(413).json({ error: 'Foto grande demais (máximo 4 MB).' });
+      // Com ?nome=<uuid> a foto leva esse nome e a miniatura (?mini=1, só JPEG)
+      // leva "-m.jpg" ao lado dela; sem nome vale o sufixo aleatório de sempre.
+      const nome = String(req.query.nome || '');
+      const mini = req.query.mini === '1';
+      if (nome && !UUID.test(nome)) return res.status(400).json({ error: 'Nome de foto inválido.' });
+      if (mini && (!nome || extensao !== 'jpg')) return res.status(400).json({ error: 'Miniatura inválida.' });
+      const caminho = nome
+        ? `limpeza-veiculo/${nome}${mini ? '-m' : ''}.${extensao}`
+        : `limpeza-veiculo/foto.${extensao}`;
       try {
-        const blob = await put(`limpeza-veiculo/foto.${extensao}`, req, {
+        const blob = await put(caminho, req, {
           access: 'public',
           contentType: tipo,
-          addRandomSuffix: true,
+          addRandomSuffix: !nome,
         });
         return res.status(200).json({ url: blob.url });
       } catch (error) {
@@ -173,7 +190,7 @@ export default async function handler(req, res) {
       if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
       const [apagada] = await sql`DELETE FROM limpezas WHERE id = ${id} RETURNING fotos`;
       if (apagada && Array.isArray(apagada.fotos) && apagada.fotos.length) {
-        try { await del(apagada.fotos); } catch (e) { console.error('Falha ao apagar fotos do Blob:', e); }
+        try { await del(comMiniaturas(apagada.fotos)); } catch (e) { console.error('Falha ao apagar fotos do Blob:', e); }
       }
       return res.status(200).json({ ok: true });
     }
