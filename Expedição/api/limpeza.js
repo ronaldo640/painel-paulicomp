@@ -8,7 +8,7 @@
 //   POST                     registra uma limpeza (motorista ou gestão).
 //                            Exige no mínimo 3 fotos já enviadas por
 //                            ?acao=foto.
-//   POST ?acao=fotos&id=N    acrescenta fotos a uma limpeza já registrada.
+//   POST ?acao=fotos&id=N    acrescenta fotos a uma limpeza já registrada (só gestão).
 //   PUT  ?acao=config        ritmo, primeira limpeza e placa (só gestão).
 //   DELETE ?id=N             exclui a limpeza e as fotos (só gestão).
 //
@@ -113,6 +113,8 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST' && acao === 'fotos') {
+      // Depois de registrada, a limpeza só muda pela gestão (o motorista não edita nada).
+      if (quem !== 'gestao') return res.status(403).json({ error: 'Sem permissão.' });
       const id = parseInt(req.query.id, 10);
       const novas = (req.body || {}).fotos;
       if (!Number.isInteger(id) || !fotosValidas(novas) || !novas.length || novas.length > MAX_FOTOS) {

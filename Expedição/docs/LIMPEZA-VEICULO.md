@@ -38,12 +38,14 @@ O link antigo para de funcionar na hora.
   qui para a seguinte). Feriado em sexta não é tratado (ex.: 25/12/2026).
 - `api/limpeza.js`: GET (estado), POST (registrar, exige 3+ fotos), POST
   `?acao=fotos&id=N` (acrescentar fotos), PUT `?acao=config`, DELETE `?id=N`.
-  O motorista só recebe as 5 últimas limpezas e **sem custo**; configurar e
-  excluir são só da gestão.
+  O motorista só recebe as 5 últimas limpezas e **sem custo**; ele só cria
+  registros novos. Depois de registrada, a limpeza só muda pela gestão:
+  configurar, acrescentar fotos e excluir.
 - Foto: `POST /api/limpeza?acao=foto` (mesmo arquivo), uma por vez, grava no
   Vercel Blob (pasta `limpeza-veiculo/`, nome com sufixo aleatório). O navegador
-  reduz a foto antes (lado maior 1600 px, JPEG), por causa do limite de 4,5 MB
-  do corpo da requisição.
+  reduz a foto antes (lado maior 1280 px, JPEG 75%): o corpo da requisição na
+  Vercel é limitado a 4,5 MB, e foto menor sobe e abre mais rápido. O histórico da
+  gestão mostra as 10 limpezas mais recentes e o botão "Mostrar mais" abre as outras.
 - **Limite de 12 funções do plano Hobby:** o projeto já usava as 12. Por isso a
   foto mora em `api/limpeza.js` e o teste de consumo (`caixa-auto-teste`) foi
   para `lib/caixa-auto-teste.js`, chamado por `caixa-auto-executar?modo=teste`

@@ -119,6 +119,7 @@
         <tbody id="hist"></tbody>
       </table>
     </div>
+    <button type="button" class="btn sec" id="mais" hidden>Mostrar mais</button>
     <input type="file" id="add-fotos" accept="image/*" multiple hidden>
   </section>
 
@@ -168,6 +169,8 @@
   var L = window.Limpeza;
   var $ = function (id) { return document.getElementById(id); };
   var MAX = 12;
+  var PASSO_HIST = 10;
+  var limiteHist = PASSO_HIST;
   var dados = null;
   var pend = [];
   var ocupado = false;
@@ -210,8 +213,13 @@
     $('t-total').textContent = L.brl(total);
     $('t-medio').textContent = L.brl(comValor ? total / comValor : 0);
 
-    $('hist').innerHTML = regs.length ? regs.map(linha).join('')
+    // Só as mais recentes entram na tela de uma vez (as fotos de todas pesariam);
+    // os totais acima continuam somando o histórico inteiro.
+    $('hist').innerHTML = regs.length ? regs.slice(0, limiteHist).map(linha).join('')
       : '<tr><td colspan="7" class="vazio">Nenhuma limpeza registrada. Use o formulário acima quando a Fiorino voltar do lava-rápido.</td></tr>';
+    var restam = regs.length - limiteHist;
+    $('mais').hidden = restam <= 0;
+    $('mais').textContent = 'Mostrar mais (' + restam + (restam === 1 ? ' restante)' : ' restantes)');
     renderFotos();
   }
 
@@ -219,7 +227,7 @@
     var f = r.fotos || [];
     var th = f.map(function (u, i) {
       return '<div class="th"><button type="button" class="abrir" data-foto="' + L.esc(u) + '" aria-label="Ampliar foto ' + (i + 1) +
-        ' da limpeza de ' + L.fmtCurto(r.data) + '"><img loading="lazy" alt="" src="' + L.esc(u) + '"></button></div>';
+        ' da limpeza de ' + L.fmtCurto(r.data) + '"><img loading="lazy" decoding="async" alt="" src="' + L.esc(u) + '"></button></div>';
     }).join('');
     var falta = Math.max(0, min() - f.length);
     var pill = falta ? '<span class="pill warn">Faltam ' + falta + (falta === 1 ? ' foto' : ' fotos') + '</span>' : '';
@@ -363,6 +371,8 @@
       $('erro').textContent = e.message || 'Não foi possível carregar.';
     }
   }
+
+  $('mais').addEventListener('click', function () { limiteHist += PASSO_HIST; render(); });
 
   carregar();
 })();

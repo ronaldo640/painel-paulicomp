@@ -111,17 +111,20 @@
   }
 
   // ---------- fotos ----------
-  // Reduz a foto do celular (lado maior 1600 px, JPEG 82%) antes de enviar:
-  // o corpo da requisição na Vercel é limitado a 4,5 MB.
+  // Reduz a foto do celular (lado maior 1280 px, JPEG 75%) antes de enviar: o
+  // corpo da requisição na Vercel é limitado a 4,5 MB, e foto menor sobe e
+  // abre mais rápido (e gasta menos da cota grátis do Blob).
+  var LADO_MAX = 1280;
+  var QUALIDADE = 0.75;
   async function reduzir(arquivo) {
     try {
       var bmp = await createImageBitmap(arquivo, { imageOrientation: 'from-image' });
-      var escala = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+      var escala = Math.min(1, LADO_MAX / Math.max(bmp.width, bmp.height));
       var c = document.createElement('canvas');
       c.width = Math.round(bmp.width * escala);
       c.height = Math.round(bmp.height * escala);
       c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-      var blob = await new Promise(function (ok) { c.toBlob(ok, 'image/jpeg', 0.82); });
+      var blob = await new Promise(function (ok) { c.toBlob(ok, 'image/jpeg', QUALIDADE); });
       return blob || arquivo;
     } catch (e) {
       return arquivo;
