@@ -928,6 +928,10 @@
                     <input type="checkbox" id="cxInsMovRotina" checked style="margin-top:3px;">
                     <span><b>Contagem de rotina:</b> o que faltar em relação ao sistema conta como consumo. Desmarque quando for um acerto de inventário (perda, erro de lançamento).</span>
                 </label>
+                <label id="cxInsMovFulfWrap" style="display:none;align-items:flex-start;gap:8px;font-size:12.5px;color:#cbd5e1;cursor:pointer;">
+                    <input type="checkbox" id="cxInsMovFulf" style="margin-top:3px;">
+                    <span><b>Envio ao Fulfillment:</b> baixa o estoque, mas não entra no consumo (o consumo do Fulfillment vem das vendas, como nas embalagens).</span>
+                </label>
                 <div class="cx-box-sub" id="cxInsMovDica"></div>
                 <div class="cx-field"><label>Observação (opcional)</label><input type="text" id="cxInsMovObs" placeholder="ex: NF 4821 — fornecedor X"></div>
             </div>
@@ -968,7 +972,7 @@
                     <div class="cx-field" style="flex:1;"><label>Unidades por rolo/bobina</label><input type="number" min="1" step="any" id="cxInsCadFator" value="1" title="Quantas unidades de consumo vêm em 1 unidade de estoque. Ex: 500 etiquetas por rolo (o estoque é contado em rolos)."></div>
                 </div>
                 <div class="cx-box-sub">Ex: etiqueta 100x150mm = 2 unidades por embalagem e 500 etiquetas por rolo. A baixa automática desconta 2 ÷ 500 de rolo a cada embalagem. Deixe 1 se o estoque e o consumo estão na mesma unidade.</div>
-                <label style="display:flex;gap:8px;align-items:center;font-size:12px;cursor:pointer;color:#cbd5e1;"><input type="checkbox" id="cxInsCadFulf"> Contar também as embalagens do Fulfillment (série 2)</label>
+                <label style="display:flex;gap:8px;align-items:center;font-size:12px;cursor:pointer;color:#cbd5e1;"><input type="checkbox" id="cxInsCadFulf"> Contar as vendas do Fulfillment (série 2) no consumo, sem baixar o estoque</label>
                 <label style="display:flex;gap:8px;align-items:center;font-size:12px;cursor:pointer;color:#cbd5e1;" id="cxInsCadAtivoWrap"><input type="checkbox" id="cxInsCadAtivo" checked> Insumo ativo</label>
             </div>
             <div class="cx-modal-foot">
@@ -4253,6 +4257,7 @@
             if (!i) { dica.textContent = ''; return; }
             const rotina = cxInsMovTipo === 'contagem' && !i.automatico;
             document.getElementById('cxInsMovRotinaWrap').style.display = rotina ? 'flex' : 'none';
+            document.getElementById('cxInsMovFulfWrap').style.display = cxInsMovTipo === 'saida' ? 'flex' : 'none';
             // insumo contado em rolo mas usado em unidade (etiqueta): deixa lançar por unidade
             const un = document.getElementById('cxInsMovUn');
             const fator = cxInsMovFator(i);
@@ -4286,6 +4291,7 @@
             document.getElementById('cxInsMovQtd').value = '';
             document.getElementById('cxInsMovData').value = cxTodayIso();
             document.getElementById('cxInsMovObs').value = '';
+            document.getElementById('cxInsMovFulf').checked = false;
             cxInsMovSetTipo('entrada');
             document.getElementById('cxInsumoMovModal').hidden = false;
         }
@@ -4305,7 +4311,7 @@
             try {
                 const resp = cxInsMovTipo === 'contagem'
                     ? await cxInsumosApi('POST', { acao: 'contagem', insumo_id: insumoId, quantidade_contada: qtdEstoque, data, rotina: document.getElementById('cxInsMovRotina').checked })
-                    : await cxInsumosApi('POST', { insumo_id: insumoId, tipo: cxInsMovTipo, quantidade: qtdEstoque, data, observacao: obs || null });
+                    : await cxInsumosApi('POST', { insumo_id: insumoId, tipo: cxInsMovTipo, quantidade: qtdEstoque, data, observacao: obs || null, ...(cxInsMovTipo === 'saida' && document.getElementById('cxInsMovFulf').checked ? { conta_consumo: false } : {}) });
                 cxToast(cxInsMovTipo === 'contagem' ? (resp.diferenca === 0 ? 'Contagem igual ao estoque: nada a ajustar.' : (resp.conta_consumo ? `Consumo apurado: ${cxQtd(-resp.diferenca)} no período.` : `Ajuste lançado (${resp.diferenca > 0 ? '+' : ''}${cxQtd(resp.diferenca)}).`)) : 'Lançamento registrado.', 'success');
                 if (cxInsCompraId && cxInsMovTipo === 'entrada') {
                     // veio de "Lançar entrada" numa compra recebida: marca como lançada

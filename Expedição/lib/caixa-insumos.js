@@ -133,28 +133,34 @@ export async function calcularInsumos(sql, filial, diasPeriodo = DIAS_CONSUMO) {
     let ultimoDia = ultimoDiaManual.get(i.id) || null; // { dia, qtd } do último dia com consumo
 
     if (automatico) {
-      // embalagens expedidas = saídas de caixa que baixam o estoque (consumo
-      // real); com auto_inclui_fulfillment, também as vendas série 2.
+      // Embalagens que baixam o estoque = saídas de caixa de consumo real (conta_estoque).
+      // Com auto_inclui_fulfillment, as vendas série 2 (conta_estoque = false) entram só no
+      // CONSUMO (gráfico, média, cobertura), sem baixar o estoque: a mesma regra das embalagens,
+      // em que o envio em lote ao depósito é que baixa estoque (lançado à mão, sem contar consumo).
       const comTela = cpeTela.has(i.id);
       let e;
       if (comTela) {
         // telas = embalagens cujo produto é tela (coluna qtd_tela, gravada na baixa automática)
         [e] = await sql`
-          SELECT COALESCE(SUM(quantidade) FILTER (WHERE data >= ${i.auto_desde}::date), 0)::float AS desde,
-                 COALESCE(SUM(quantidade) FILTER (WHERE data > current_date - ${DIAS_CONSUMO} * interval '1 day'), 0)::float AS ultimos_30d,
-                 COALESCE(SUM(quantidade) FILTER (WHERE data > current_date - ${diasPeriodo} * interval '1 day'), 0)::float AS no_periodo,
-                 COALESCE(SUM(qtd_tela) FILTER (WHERE data >= ${i.auto_desde}::date), 0)::float AS tela_desde,
-                 COALESCE(SUM(qtd_tela) FILTER (WHERE data > current_date - ${DIAS_CONSUMO} * interval '1 day'), 0)::float AS tela_30d,
-                 COALESCE(SUM(qtd_tela) FILTER (WHERE data > current_date - ${diasPeriodo} * interval '1 day'), 0)::float AS tela_periodo
+          SELECT COALESCE(SUM(quantidade) FILTER (WHERE conta_estoque AND data >= ${i.auto_desde}::date), 0)::float AS desde,
+                 COALESCE(SUM(quantidade) FILTER (WHERE conta_estoque AND data > current_date - ${DIAS_CONSUMO} * interval '1 day'), 0)::float AS ultimos_30d,
+                 COALESCE(SUM(quantidade) FILTER (WHERE conta_estoque AND data > current_date - ${diasPeriodo} * interval '1 day'), 0)::float AS no_periodo,
+                 COALESCE(SUM(quantidade) FILTER (WHERE NOT conta_estoque AND data > current_date - ${DIAS_CONSUMO} * interval '1 day'), 0)::float AS ful_30d,
+                 COALESCE(SUM(quantidade) FILTER (WHERE NOT conta_estoque AND data > current_date - ${diasPeriodo} * interval '1 day'), 0)::float AS ful_periodo,
+                 COALESCE(SUM(qtd_tela) FILTER (WHERE conta_estoque AND data >= ${i.auto_desde}::date), 0)::float AS tela_desde,
+                 COALESCE(SUM(qtd_tela) FILTER (WHERE conta_estoque AND data > current_date - ${DIAS_CONSUMO} * interval '1 day'), 0)::float AS tela_30d,
+                 COALESCE(SUM(qtd_tela) FILTER (WHERE conta_estoque AND data > current_date - ${diasPeriodo} * interval '1 day'), 0)::float AS tela_periodo
           FROM caixa_movimentacoes
           WHERE filial = ${filial} AND tipo = 'saida'
             AND ((conta_estoque = true AND conta_consumo = true) OR (${i.auto_inclui_fulfillment}::boolean AND conta_estoque = false))
         `;
       } else {
         [e] = await sql`
-          SELECT COALESCE(SUM(quantidade) FILTER (WHERE data >= ${i.auto_desde}::date), 0)::float AS desde,
-                 COALESCE(SUM(quantidade) FILTER (WHERE data > current_date - ${DIAS_CONSUMO} * interval '1 day'), 0)::float AS ultimos_30d,
-                 COALESCE(SUM(quantidade) FILTER (WHERE data > current_date - ${diasPeriodo} * interval '1 day'), 0)::float AS no_periodo,
+          SELECT COALESCE(SUM(quantidade) FILTER (WHERE conta_estoque AND data >= ${i.auto_desde}::date), 0)::float AS desde,
+                 COALESCE(SUM(quantidade) FILTER (WHERE conta_estoque AND data > current_date - ${DIAS_CONSUMO} * interval '1 day'), 0)::float AS ultimos_30d,
+                 COALESCE(SUM(quantidade) FILTER (WHERE conta_estoque AND data > current_date - ${diasPeriodo} * interval '1 day'), 0)::float AS no_periodo,
+                 COALESCE(SUM(quantidade) FILTER (WHERE NOT conta_estoque AND data > current_date - ${DIAS_CONSUMO} * interval '1 day'), 0)::float AS ful_30d,
+                 COALESCE(SUM(quantidade) FILTER (WHERE NOT conta_estoque AND data > current_date - ${diasPeriodo} * interval '1 day'), 0)::float AS ful_periodo,
                  0::float AS tela_desde, 0::float AS tela_30d, 0::float AS tela_periodo
           FROM caixa_movimentacoes
           WHERE filial = ${filial} AND tipo = 'saida'
@@ -164,16 +170,17 @@ export async function calcularInsumos(sql, filial, diasPeriodo = DIAS_CONSUMO) {
       // consumo_por_embalagem está na unidade de consumo (ex: etiquetas); o estoque, na de estoque (ex: rolos)
       const porEmbalagem = i.consumo_por_embalagem / (i.unidades_por_estoque || 1);
       // embalagem de tela gasta mais: só a diferença entra como acréscimo sobre o consumo normal
+      // (no Fulfillment não vale: a etiqueta de destinatário e a DANFE são do depósito)
       const extraTela = comTela ? (cpeTela.get(i.id) - i.consumo_por_embalagem) / (i.unidades_por_estoque || 1) : 0;
       baixaAutomatica = e.desde * porEmbalagem + e.tela_desde * extraTela;
-      embalagens30d = e.ultimos_30d;
-      consumoDia += (e.ultimos_30d * porEmbalagem + e.tela_30d * extraTela) / DIAS_CONSUMO;
-      consumoPeriodo += (e.no_periodo * porEmbalagem + e.tela_periodo * extraTela) / diasPeriodo;
+      embalagens30d = e.ultimos_30d + e.ful_30d;
+      consumoDia += ((e.ultimos_30d + e.ful_30d) * porEmbalagem + e.tela_30d * extraTela) / DIAS_CONSUMO;
+      consumoPeriodo += ((e.no_periodo + e.ful_periodo) * porEmbalagem + e.tela_periodo * extraTela) / diasPeriodo;
 
       // último dia com embalagens expedidas (soma com a saída manual do mesmo dia, se houver)
       const [u] = comTela
         ? await sql`
-            SELECT TO_CHAR(data, 'YYYY-MM-DD') AS dia, SUM(quantidade)::float AS qtd, COALESCE(SUM(qtd_tela), 0)::float AS tela
+            SELECT TO_CHAR(data, 'YYYY-MM-DD') AS dia, SUM(quantidade)::float AS qtd, COALESCE(SUM(qtd_tela) FILTER (WHERE conta_estoque), 0)::float AS tela
             FROM caixa_movimentacoes
             WHERE filial = ${filial} AND tipo = 'saida'
               AND ((conta_estoque = true AND conta_consumo = true) OR (${i.auto_inclui_fulfillment}::boolean AND conta_estoque = false))
@@ -311,7 +318,7 @@ export default async function handlerInsumos(req, res, sql) {
       if (!body.data) return res.status(400).json({ error: 'Informe a data.' });
       const rows = await sql`
         INSERT INTO insumo_movimentacoes (insumo_id, filial, tipo, quantidade, data, observacao, conta_consumo)
-        VALUES (${Number(body.insumo_id)}, ${filial}, ${body.tipo}, ${qtd}, ${body.data}, ${body.observacao || null}, ${body.tipo === 'saida'})
+        VALUES (${Number(body.insumo_id)}, ${filial}, ${body.tipo}, ${qtd}, ${body.data}, ${body.observacao || null}, ${body.tipo === 'saida' && body.conta_consumo !== false})
         RETURNING id`;
       return res.status(201).json(rows[0]);
     }
