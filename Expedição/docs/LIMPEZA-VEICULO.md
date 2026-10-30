@@ -66,11 +66,19 @@ O link antigo para de funcionar na hora.
   para adivinhar). Quem tiver o endereço exato abre a foto.
 - Se o envio das fotos funcionar e o registro falhar, as fotos ficam no Blob sem
   registro (arquivos órfãos). O custo é desprezível.
-## Aviso por e-mail de limpeza atrasada
+## Avisos por e-mail: lembrete na véspera e limpeza atrasada
 
 `lib/limpeza-alerta.js`, chamado no fim da rotina diária das 5h
 (`api/caixa-auto-executar.js`, a mesma dos caixas; o Hobby só permite 2 crons).
-Quando a próxima limpeza da agenda passa da data, sai um e-mail no 1º dia de
+
+**Lembrete:** um dia antes da data prevista da próxima limpeza (como as datas caem
+na sexta, sai na quinta às 5h) chega o e-mail "Lembrete: amanhã é dia de lavar a
+Fiorino (dd/mm/aaaa)", escrito já para o motorista ler. O assunto começa sempre
+igual: é por ele que o filtro do e-mail reenvia aos motoristas. O Resend sem
+domínio verificado só entrega ao dono da conta (ver abaixo), então o reenvio aos
+motoristas é feito por filtro na caixa que recebe o aviso.
+
+**Atraso:** quando a próxima limpeza da agenda passa da data, sai um e-mail no 1º dia de
 atraso e se repete a cada 7 dias (atraso 1, 8, 15...) até alguém registrar a
 limpeza. Não guarda estado nem precisa de migração. Usa o Resend, o remetente e
 os destinos do aviso de caixas (`ALERTA_EMAIL_DESTINOS`, padrão ronaldo@paulicomp.com).
@@ -79,3 +87,6 @@ os destinos do aviso de caixas (`ALERTA_EMAIL_DESTINOS`, padrão ronaldo@paulico
   `ALERTA_EMAIL_ATIVO` (a chave do aviso de caixas).
 - Conferir sem enviar: `/api/caixa-auto-executar?alerta=limpeza-simular` mostra
   a data prevista, o atraso, se o aviso está ligado e o e-mail que sairia.
+  Para ver o lembrete, acrescente `&hoje=AAAA-MM-DD` com o dia anterior à data prevista.
+- Mandar o lembrete agora, de verdade, com "[TESTE]" no assunto (serve para
+  conferir o e-mail e o filtro dos motoristas): `/api/caixa-auto-executar?alerta=limpeza-teste`.

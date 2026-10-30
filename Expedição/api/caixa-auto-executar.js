@@ -117,7 +117,8 @@ export default async function handler(req, res) {
       if (req.query.alerta === 'simular') return res.status(200).json(await verificarEAvisar(sqlAlerta, filial, { simular: true }));
       if (req.query.alerta === 'teste') return res.status(200).json(await enviarTeste(sqlAlerta, filial, req.query.para));
       if (req.query.alerta === 'teste-insumo') return res.status(200).json(await enviarTesteInsumo(sqlAlerta, filial, req.query.para));
-      if (req.query.alerta === 'limpeza-simular') return res.status(200).json(await avisarLimpezaAtrasada(sqlAlerta, { simular: true }));
+      if (req.query.alerta === 'limpeza-simular') return res.status(200).json(await avisarLimpezaAtrasada(sqlAlerta, { simular: true, hoje: req.query.hoje }));
+      if (req.query.alerta === 'limpeza-teste') return res.status(200).json(await avisarLimpezaAtrasada(sqlAlerta, { teste: true }));
       return res.status(400).json({ error: 'Parâmetro "alerta" deve ser "simular" ou "teste".' });
     } catch (error) {
       console.error('Erro nos avisos por e-mail:', error);
