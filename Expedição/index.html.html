@@ -920,7 +920,8 @@
                 </div>
                 <div class="cx-field"><label>Insumo</label><select id="cxInsMovInsumo"></select></div>
                 <div style="display:flex;gap:10px;">
-                    <div class="cx-field" style="flex:1;"><label id="cxInsMovQtdLabel">Quantidade</label><input type="number" min="0" step="any" id="cxInsMovQtd"></div>
+                    <div class="cx-field" style="flex:1;"><label id="cxInsMovQtdLabel">Quantidade</label>
+                        <div style="display:flex;gap:6px;"><input type="number" min="0" step="any" id="cxInsMovQtd" style="flex:1;min-width:0;"><select id="cxInsMovUn" style="display:none;"></select></div></div>
                     <div class="cx-field" style="flex:1;"><label>Data</label><input type="date" id="cxInsMovData"></div>
                 </div>
                 <label id="cxInsMovRotinaWrap" style="display:none;align-items:flex-start;gap:8px;font-size:12.5px;color:#cbd5e1;cursor:pointer;">
@@ -4252,10 +4253,23 @@
             if (!i) { dica.textContent = ''; return; }
             const rotina = cxInsMovTipo === 'contagem' && !i.automatico;
             document.getElementById('cxInsMovRotinaWrap').style.display = rotina ? 'flex' : 'none';
+            // insumo contado em rolo mas usado em unidade (etiqueta): deixa lançar por unidade
+            const un = document.getElementById('cxInsMovUn');
+            const fator = cxInsMovFator(i);
+            if (fator > 1) {
+                const uso = cxUsoDe(i, 1).unidade;
+                un.innerHTML = `<option value="uso">${cxEsc(uso)}</option><option value="estoque">${cxEsc(i.unidade)}</option>`;
+                un.value = cxInsMovTipo === 'saida' ? 'uso' : 'estoque';
+                un.style.display = '';
+            } else {
+                un.style.display = 'none';
+            }
+            const emUso = fator > 1 ? ` (${cxQtd(i.estoque_atual * fator)} ${cxUsoDe(i, 1).unidade})` : '';
             dica.textContent = cxInsMovTipo === 'contagem'
-                ? `Estoque atual no sistema: ${cxQtd(i.estoque_atual)} ${i.unidade}. ` + (rotina ? 'A sobra sempre vira ajuste.' : 'Este insumo tem baixa automática: a diferença vira ajuste e não conta como consumo.')
-                : `Estoque atual: ${cxQtd(i.estoque_atual)} ${i.unidade}.`;
+                ? `Estoque atual no sistema: ${cxQtd(i.estoque_atual)} ${i.unidade}${emUso}. ` + (rotina ? 'A sobra sempre vira ajuste.' : 'Este insumo tem baixa automática: a diferença vira ajuste e não conta como consumo.')
+                : `Estoque atual: ${cxQtd(i.estoque_atual)} ${i.unidade}${emUso}.`;
         }
+        function cxInsMovFator(i) { return i && i.unidades_por_estoque > 1 ? i.unidades_por_estoque : 1; }
         function cxInsMovSetTipo(tipo) {
             cxInsMovTipo = tipo;
             document.getElementById('cxInsMovEntrada').classList.toggle('on', tipo === 'entrada');
@@ -4282,12 +4296,16 @@
             const obs = document.getElementById('cxInsMovObs').value.trim();
             if (qtd === '' || Number(qtd) < 0 || (cxInsMovTipo !== 'contagem' && Number(qtd) <= 0)) return cxToast('Informe uma quantidade válida.', 'error');
             if (!data) return cxToast('Informe a data.', 'error');
+            // quantidade digitada em unidade de uso (ex: etiquetas) vira fração da unidade de estoque (rolo)
+            const insumoSel = (cxInsumosDados?.insumos || []).find(x => x.id === insumoId);
+            const emUso = document.getElementById('cxInsMovUn').style.display !== 'none' && document.getElementById('cxInsMovUn').value === 'uso';
+            const qtdEstoque = emUso ? Number((Number(qtd) / cxInsMovFator(insumoSel)).toFixed(4)) : Number(qtd);
             const btn = document.getElementById('cxBtnSaveInsumoMov');
             btn.disabled = true;
             try {
                 const resp = cxInsMovTipo === 'contagem'
-                    ? await cxInsumosApi('POST', { acao: 'contagem', insumo_id: insumoId, quantidade_contada: Number(qtd), data, rotina: document.getElementById('cxInsMovRotina').checked })
-                    : await cxInsumosApi('POST', { insumo_id: insumoId, tipo: cxInsMovTipo, quantidade: Number(qtd), data, observacao: obs || null });
+                    ? await cxInsumosApi('POST', { acao: 'contagem', insumo_id: insumoId, quantidade_contada: qtdEstoque, data, rotina: document.getElementById('cxInsMovRotina').checked })
+                    : await cxInsumosApi('POST', { insumo_id: insumoId, tipo: cxInsMovTipo, quantidade: qtdEstoque, data, observacao: obs || null });
                 cxToast(cxInsMovTipo === 'contagem' ? (resp.diferenca === 0 ? 'Contagem igual ao estoque: nada a ajustar.' : (resp.conta_consumo ? `Consumo apurado: ${cxQtd(-resp.diferenca)} no período.` : `Ajuste lançado (${resp.diferenca > 0 ? '+' : ''}${cxQtd(resp.diferenca)}).`)) : 'Lançamento registrado.', 'success');
                 if (cxInsCompraId && cxInsMovTipo === 'entrada') {
                     // veio de "Lançar entrada" numa compra recebida: marca como lançada
