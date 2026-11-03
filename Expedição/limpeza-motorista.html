@@ -18,6 +18,16 @@
 
   <div class="aviso bad" id="erro" hidden></div>
 
+  <nav class="abas-mot" id="abas" role="tablist" aria-label="O que fazer" hidden>
+    <button type="button" role="tab" id="t-ck" aria-selected="true" aria-controls="aba-ck">
+      <span class="t-nome">Checklist</span><span class="t-sub">Início do dia</span><span class="pill neutral" id="t-ck-selo">–</span>
+    </button>
+    <button type="button" role="tab" id="t-li" aria-selected="false" aria-controls="aba-li">
+      <span class="t-nome">Limpeza</span><span class="t-sub">Lava-rápido</span><span class="pill neutral" id="t-li-selo">–</span>
+    </button>
+  </nav>
+
+  <div class="aba" id="aba-ck" role="tabpanel" aria-labelledby="t-ck">
   <div class="aviso ok" id="ck-sucesso" hidden role="status"></div>
 
   <form class="card" id="ck-form" autocomplete="off" novalidate hidden>
@@ -63,6 +73,13 @@
     <p class="nota" id="ck-feito-txt"></p>
   </section>
 
+  <section class="card" id="ck-ultimos" hidden>
+    <h2>Últimos checklists</h2>
+    <div class="lista-ult" id="ck-hist"></div>
+  </section>
+  </div>
+
+  <div class="aba" id="aba-li" role="tabpanel" aria-labelledby="t-li" hidden>
   <section class="status" aria-live="polite">
     <div>
       <div class="kicker">Próxima limpeza</div>
@@ -130,11 +147,7 @@
     <h2>Últimas limpezas</h2>
     <div class="lista-ult" id="lista"></div>
   </section>
-
-  <section class="card" id="ck-ultimos" hidden>
-    <h2>Últimos checklists</h2>
-    <div class="lista-ult" id="ck-hist"></div>
-  </section>
+  </div>
 </div>
 
 <script src="/limpeza-comum.js"></script>
@@ -163,6 +176,8 @@
     $('s-pill').className = 'pill ' + s.cls;
     $('s-pill').textContent = s.texto;
     $('s-detalhe').textContent = 'Limpeza ' + L.tipoNome(prox.tipo).toLowerCase();
+    $('t-li-selo').className = 'pill ' + s.cls;
+    $('t-li-selo').textContent = s.texto;
     var radio = document.querySelector('input[name="tipo"][value="' + prox.tipo + '"]');
     if (radio && !ocupado) radio.checked = true;
 
@@ -354,6 +369,10 @@
     var hoje = ck.registros[0] && ck.registros[0].data === ck.hoje ? ck.registros[0] : null;
     $('ck-form').hidden = !!hoje;
     $('ck-feito').hidden = !hoje;
+    $('abas').hidden = false;
+    $('t-ck').hidden = false;
+    $('t-ck-selo').className = 'pill ' + (hoje ? 'ok' : 'warn');
+    $('t-ck-selo').textContent = hoje ? 'Enviado hoje' : 'Falta fazer hoje';
     if (hoje) {
       var s = ckResumo(hoje);
       $('ck-feito-pill').className = 'pill ' + (s.n ? 'warn' : 'ok');
@@ -455,8 +474,22 @@
       ckRenderStatus();
     } catch (e) {
       $('ck-form').hidden = true; $('ck-feito').hidden = true; $('ck-ultimos').hidden = true;
+      // Sem checklist (ex.: migração 023 ainda não rodada) sobra só a limpeza, sem abas.
+      $('abas').hidden = true;
+      escolherAba('li');
     }
   }
+
+  // ---------- abas: Checklist | Limpeza ----------
+  function escolherAba(qual) {
+    var ck = qual === 'ck';
+    $('aba-ck').hidden = !ck;
+    $('aba-li').hidden = ck;
+    $('t-ck').setAttribute('aria-selected', String(ck));
+    $('t-li').setAttribute('aria-selected', String(!ck));
+  }
+  $('t-ck').addEventListener('click', function () { escolherAba('ck'); });
+  $('t-li').addEventListener('click', function () { escolherAba('li'); });
 
   async function carregar() {
     try {

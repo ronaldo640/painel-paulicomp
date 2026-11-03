@@ -164,5 +164,15 @@ td.r, th.r { text-align: right; padding-right: 0; }
 .detalhe .prob .fotos-linha { min-width: 0; }
 .detalhe .prob .fotos-linha .th { width: 64px; }
 
+/* Tela do motorista: dois botões grandes, Checklist e Limpeza, cada um com o seu estado */
+.abas-mot { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.abas-mot button { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 14px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; min-width: 0; }
+.abas-mot button[aria-selected="true"] { border-color: var(--accent); background: rgba(59, 130, 246, .16); }
+.abas-mot .t-nome { font-weight: 800; font-size: 1.1rem; line-height: 1.1; }
+.abas-mot .t-sub { font-size: .78rem; color: var(--muted); margin-bottom: 4px; }
+.abas-mot .pill { white-space: normal; }
+.aba { display: flex; flex-direction: column; gap: 18px; }
+
 @media (max-width: 480px) { .grid2 { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
