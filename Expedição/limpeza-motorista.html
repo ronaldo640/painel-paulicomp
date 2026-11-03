@@ -18,6 +18,51 @@
 
   <div class="aviso bad" id="erro" hidden></div>
 
+  <div class="aviso ok" id="ck-sucesso" hidden role="status"></div>
+
+  <form class="card" id="ck-form" autocomplete="off" novalidate hidden>
+    <div>
+      <div class="kicker">Início do dia</div>
+      <h2>Checklist da Fiorino</h2>
+      <p class="nota" style="margin-top:6px">Confira antes de sair. Se algo estiver com problema, marque <b>Problema</b> e tire uma foto.</p>
+    </div>
+
+    <div class="grid2">
+      <div class="field">
+        <label for="ck-nome">Seu nome</label>
+        <input type="text" id="ck-nome" maxlength="60" autocomplete="name">
+      </div>
+      <div class="field">
+        <label for="ck-km">Km do painel</label>
+        <input type="number" id="ck-km" min="0" step="1" inputmode="numeric" placeholder="Ex.: 48320">
+        <span class="km-dica" id="ck-km-dica"></span>
+      </div>
+    </div>
+
+    <div class="ck-prog" aria-live="polite">
+      <div class="barra"><i id="ck-prog"></i></div>
+      <span class="contador" id="ck-prog-txt">0 de 10</span>
+    </div>
+
+    <div class="ck-lista" id="ck-lista"></div>
+    <input type="file" id="ck-in-foto" accept="image/*" capture="environment" hidden>
+
+    <button class="btn grande" type="submit" id="ck-enviar" disabled>Responda os itens</button>
+    <p class="pend-txt" id="ck-pend"></p>
+    <p class="msg" id="ck-msg" role="status"></p>
+  </form>
+
+  <section class="card enviado" id="ck-feito" hidden>
+    <div class="linha">
+      <div>
+        <div class="kicker">Início do dia</div>
+        <h2>Checklist de hoje enviado</h2>
+      </div>
+      <span class="pill ok" id="ck-feito-pill"></span>
+    </div>
+    <p class="nota" id="ck-feito-txt"></p>
+  </section>
+
   <section class="status" aria-live="polite">
     <div>
       <div class="kicker">Próxima limpeza</div>
@@ -84,6 +129,11 @@
   <section class="card" id="ultimas" hidden>
     <h2>Últimas limpezas</h2>
     <div class="lista-ult" id="lista"></div>
+  </section>
+
+  <section class="card" id="ck-ultimos" hidden>
+    <h2>Últimos checklists</h2>
+    <div class="lista-ult" id="ck-hist"></div>
   </section>
 </div>
 
@@ -207,6 +257,207 @@
     }
   });
 
+  // ---------- checklist de início do dia ----------
+  var ck = null;            // resposta da API: { hoje, itens, maxFotosItem, registros }
+  var ckResp = {};          // id do item -> 'ok' | 'problema'
+  var ckFotos = {};         // id do item -> [{ arquivo, preview, url }]
+  var ckAlvo = null;        // item que está recebendo foto
+  var ckOcupado = false;
+
+  function ckDizer(texto, ok) {
+    $('ck-msg').textContent = texto;
+    $('ck-msg').className = 'msg' + (ok ? ' ok' : '');
+  }
+
+  function ckFaltas() {
+    var itens = ck.itens;
+    var km = parseInt($('ck-km').value, 10);
+    return {
+      semResp: itens.filter(function (it) { return !ckResp[it.id]; }).length,
+      semFoto: itens.filter(function (it) { return ckResp[it.id] === 'problema' && !(ckFotos[it.id] || []).length; }).length,
+      km: !(km > 0),
+      nome: !$('ck-nome').value.trim()
+    };
+  }
+
+  function ckKmDica() {
+    var ult = ck.registros[0];
+    var d = $('ck-km-dica');
+    d.className = 'km-dica';
+    if (!ult) { d.textContent = ''; return; }
+    var quando = L.diasAte(ult.data) === -1 ? 'ontem' : L.fmtCurto(ult.data);
+    var ref = Number(ult.km).toLocaleString('pt-BR');
+    var km = parseInt($('ck-km').value, 10);
+    if (km > 0 && km < ult.km) { d.textContent = 'Menor que o último registrado (' + ref + ' km). Confira o número.'; d.className = 'km-dica alerta'; }
+    else if (km > ult.km + 600) { d.textContent = 'Muito acima do último registrado (' + ref + ' km). Confira o número.'; d.className = 'km-dica alerta'; }
+    else d.textContent = 'Último registrado: ' + ref + ' km (' + quando + ')';
+  }
+
+  function ckAtualizar() {
+    var f = ckFaltas();
+    var total = ck.itens.length;
+    var feitos = total - f.semResp;
+    $('ck-prog').style.width = (feitos / total * 100) + '%';
+    $('ck-prog-txt').textContent = feitos + ' de ' + total;
+    $('ck-prog-txt').className = 'contador' + (feitos === total ? ' ok' : '');
+    var texto;
+    if (f.semResp) texto = f.semResp === 1 ? 'Responda o item que falta' : 'Responda os ' + f.semResp + ' itens que faltam';
+    else if (f.semFoto) texto = 'Falta foto em ' + f.semFoto + (f.semFoto === 1 ? ' problema' : ' problemas');
+    else if (f.km) texto = 'Informe o km do painel';
+    else if (f.nome) texto = 'Informe seu nome';
+    else texto = 'Enviar checklist';
+    var pronto = !(f.semResp || f.semFoto || f.km || f.nome);
+    $('ck-enviar').disabled = ckOcupado || !pronto;
+    $('ck-enviar').textContent = ckOcupado ? 'Enviando…' : texto;
+    var nProb = ck.itens.filter(function (it) { return ckResp[it.id] === 'problema'; }).length;
+    $('ck-pend').textContent = pronto && nProb ? 'A gestão será avisada por e-mail sobre ' + nProb + (nProb === 1 ? ' problema.' : ' problemas.') : '';
+  }
+
+  function ckRenderLista() {
+    $('ck-lista').innerHTML = ck.itens.map(function (it, i) {
+      var r = ckResp[it.id];
+      var f = ckFotos[it.id] || [];
+      var cls = 'ck-item' + (r === 'problema' ? ' problema' : (r === 'ok' ? ' feito' : ''));
+      var noMax = f.length >= (ck.maxFotosItem || 3);
+      var botaoFoto = '<button type="button" class="foto' + (r === 'problema' && !f.length ? ' falta' : '') + '" data-foto="' + it.id + '"' +
+        (r === 'problema' && !noMax && !ckOcupado ? '' : ' disabled') + '>' + (f.length ? '+ Foto' : 'Tirar foto') + '</button>';
+      var extra = '';
+      if (r === 'problema') {
+        extra = '<div class="ck-fotos">' + f.map(function (p, k) {
+          return '<div class="th"><img alt="Foto do problema" src="' + p.preview + '">' +
+            (ckOcupado ? '' : '<button type="button" class="x" data-rm="' + it.id + ':' + k + '" aria-label="Remover foto">×</button>') + '</div>';
+        }).join('') + (f.length ? '<span class="ck-ok-txt">Foto anexada</span>' : '<span class="ck-exige">Tire uma foto do problema para poder enviar.</span>') + '</div>';
+      }
+      return '<div class="' + cls + '">' +
+        '<div class="ck-topo"><div><div class="ck-nome">' + L.esc(it.nome) + '</div><div class="ck-dica">' + L.esc(it.dica) + '</div></div>' +
+        '<span class="ck-num">' + (i + 1) + '/' + ck.itens.length + '</span></div>' +
+        '<div class="ck-resp">' +
+          '<button type="button" class="ok" data-r="' + it.id + ':ok" aria-pressed="' + (r === 'ok') + '"' + (ckOcupado ? ' disabled' : '') + '>OK</button>' +
+          '<button type="button" class="bad" data-r="' + it.id + ':problema" aria-pressed="' + (r === 'problema') + '"' + (ckOcupado ? ' disabled' : '') + '>Problema</button>' +
+          botaoFoto +
+        '</div>' + extra + '</div>';
+    }).join('');
+    ckAtualizar();
+  }
+
+  function ckLiberarFotos(id) {
+    (ckFotos[id] || []).forEach(function (p) { URL.revokeObjectURL(p.preview); });
+    ckFotos[id] = [];
+  }
+
+  function ckResumo(r) {
+    var n = r.itens.filter(function (i) { return i.status === 'problema'; }).length;
+    return { n: n, texto: n ? n + (n === 1 ? ' problema' : ' problemas') : 'Tudo OK' };
+  }
+
+  function ckRenderStatus() {
+    var hoje = ck.registros[0] && ck.registros[0].data === ck.hoje ? ck.registros[0] : null;
+    $('ck-form').hidden = !!hoje;
+    $('ck-feito').hidden = !hoje;
+    if (hoje) {
+      var s = ckResumo(hoje);
+      $('ck-feito-pill').className = 'pill ' + (s.n ? 'warn' : 'ok');
+      $('ck-feito-pill').textContent = s.texto;
+      $('ck-feito-txt').textContent = (s.n ? 'A gestão foi avisada. ' : '') + 'Km ' + Number(hoje.km).toLocaleString('pt-BR') +
+        '. Só vale um checklist por dia: depois de enviado, ele não pode ser alterado.';
+    } else {
+      ckRenderLista();
+      ckKmDica();
+    }
+    $('ck-hist').innerHTML = ck.registros.length ? ck.registros.map(function (r) {
+      var s = ckResumo(r);
+      return '<div class="item"><div><b class="num">' + L.fmtCurto(r.data) + '</b> · ' + L.esc(r.motorista) +
+        '<div class="muted" style="font-size:.85rem">' + Number(r.km).toLocaleString('pt-BR') + ' km</div></div>' +
+        '<span class="pill ' + (s.n ? 'warn' : 'ok') + '">' + s.texto + '</span></div>';
+    }).join('') : '<div class="vazio">Nenhum checklist enviado ainda.</div>';
+    $('ck-ultimos').hidden = false;
+  }
+
+  $('ck-lista').addEventListener('click', function (e) {
+    if (ckOcupado) return;
+    var r = e.target.closest('[data-r]');
+    if (r) {
+      var p = r.getAttribute('data-r').split(':');
+      ckResp[p[0]] = p[1];
+      if (p[1] === 'ok') ckLiberarFotos(p[0]);   // voltou para OK: descarta a foto
+      ckRenderLista();
+      return;
+    }
+    var b = e.target.closest('[data-foto]');
+    if (b && !b.disabled) { ckAlvo = b.getAttribute('data-foto'); $('ck-in-foto').click(); return; }
+    var x = e.target.closest('[data-rm]');
+    if (x) {
+      var q = x.getAttribute('data-rm').split(':');
+      var tirada = (ckFotos[q[0]] || []).splice(Number(q[1]), 1)[0];
+      if (tirada) URL.revokeObjectURL(tirada.preview);
+      ckRenderLista();
+    }
+  });
+
+  $('ck-in-foto').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f || !ckAlvo || ckResp[ckAlvo] !== 'problema' || !/^image\//.test(f.type || 'image/')) return;
+    (ckFotos[ckAlvo] = ckFotos[ckAlvo] || []).push({ arquivo: f, preview: URL.createObjectURL(f), url: null });
+    ckRenderLista();
+  });
+
+  $('ck-km').addEventListener('input', function () { ckKmDica(); ckAtualizar(); });
+  $('ck-nome').addEventListener('input', ckAtualizar);
+  try { $('ck-nome').value = localStorage.getItem('limpeza_nome') || ''; } catch (e) {}
+
+  $('ck-form').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    var f = ckFaltas();
+    if (ckOcupado || f.semResp || f.semFoto || f.km || f.nome) return;
+    ckOcupado = true;
+    $('ck-sucesso').hidden = true;
+    ckRenderLista();
+    try {
+      var itens = {};
+      for (var k = 0; k < ck.itens.length; k++) {
+        var id = ck.itens[k].id;
+        if (ckResp[id] === 'ok') { itens[id] = { status: 'ok' }; continue; }
+        var lista = ckFotos[id];
+        for (var j = 0; j < lista.length; j++) {
+          if (lista[j].url) continue;
+          ckDizer('Enviando foto de ' + ck.itens[k].nome.toLowerCase() + '…', true);
+          lista[j].url = await L.enviarFoto(lista[j].arquivo);
+        }
+        itens[id] = { status: 'problema', fotos: lista.map(function (p) { return p.url; }) };
+      }
+      ckDizer('Salvando o checklist…', true);
+      var nome = $('ck-nome').value.trim();
+      var r = await L.enviarJson('/api/limpeza?acao=checklist', 'POST', { motorista: nome, km: parseInt($('ck-km').value, 10), itens: itens });
+      try { localStorage.setItem('limpeza_nome', nome); } catch (e) {}
+      ck.itens.forEach(function (it) { ckLiberarFotos(it.id); });
+      ckResp = {}; $('ck-km').value = '';
+      ckDizer('', true);
+      $('ck-sucesso').textContent = r.avisado ? 'Checklist enviado. A gestão foi avisada dos problemas.' : 'Checklist enviado. Bom trabalho!';
+      $('ck-sucesso').hidden = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      ckOcupado = false;
+      await carregarChecklist();
+    } catch (e) {
+      if (e.status === 409) { ckOcupado = false; await carregarChecklist(); ckDizer('', true); return; }
+      ckDizer(e.status === 401 ? 'Link inválido. Peça um novo link ao responsável.' : (e.message || 'Não foi possível enviar. Verifique a internet e tente de novo.'), false);
+    } finally {
+      ckOcupado = false;
+      if (!$('ck-form').hidden) ckRenderLista();
+    }
+  });
+
+  // Se o checklist não carregar (por exemplo, migração 023 ainda não rodada), a
+  // tela do motorista segue funcionando só com a limpeza.
+  async function carregarChecklist() {
+    try {
+      ck = await L.api('/api/limpeza?acao=checklist');
+      ckRenderStatus();
+    } catch (e) {
+      $('ck-form').hidden = true; $('ck-feito').hidden = true; $('ck-ultimos').hidden = true;
+    }
+  }
+
   async function carregar() {
     try {
       dados = await L.api('/api/limpeza');
@@ -214,6 +465,7 @@
       L.fecharChave();
       renderStatus();
       renderFotos();
+      carregarChecklist();
     } catch (e) {
       $('s-pill').textContent = '–';
       if (e.status === 401) {

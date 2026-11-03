@@ -123,6 +123,29 @@
     <input type="file" id="add-fotos" accept="image/*" multiple hidden>
   </section>
 
+  <section class="card" id="ck-sec" hidden>
+    <div class="top">
+      <div>
+        <h2>Checklist de início do dia</h2>
+        <span class="pill neutral" id="ck-hoje" style="margin-top:6px">–</span>
+      </div>
+      <div class="resumo">
+        <div><b class="num" id="ck-qtd">0</b><span>checklists (30 dias)</span></div>
+        <div><b class="num" id="ck-prob">0</b><span>com problema</span></div>
+        <div><b class="num" id="ck-km-ult">–</b><span>último km</span></div>
+      </div>
+    </div>
+    <p class="msg" id="msg3" role="status"></p>
+    <div class="rolagem">
+      <table>
+        <thead><tr><th>Data</th><th>Motorista</th><th class="r">Km</th><th>Situação</th><th></th></tr></thead>
+        <tbody id="ck-corpo"></tbody>
+      </table>
+    </div>
+    <p class="nota">O motorista preenche pela tela dele, uma vez por dia. Quando um item vem como <b>Problema</b>, a foto é obrigatória e você recebe um e-mail na hora.</p>
+    <button type="button" class="btn sec" id="ck-mais" hidden>Mostrar mais</button>
+  </section>
+
   <section class="card">
     <h2>O que combinar com o lava-rápido</h2>
     <div class="listas">
@@ -360,6 +383,97 @@
 
   $('f-data').value = L.hojeTexto();
 
+  // ---------- checklist de início do dia ----------
+  var ck = null;
+  var ckLimite = PASSO_HIST;
+
+  function ckLinhas() {
+    var nomes = {};
+    ck.itens.forEach(function (it) { nomes[it.id] = it.nome; });
+    return ck.registros.slice(0, ckLimite).map(function (r, idx) {
+      var probs = r.itens.filter(function (i) { return i.status === 'problema'; });
+      var pill = probs.length
+        ? '<span class="pill bad">' + probs.length + (probs.length === 1 ? ' problema' : ' problemas') + '</span>'
+        : '<span class="pill ok">Tudo OK</span>';
+      var ver = probs.length ? '<button type="button" class="btn ghost" data-ver="' + r.id + '">Ver</button> ' : '';
+      var corpo = '<tr><td class="num">' + L.fmtCurto(r.data) + '</td><td>' + L.esc(r.motorista) + '</td><td class="r num">' +
+        Number(r.km).toLocaleString('pt-BR') + '</td><td>' + pill + '</td><td class="r">' + ver +
+        '<button type="button" class="btn ghost" data-ckdel="' + r.id + '">Excluir</button></td></tr>';
+      if (!probs.length) return corpo;
+      return corpo + '<tr id="ckdet-' + r.id + '" hidden><td colspan="5"><div class="detalhe">' + probs.map(function (p) {
+        var th = (p.fotos || []).map(function (u, i) {
+          return '<div class="th"><button type="button" class="abrir" data-foto="' + L.esc(u) + '" aria-label="Ampliar foto ' + (i + 1) + ' de ' + L.esc(nomes[p.id] || p.id) +
+            '"><img loading="lazy" decoding="async" alt="" data-full="' + L.esc(u) + '" src="' + L.esc(L.miniDe(u)) + '"></button></div>';
+        }).join('');
+        return '<div class="prob"><b>' + L.esc(nomes[p.id] || p.id) + '</b><div class="fotos-linha">' + th + '</div></div>';
+      }).join('') + '</div></td></tr>';
+    }).join('');
+  }
+
+  function ckRender() {
+    var regs = ck.registros;
+    var feitoHoje = regs[0] && regs[0].data === ck.hoje;
+    $('ck-hoje').className = 'pill ' + (feitoHoje ? 'ok' : 'warn');
+    $('ck-hoje').textContent = feitoHoje ? 'Hoje: enviado' : 'Hoje: ainda não enviado';
+    var recentes = regs.filter(function (r) { return L.diasAte(r.data) >= -29; });
+    var comProb = recentes.filter(function (r) { return r.itens.some(function (i) { return i.status === 'problema'; }); }).length;
+    $('ck-qtd').textContent = String(recentes.length);
+    $('ck-prob').textContent = String(comProb);
+    $('ck-prob').style.color = comProb ? 'var(--bad)' : '';
+    $('ck-km-ult').textContent = regs[0] ? Number(regs[0].km).toLocaleString('pt-BR') : '–';
+    $('ck-corpo').innerHTML = regs.length ? ckLinhas()
+      : '<tr><td colspan="5" class="vazio">Nenhum checklist enviado ainda. O motorista preenche pela tela dele.</td></tr>';
+    var restam = regs.length - ckLimite;
+    $('ck-mais').hidden = restam <= 0;
+    $('ck-mais').textContent = 'Mostrar mais (' + restam + (restam === 1 ? ' restante)' : ' restantes)');
+    $('ck-sec').hidden = false;
+  }
+
+  // Se o checklist não carregar (migração 023 ainda não rodada), o resto da tela segue funcionando.
+  async function carregarChecklist() {
+    try {
+      ck = await L.api('/api/limpeza?acao=checklist');
+      ckRender();
+    } catch (e) {
+      if (e.status && e.status !== 401) {
+        $('ck-sec').hidden = false;
+        $('ck-corpo').innerHTML = '<tr><td colspan="5" class="vazio">' + L.esc(e.message || 'Não foi possível carregar o checklist.') + '</td></tr>';
+      }
+    }
+  }
+
+  $('ck-corpo').addEventListener('error', function (ev) {
+    var im = ev.target;
+    var cheia = im.getAttribute && im.getAttribute('data-full');
+    if (cheia && im.getAttribute('src') !== cheia) im.src = cheia;
+  }, true);
+
+  $('ck-corpo').addEventListener('click', async function (ev) {
+    var f = ev.target.closest('[data-foto]');
+    if (f) { abrirFoto(f.getAttribute('data-foto')); return; }
+    var v = ev.target.closest('[data-ver]');
+    if (v) {
+      var linha = $('ckdet-' + v.getAttribute('data-ver'));
+      linha.hidden = !linha.hidden;
+      v.textContent = linha.hidden ? 'Ver' : 'Fechar';
+      return;
+    }
+    var d = ev.target.closest('[data-ckdel]');
+    if (!d) return;
+    var id = d.getAttribute('data-ckdel');
+    if (armado !== 'ck' + id) {
+      armado = 'ck' + id;
+      d.textContent = 'Confirmar?'; d.classList.add('confirma');
+      setTimeout(function () { if (armado === 'ck' + id) { armado = null; d.textContent = 'Excluir'; d.classList.remove('confirma'); } }, 3500);
+      return;
+    }
+    armado = null;
+    try { await L.api('/api/limpeza?acao=checklist&id=' + encodeURIComponent(id), { method: 'DELETE' }); await carregarChecklist(); }
+    catch (e) { dizer('msg3', e.message || 'Não foi possível excluir.', false); }
+  });
+
+  $('ck-mais').addEventListener('click', function () { ckLimite += PASSO_HIST; ckRender(); });
+
   async function carregar() {
     try {
       dados = await L.api('/api/limpeza');
@@ -367,6 +481,7 @@
       $('erro').hidden = true;
       L.fecharChave();
       render();
+      carregarChecklist();
     } catch (e) {
       $('s-pill').textContent = '–';
       if (e.status === 401) {

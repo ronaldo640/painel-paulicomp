@@ -14,6 +14,14 @@
 //   PUT  ?acao=config        ritmo, primeira limpeza e placa (só gestão).
 //   DELETE ?id=N             exclui a limpeza e as fotos (só gestão).
 //
+// Checklist de início do dia (migração 023, itens em lib/limpeza-checklist.js):
+//   GET    ?acao=checklist       lista de itens e últimos checklists (motorista: 5, sem fotos;
+//                                gestão: 60, com fotos) e a data de hoje.
+//   POST   ?acao=checklist       o motorista envia o dia: nome, km e os 10 itens; problema
+//                                exige foto. Um por dia (409 se já enviado) e, com problema,
+//                                sai e-mail para a gestão.
+//   DELETE ?acao=checklist&id=N  exclui o checklist e as fotos (só gestão).
+//
 // A foto mora aqui pra não gastar outra das 12 funções do plano Hobby da
 // Vercel. Por isso o parser de JSON da Vercel fica desligado (a foto chega
 // como corpo cru) e o JSON das outras ações é lido por lerJson().
@@ -25,6 +33,8 @@ import { neon } from '@neondatabase/serverless';
 import { del, put } from '@vercel/blob';
 import { papel } from '../lib/limpeza-auth.js';
 import { montarAgenda } from '../lib/limpeza-agenda.js';
+import { ITENS, MAX_FOTOS_ITEM, hojeBrasilia, validarChecklist } from '../lib/limpeza-checklist.js';
+import { avisarChecklistProblema } from '../lib/limpeza-alerta.js';
 
 export const config = { api: { bodyParser: false } };
 
@@ -105,6 +115,57 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST' || req.method === 'PUT') req.body = await lerJson(req);
+
+    if (acao === 'checklist') {
+      if (req.method === 'GET') {
+        const lista = await sql`
+          SELECT id, TO_CHAR(data, 'YYYY-MM-DD') AS data, motorista, km, itens
+          FROM limpeza_checklists
+          ORDER BY data DESC
+          LIMIT ${quem === 'gestao' ? 60 : 5}`;
+        // O motorista só precisa saber quais itens deram problema, sem as fotos.
+        const registros = quem === 'gestao'
+          ? lista
+          : lista.map((r) => ({ ...r, itens: r.itens.map((i) => ({ ...i, fotos: [] })) }));
+        return res.status(200).json({ hoje: hojeBrasilia(), itens: ITENS, maxFotosItem: MAX_FOTOS_ITEM, registros });
+      }
+
+      if (req.method === 'POST') {
+        const v = validarChecklist(req.body, fotosValidas);
+        if (v.erro) return res.status(400).json({ error: v.erro });
+        const hoje = hojeBrasilia();
+        // Um checklist por dia: o motorista não refaz nem altera depois de enviar.
+        const [novo] = await sql`
+          INSERT INTO limpeza_checklists (data, motorista, km, itens)
+          VALUES (${hoje}, ${v.motorista}, ${v.km}, ${JSON.stringify(v.itens)}::jsonb)
+          ON CONFLICT (data) DO NOTHING
+          RETURNING id`;
+        if (!novo) return res.status(409).json({ error: 'O checklist de hoje já foi enviado.' });
+        // O aviso por e-mail não pode derrubar o envio: o checklist já está gravado.
+        let avisado = false;
+        try {
+          const [cfg] = await sql`SELECT placa FROM limpeza_config WHERE id = 1`;
+          avisado = (await avisarChecklistProblema({ data: hoje, ...v }, cfg && cfg.placa)).enviado;
+        } catch (e) {
+          console.error('Falha ao avisar problema do checklist:', e);
+        }
+        return res.status(201).json({ id: novo.id, avisado });
+      }
+
+      if (req.method === 'DELETE') {
+        if (quem !== 'gestao') return res.status(403).json({ error: 'Sem permissão.' });
+        const id = parseInt(req.query.id, 10);
+        if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+        const [apagado] = await sql`DELETE FROM limpeza_checklists WHERE id = ${id} RETURNING itens`;
+        const fotos = apagado ? apagado.itens.flatMap((i) => i.fotos || []) : [];
+        if (fotos.length) {
+          try { await del(comMiniaturas(fotos)); } catch (e) { console.error('Falha ao apagar fotos do Blob:', e); }
+        }
+        return res.status(200).json({ ok: true });
+      }
+
+      return res.status(405).json({ error: 'Método não permitido.' });
+    }
 
     if (req.method === 'GET') {
       const [cfg] = await sql`
@@ -199,6 +260,7 @@ export default async function handler(req, res) {
   } catch (error) {
     if (error.status) return res.status(error.status).json({ error: error.message });
     console.error('Erro em /api/limpeza:', error);
-    return res.status(500).json({ error: 'Falha ao acessar o banco. Confira se a migração 020 foi executada.' });
+    const migracao = acao === 'checklist' ? '023' : '020';
+    return res.status(500).json({ error: `Falha ao acessar o banco. Confira se a migração ${migracao} foi executada.` });
   }
 }

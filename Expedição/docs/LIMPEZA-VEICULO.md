@@ -60,6 +60,30 @@ O link antigo para de funcionar na hora.
   `limpeza.css` e `limpeza-comum.js`. As URLs sem `.html` vêm de `rewrites` no
   `vercel.json`.
 
+## Checklist de início do dia
+
+O motorista confere a Fiorino antes de sair, na própria tela dele (`/limpeza/motorista`).
+Gestão vê o histórico na tela `/limpeza`, seção "Checklist de início do dia".
+
+- **Para ativar:** rodar `sql/023_limpeza_checklist.sql` no Neon (tabela `limpeza_checklists`).
+  Sem a migração, o checklist some da tela do motorista e a gestão vê o aviso do banco; o resto
+  da tela (limpeza) segue funcionando.
+- **10 itens** (em `lib/limpeza-checklist.js`, editar a lista muda as duas telas): óleo, água do
+  radiador, água do limpador, palhetas, pneus, luzes, luzes do painel, freio, combustível, lataria
+  e vidros. Mais o nome e o **km do painel** (a tela avisa se for menor que o último ou muito acima).
+- **Cada item é OK ou Problema.** O botão "Tirar foto" só liga com Problema, e o envio só libera
+  com ao menos 1 foto (até 3) em cada problema. Voltar para OK descarta as fotos.
+- **Um checklist por dia** (data de Brasília, única no banco). Depois de enviado o motorista não
+  refaz nem altera; se tentar de novo a API devolve 409 e a tela mostra o de hoje. A gestão pode
+  excluir (some também as fotos do Blob).
+- **E-mail na hora** quando há Problema, com o item e a foto, pelo mesmo Resend e destinos do resto
+  (`lib/limpeza-alerta.js`, `avisarChecklistProblema`; segue `LIMPEZA_ALERTA_ATIVO`/`ALERTA_EMAIL_ATIVO`).
+  Se o e-mail falhar o checklist já está gravado. O assunto é "Checklist da Fiorino ...", então o
+  filtro do Gmail que reenvia o lembrete aos motoristas não pega este aviso.
+- API (em `api/limpeza.js`, sem função nova): `GET/POST/DELETE ?acao=checklist`. O motorista recebe
+  só os 5 últimos, sem fotos; a gestão os 60 últimos.
+- Fora por enquanto: checklists semanal e mensal, documentos do veículo.
+
 ## Limites conhecidos
 
 - As fotos ficam em endereços públicos do Blob, mas com sufixo aleatório (não dá

@@ -1,5 +1,5 @@
-// Avisos por e-mail da limpeza do veículo: lembrete na véspera e limpeza atrasada
-// (via Resend, igual ao aviso de caixas: mesmos destinos e mesmo remetente, ver
+// Avisos por e-mail da limpeza do veículo: lembrete na véspera, limpeza atrasada e
+// problema no checklist de início do dia (via Resend, igual ao aviso de caixas: mesmos destinos e mesmo remetente, ver
 // lib/caixa-alerta.js).
 //
 // Roda no fim da rotina diária que já existe (api/caixa-auto-executar.js, cron
@@ -21,6 +21,7 @@
 
 import { enviarEmail, destinos } from './caixa-alerta.js';
 import { montarAgenda } from './limpeza-agenda.js';
+import { nomeDoItem } from './limpeza-checklist.js';
 
 const REPETE_A_CADA_DIAS = 7;
 const URL_TELA = 'https://painel-paulicomp.vercel.app/limpeza';
@@ -60,6 +61,33 @@ function cartao(titulo, corpo) {
         ${corpo}
       </div>
     </div>`;
+}
+
+// Checklist de início do dia com item em Problema: e-mail na hora, com o item e a
+// foto (chamado por api/limpeza.js logo depois de gravar o checklist). Só envia se
+// o aviso estiver ligado (mesma chave do resto) e há ao menos um problema.
+// `reg` = { data: 'AAAA-MM-DD', motorista, km, itens: [{ id, status, fotos }] }.
+export async function avisarChecklistProblema(reg, placa) {
+  const problemas = reg.itens.filter((i) => i.status === 'problema');
+  if (!problemas.length) return { enviado: false, motivo: 'Sem problemas.' };
+  if (!alertaLimpezaAtivo()) return { enviado: false, motivo: 'Aviso desligado.' };
+  const veiculo = placa ? `Fiorino ${placa}` : 'Fiorino';
+  const n = problemas.length;
+  const qtd = `${n} ${n === 1 ? 'problema' : 'problemas'}`;
+  const km = Number(reg.km).toLocaleString('pt-BR');
+  const assunto = `Checklist da ${veiculo}: ${qtd} (${fmt(reg.data)})`;
+  const blocos = problemas.map((p) => `
+        <div style="margin:14px 0 0;padding:12px;border:1px solid #fecaca;background:#fef2f2;border-radius:8px;">
+          <div style="font-weight:700;color:#b91c1c;">${esc(nomeDoItem(p.id))}</div>
+          ${p.fotos.map((u) => `<a href="${esc(u)}"><img src="${esc(u)}" alt="Foto do problema" width="220" style="display:block;width:220px;max-width:100%;height:auto;border-radius:6px;margin-top:8px;border:0;"></a>`).join('')}
+        </div>`).join('');
+  const html = cartao(`Checklist da ${veiculo}: ${qtd}`, `
+        <p>${esc(reg.motorista)} marcou ${qtd} no checklist de início do dia (<b>${fmt(reg.data)}</b>, ${km} km).</p>${blocos}
+        <p style="margin-top:18px;"><a href="${URL_TELA}" style="color:#2563eb;">Abrir a tela da limpeza e do checklist</a></p>`);
+  const texto = `${UNIDADE}. Checklist da ${veiculo} em ${fmt(reg.data)} (${km} km, ${reg.motorista}): ${qtd}: ` +
+    `${problemas.map((p) => nomeDoItem(p.id)).join(', ')}. ${URL_TELA}`;
+  const envio = await enviarEmail(assunto, html, texto);
+  return { enviado: true, id_resend: envio.id, assunto };
 }
 
 // Roda todo dia: um e-mail na véspera da limpeza prevista (lembrete) e os de
