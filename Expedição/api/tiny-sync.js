@@ -232,36 +232,6 @@ export default async function handler(req, res) {
     });
   }
 
-  // DIAGNÓSTICO TEMPORÁRIO (a remover): devolve as notas cruas do Tiny (sem nomes/CPF) para
-  // descobrir em que situação estão as notas que não entram no painel. Não grava nada.
-  if (query.diagnostico === '1') {
-    const f = filiaisAtivas[0];
-    const notas = [];
-    let pagina = 1;
-    let totalPaginas = 1;
-    do {
-      const params = new URLSearchParams({ token: process.env[f.env], formato: 'json', pagina: String(pagina) });
-      if (!query.numero) { params.set('dataInicial', dataInicial); params.set('dataFinal', dataFinal); }
-      for (const k of ['numero', 'situacao', 'tipoNota', 'serie']) if (query[k]) params.set(k, String(query[k]));
-      const resp = await fetch(`${TINY_BASE_URL}?${params.toString()}`);
-      const json = await resp.json();
-      const retorno = json.retorno || {};
-      if (String(retorno.status).toLowerCase() === 'erro') {
-        return res.status(200).json({ ok: false, error: (retorno.erros || []).map(e => e.erro).join('; '), codigo: (retorno.erros || []).map(e => e.codigo_erro || '').join(',') });
-      }
-      totalPaginas = Number(retorno.numero_paginas || 1);
-      (retorno.notas_fiscais || []).forEach(item => {
-        const n = item.nota_fiscal || {};
-        notas.push({
-          numero: n.numero, serie: n.serie, tipo: n.tipo, data: n.data_emissao,
-          situacao: n.descricao_situacao, id_situacao: n.situacao,
-        });
-      });
-      pagina++;
-    } while (pagina <= totalPaginas && pagina <= MAX_PAGES);
-    return res.status(200).json({ ok: true, filial: f.nome, dataInicial, dataFinal, paginasLidas: pagina - 1, totalPaginas, total: notas.length, notas });
-  }
-
   const sql = neon(process.env.DATABASE_URL);
 
   // Opcional: além de inserir/atualizar, remove do Neon qualquer nota da janela que não
