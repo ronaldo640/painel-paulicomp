@@ -240,12 +240,14 @@ export default async function handler(req, res) {
     let pagina = 1;
     let totalPaginas = 1;
     do {
-      const params = new URLSearchParams({ token: process.env[f.env], formato: 'json', pagina: String(pagina), dataInicial, dataFinal });
+      const params = new URLSearchParams({ token: process.env[f.env], formato: 'json', pagina: String(pagina) });
+      if (!query.numero) { params.set('dataInicial', dataInicial); params.set('dataFinal', dataFinal); }
+      for (const k of ['numero', 'situacao', 'tipoNota', 'serie']) if (query[k]) params.set(k, String(query[k]));
       const resp = await fetch(`${TINY_BASE_URL}?${params.toString()}`);
       const json = await resp.json();
       const retorno = json.retorno || {};
       if (String(retorno.status).toLowerCase() === 'erro') {
-        return res.status(200).json({ ok: false, error: (retorno.erros || []).map(e => e.erro).join('; ') });
+        return res.status(200).json({ ok: false, error: (retorno.erros || []).map(e => e.erro).join('; '), codigo: (retorno.erros || []).map(e => e.codigo_erro || '').join(',') });
       }
       totalPaginas = Number(retorno.numero_paginas || 1);
       (retorno.notas_fiscais || []).forEach(item => {
