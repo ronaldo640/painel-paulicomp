@@ -13,6 +13,7 @@
   "rewrites": [
     { "source": "/limpeza", "destination": "/limpeza.html" },
     { "source": "/limpeza/motorista", "destination": "/limpeza-motorista.html" },
+    { "source": "/limpeza/app", "destination": "/limpeza-app.html" },
     { "source": "/api/caixa-auto-teste", "destination": "/api/caixa-auto-executar?modo=teste" }
   ],
   "crons": [

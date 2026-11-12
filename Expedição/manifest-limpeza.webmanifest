@@ -1,0 +1,18 @@
+{
+  "id": "/limpeza/app",
+  "name": "Fiorino — Limpeza e Checklist",
+  "short_name": "Fiorino",
+  "description": "Checklist de início do dia e registro de limpeza da Fiorino (Paulicomp, Unidade Bariri).",
+  "lang": "pt-BR",
+  "start_url": "/limpeza/app",
+  "scope": "/limpeza/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
