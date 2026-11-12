@@ -9,6 +9,7 @@
 // ver as chaves de API.
 
 import { neon } from '@neondatabase/serverless';
+import { rmaHandler } from '../lib/rma-api.js';
 
 const TINY_BASE_URL = "https://api.tiny.com.br/api2/notas.fiscais.pesquisa.php";
 const MAX_PAGES = 60; // proteção contra loops longos / consumo excessivo de cota da API por filial
@@ -203,6 +204,10 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  // Indicador de devoluções (RMA): /api/rma chega aqui por rewrite do vercel.json.
+  // Mora nesta função pra não gastar uma das 12 do plano Hobby (e já tem 60 s de limite).
+  if (req.query && req.query.modulo === 'rma') return rmaHandler(req, res);
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ ok: false, error: 'Método não permitido.' });
   }

@@ -14,7 +14,9 @@
     { "source": "/limpeza", "destination": "/limpeza.html" },
     { "source": "/limpeza/motorista", "destination": "/limpeza-motorista.html" },
     { "source": "/limpeza/app", "destination": "/limpeza-motorista.html" },
-    { "source": "/api/caixa-auto-teste", "destination": "/api/caixa-auto-executar?modo=teste" }
+    { "source": "/api/caixa-auto-teste", "destination": "/api/caixa-auto-executar?modo=teste" },
+    { "source": "/rma", "destination": "/rma.html" },
+    { "source": "/api/rma", "destination": "/api/tiny-sync?modulo=rma" }
   ],
   "crons": [
     { "path": "/api/tiny-sync", "schedule": "0 6 * * *" },

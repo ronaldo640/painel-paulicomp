@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Devoluções RMA | Qualidade</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/limpeza.css">
+<style>
+  /* Base (cores, cartões, tabelas) vem de limpeza.css, o mesmo tema escuro do painel. */
+  .wrap { max-width: 1240px; }
+  .filtros { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .filtros .field select, .filtros .field input[type="text"] { width: auto; min-width: 9rem; padding: 8px 10px; }
+  .filtros .seg button { padding: 8px 12px; font-size: .88rem; }
+  .chk { display: flex; align-items: center; gap: 8px; font-size: .88rem; color: var(--muted); padding: 8px 0; cursor: pointer; }
+  .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 12px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+  .kpi b { font-size: 1.7rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .kpi span { font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-weight: 600; }
+  .kpi small { font-size: .8rem; color: var(--muted); }
+
+  .cols2 { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 18px; }
+  @media (max-width: 1060px) { .cols2 { grid-template-columns: 1fr; } }
+  .cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+
+  .barras { display: flex; flex-direction: column; gap: 4px; }
+  .barra-linha { display: grid; grid-template-columns: minmax(0, 11rem) minmax(0, 1fr) 4.6rem; gap: 10px; align-items: center;
+    padding: 6px 8px; margin: 0 -8px; border-radius: 8px; border: 1px solid transparent; background: none; color: inherit; text-align: left; cursor: pointer; width: calc(100% + 16px); }
+  .barra-linha:hover { background: var(--panel2); }
+  .barra-linha[aria-pressed="true"] { border-color: var(--accent); background: rgba(59, 130, 246, .12); }
+  .barra-linha .nome { font-size: .88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .barra-linha .trilho { height: 12px; border-radius: 999px; background: var(--panel2); overflow: hidden; }
+  .barra-linha .trilho i { display: block; height: 100%; border-radius: 999px; }
+  .barra-linha .val { text-align: right; font-variant-numeric: tabular-nums; font-size: .88rem; }
+  .barra-linha .val small { color: var(--muted); }
+  .barra-linha.fraco { opacity: .45; }
+
+  .legenda { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .8rem; color: var(--muted); }
+  .legenda i, .ponto { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+
+  .empilhada { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--panel2); min-width: 90px; }
+  .empilhada i { display: block; height: 100%; }
+  tr.clic { cursor: pointer; }
+  tr.clic:hover td { background: var(--panel2); }
+  tr.sel td { background: rgba(59, 130, 246, .12); }
+  td .sku { font-weight: 700; font-size: .85rem; white-space: nowrap; }
+  td .prod { font-size: .85rem; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  th.r, td.r { padding-left: 12px; }
+  th + th, td + td { padding-left: 4px; }
+  td.peq, th.peq { font-size: .85rem; }
+
+  .meses { display: flex; align-items: flex-end; gap: 8px; height: 190px; padding-top: 8px; }
+  .mes { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; }
+  .mes .col { flex: 1; width: 100%; max-width: 46px; display: flex; flex-direction: column-reverse; border-radius: 6px 6px 0 0; overflow: hidden; }
+  .mes .col i { display: block; width: 100%; }
+  .mes .tot { font-size: .78rem; font-variant-numeric: tabular-nums; font-weight: 700; }
+  .mes .rot { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+
+  .mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 18px; }
+  .mini ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: .88rem; }
+  .mini li { display: flex; justify-content: space-between; gap: 10px; }
+  .mini li b { font-variant-numeric: tabular-nums; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; background: rgba(59, 130, 246, .16); color: var(--accent-text); border: 1px solid var(--accent);
+    border-radius: 999px; padding: 4px 6px 4px 12px; font-size: .82rem; font-weight: 600; }
+  .chip button { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 4px; }
+  .pill.g { color: #0f172a; }
+  .motivo-txt { font-size: .85rem; max-width: 26rem; }
+  .obs { display: block; font-size: .78rem; color: var(--muted); margin-top: 3px; }
+  .tiny-ok { color: var(--ok); font-weight: 700; }
+  .tiny-nao { color: var(--warn); font-weight: 700; }
+  .rodape { font-size: .8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 18px; justify-content: space-between; }
+  details summary { cursor: pointer; color: var(--accent-text); font-size: .88rem; }
+  .grupos-def { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 10px; margin-top: 10px; }
+  .grupos-def div { font-size: .85rem; background: var(--panel2); border-radius: 8px; padding: 10px 12px; }
+  .grupos-def b { display: block; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="marca"><img src="/logo-empresa.png" alt="Paulicomp"><span>Qualidade · Filial SP</span></div>
+  <header class="top">
+    <div>
+      <div class="kicker">Devoluções e garantias (RMA)</div>
+      <h1>Produtos devolvidos e motivos</h1>
+    </div>
+    <button type="button" class="btn sec" id="b-atualizar">Atualizar</button>
+  </header>
+
+  <div class="aviso bad" id="erro" hidden></div>
+  <p class="msg ok" id="carregando" role="status">Lendo a planilha de devoluções…</p>
+
+  <div id="conteudo" hidden style="display:flex;flex-direction:column;gap:18px">
+    <section class="filtros" aria-label="Filtros">
+      <div class="field"><label for="f-mes">Mês</label><select id="f-mes"></select></div>
+      <div class="field"><label for="f-canal">Canal</label><select id="f-canal"></select></div>
+      <div class="field">
+        <span class="lbl">Visão</span>
+        <div class="seg" role="group" aria-label="Visão">
+          <button type="button" data-visao="todas" aria-pressed="true">Todas</button>
+          <button type="button" data-visao="produto" aria-pressed="false">Produto e anúncio</button>
+          <button type="button" data-visao="cliente" aria-pressed="false">Cliente e logística</button>
+        </div>
+      </div>
+      <div class="field"><label for="f-busca">SKU ou produto</label><input type="text" id="f-busca" placeholder="Buscar…" autocomplete="off"></div>
+      <label class="chk"><input type="checkbox" id="f-full"> Incluir retornos do Full</label>
+    </section>
+    <div class="chips" id="chips" hidden></div>
+
+    <section class="kpis" id="kpis" aria-live="polite"></section>
+
+    <div class="cols2">
+      <section class="card">
+        <div class="cab"><h2>Motivos</h2><span class="muted" style="font-size:.8rem">clique para filtrar</span></div>
+        <div class="barras" id="grupos"></div>
+        <div class="legenda" id="legenda"></div>
+      </section>
+      <section class="card">
+        <div class="cab"><h2>Produtos mais devolvidos</h2><button type="button" class="btn ghost" id="b-todos-prod">Ver todos</button></div>
+        <div class="rolagem">
+          <table>
+            <thead><tr><th>Produto</th><th class="r">Devol.</th><th class="r">Peças</th><th>Motivos</th><th>Principal motivo</th></tr></thead>
+            <tbody id="produtos"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="cab"><h2>Devoluções por mês</h2><span class="muted" style="font-size:.8rem">pela aba do mês na planilha</span></div>
+      <div class="meses" id="meses"></div>
+    </section>
+
+    <section class="card">
+      <h2>Responsabilidade, destino e canal</h2>
+      <div class="mini">
+        <div><div class="lbl">Responsável (coluna "Defeito")</div><ul id="m-resp"></ul></div>
+        <div><div class="lbl">Destino do produto</div><ul id="m-dest"></ul></div>
+        <div><div class="lbl">Canal</div><ul id="m-canal"></ul></div>
+        <div><div class="lbl">Motivo marcado na planilha</div><ul id="m-plan"></ul></div>
+      </div>
+      <p class="nota" id="divergencias"></p>
+    </section>
+
+    <section class="card">
+      <div class="cab"><h2>Conferência com o Tiny SP</h2><span class="muted" id="tiny-status" style="font-size:.85rem"></span></div>
+      <div id="tiny"></div>
+    </section>
+
+    <section class="card">
+      <div class="cab"><h2>Devoluções</h2><span class="muted" id="det-cont" style="font-size:.85rem"></span></div>
+      <div class="rolagem">
+        <table>
+          <thead><tr><th>Entrada</th><th>Produto</th><th>Motivo informado</th><th>Grupo</th><th class="r">Qtd</th><th>Resp.</th><th>Destino</th><th>NF entrada</th></tr></thead>
+          <tbody id="detalhe"></tbody>
+        </table>
+      </div>
+      <button type="button" class="btn sec" id="b-mais" hidden>Mostrar mais</button>
+    </section>
+
+    <section class="card">
+      <details>
+        <summary>Como os motivos são agrupados</summary>
+        <p class="nota" style="margin-top:10px">O texto da coluna "Motivo abertura de devolução" é lido e encaixado em um grupo por palavras-chave. A planilha não é alterada: a coluna "MOTIVO" (Arrependimento/Defeito) continua aparecendo como está.</p>
+        <div class="grupos-def" id="grupos-def"></div>
+      </details>
+    </section>
+
+    <div class="rodape" id="rodape"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const VISOES = { produto: ['produto', 'anuncio'], cliente: ['cliente', 'logistica'] };
+  const POR_PAGINA = 50;
+
+  let dados = null;      // resposta de /api/rma
+  let tiny = null;       // { estado: 'carregando'|'ok'|'erro', notas, erro }
+  let grupoPorId = {}, catPorId = {};
+  const f = { mes: 'todos', canal: 'todos', visao: 'todas', full: false, busca: '', grupo: null, sku: null };
+  let mostrarTodosProd = false, limiteDet = POR_PAGINA;
+
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmt = n => Number(n || 0).toLocaleString('pt-BR');
+  const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0) + '%';
+  const dataBr = iso => (iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(2, 4) : '–');
+  const corGrupo = id => catPorId[grupoPorId[id]?.categoria]?.cor || '#94a3b8';
+  const catDe = r => grupoPorId[r.grupo]?.categoria;
+  // Mês = aba da planilha (mês em que o RMA foi tratado). A "Data de Entrada" é a
+  // data da nota e às vezes cai no mês anterior, por isso não é usada aqui.
+  const mesDe = r => r.mes || (r.data ? Number(r.data.slice(5, 7)) : null);
+
+  function contar(lista, chave, peso) {
+    const m = new Map();
+    for (const r of lista) {
+      const k = typeof chave === 'function' ? chave(r) : r[chave];
+      m.set(k, (m.get(k) || 0) + (peso ? peso(r) : 1));
+    }
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }
+
+  // Filtros de página (mês, canal, visão, Full, busca); grupo e SKU entram à parte,
+  // para o quadro de motivos continuar mostrando todos os grupos ao clicar em um.
+  function base() {
+    const busca = f.busca.trim().toLowerCase();
+    return dados.registros.filter(r => {
+      if (!f.full && r.grupo === 'retorno_full') return false;
+      if (f.mes !== 'todos' && String(mesDe(r)) !== f.mes) return false;
+      if (f.canal !== 'todos' && r.canal !== f.canal) return false;
+      if (f.visao !== 'todas' && !VISOES[f.visao].includes(catDe(r))) return false;
+      if (busca && !(r.sku.toLowerCase().includes(busca) || r.produto.toLowerCase().includes(busca))) return false;
+      return true;
+    });
+  }
+
+  function render() {
+    const b = base();
+    const comGrupo = f.grupo ? b.filter(r => r.grupo === f.grupo) : b;
+    const comSku = f.sku ? b.filter(r => r.sku === f.sku) : b;
+    const sel = f.sku ? comGrupo.filter(r => r.sku === f.sku) : comGrupo;
+    renderChips();
+    renderKpis(sel);
+    renderGrupos(comSku);
+    renderProdutos(comGrupo);
+    renderMeses(sel);
+    renderMini(sel);
+    renderTiny(sel);
+    renderDetalhe(sel);
+  }
+
+  function renderChips() {
+    const chips = [];
+    if (f.grupo) chips.push(['grupo', 'Motivo: ' + grupoPorId[f.grupo].nome]);
+    if (f.sku) chips.push(['sku', 'SKU: ' + f.sku]);
+    $('chips').hidden = !chips.length;
+    $('chips').innerHTML = chips.map(([k, t]) => `<span class="chip">${esc(t)}<button type="button" data-tira="${k}" aria-label="Remover filtro">×</button></span>`).join('');
+  }
+
+  function renderKpis(lista) {
+    const pecas = lista.reduce((s, r) => s + r.quantidade, 0);
+    const skus = new Set(lista.map(r => r.sku)).size;
+    const prod = lista.filter(r => catDe(r) === 'produto').length;
+    const anun = lista.filter(r => catDe(r) === 'anuncio').length;
+    const sucata = lista.filter(r => r.destino === 'Sucata').length;
+    const estoque = lista.filter(r => r.destino === 'Voltou ao estoque').length;
+    const k = (v, t, s) => `<div class="kpi"><span>${t}</span><b>${v}</b>${s ? `<small>${s}</small>` : ''}</div>`;
+    $('kpis').innerHTML =
+      k(fmt(lista.length), 'Devoluções', `${fmt(pecas)} peças`) +
+      k(fmt(skus), 'Produtos (SKUs)', 'com ao menos 1 devolução') +
+      k(pct(prod, lista.length), 'Problema no produto', `${fmt(prod)} por defeito ou avaria`) +
+      k(pct(anun, lista.length), 'Anúncio / compatib.', `${fmt(anun)} divergente ou incompatível`) +
+      k(pct(estoque, lista.length), 'Voltou ao estoque', `${fmt(sucata)} foram para sucata`);
+  }
+
+  function renderGrupos(lista) {
+    const cont = new Map(contar(lista, 'grupo'));
+    const total = lista.length;
+    const max = Math.max(1, ...cont.values());
+    const linhas = dados.grupos
+      .filter(g => cont.get(g.id) || g.id === f.grupo)
+      .sort((a, b) => (cont.get(b.id) || 0) - (cont.get(a.id) || 0));
+    $('grupos').innerHTML = linhas.length ? linhas.map(g => {
+      const n = cont.get(g.id) || 0;
+      const fraco = f.grupo && f.grupo !== g.id ? ' fraco' : '';
+      return `<button type="button" class="barra-linha${fraco}" data-grupo="${g.id}" aria-pressed="${f.grupo === g.id}" title="${esc(g.descricao)}">
+        <span class="nome">${esc(g.nome)}</span>
+        <span class="trilho"><i style="width:${(n / max) * 100}%;background:${corGrupo(g.id)}"></i></span>
+        <span class="val">${fmt(n)} <small>${pct(n, total)}</small></span></button>`;
+    }).join('') : '<p class="vazio">Nenhuma devolução com esses filtros.</p>';
+    const usadas = new Set(linhas.map(g => g.categoria));
+    $('legenda').innerHTML = dados.categorias.filter(c => usadas.has(c.id)).map(c => `<span><i style="background:${c.cor}"></i>${esc(c.nome)}</span>`).join('');
+  }
+
+  function renderProdutos(lista) {
+    const porSku = new Map();
+    for (const r of lista) {
+      let p = porSku.get(r.sku);
+      if (!p) porSku.set(r.sku, p = { sku: r.sku, produto: r.produto, n: 0, pecas: 0, cats: {}, grupos: {} });
+      p.n++; p.pecas += r.quantidade;
+      const c = catDe(r);
+      p.cats[c] = (p.cats[c] || 0) + 1;
+      p.grupos[r.grupo] = (p.grupos[r.grupo] || 0) + 1;
+    }
+    const todos = [...porSku.values()].sort((a, b) => b.n - a.n || b.pecas - a.pecas);
+    const mostra = mostrarTodosProd ? todos : todos.slice(0, 15);
+    $('b-todos-prod').hidden = todos.length <= 15;
+    $('b-todos-prod').textContent = mostrarTodosProd ? 'Só os 15 primeiros' : `Ver todos (${todos.length})`;
+    $('produtos').innerHTML = mostra.length ? mostra.map(p => {
+      const barra = dados.categorias.filter(c => p.cats[c.id]).map(c => `<i style="width:${(p.cats[c.id] / p.n) * 100}%;background:${c.cor}" title="${esc(c.nome)}: ${p.cats[c.id]}"></i>`).join('');
+      const [gTop, nTop] = Object.entries(p.grupos).sort((a, b) => b[1] - a[1])[0];
+      return `<tr class="clic${f.sku === p.sku ? ' sel' : ''}" data-sku="${esc(p.sku)}" tabindex="0">
+        <td><div class="sku">${esc(p.sku)}</div><div class="prod">${esc(p.produto)}</div></td>
+        <td class="r num"><b>${fmt(p.n)}</b></td><td class="r num">${fmt(p.pecas)}</td>
+        <td><div class="empilhada">${barra}</div></td>
+        <td class="peq"><span class="ponto" style="background:${corGrupo(gTop)}"></span>${esc(grupoPorId[gTop].nome)} <span class="muted">(${nTop})</span></td></tr>`;
+    }).join('') : '<tr><td colspan="5" class="vazio">Nenhum produto com esses filtros.</td></tr>';
+  }
+
+  function renderMeses(lista) {
+    const porMes = {};
+    for (const r of lista) {
+      const m = mesDe(r);
+      if (!m) continue;
+      (porMes[m] = porMes[m] || {})[catDe(r)] = (porMes[m][catDe(r)] || 0) + 1;
+    }
+    const meses = Object.keys(porMes).map(Number).sort((a, b) => a - b);
+    const tot = m => Object.values(porMes[m]).reduce((s, v) => s + v, 0);
+    const max = Math.max(1, ...meses.map(tot));
+    $('meses').innerHTML = meses.length ? meses.map(m => {
+      const t = tot(m);
+      const fatias = dados.categorias.filter(c => porMes[m][c.id]).map(c => `<i style="height:${(porMes[m][c.id] / max) * 100}%;background:${c.cor}" title="${esc(c.nome)}: ${porMes[m][c.id]}"></i>`).join('');
+      return `<div class="mes"><span class="tot">${t}</span><div class="col">${fatias}</div><span class="rot">${MESES[m - 1]}</span></div>`;
+    }).join('') : '<p class="vazio">Sem dados no período.</p>';
+  }
+
+  function lista(el, pares, total) {
+    $(el).innerHTML = pares.map(([k, v]) => `<li><span>${esc(k)}</span><b>${fmt(v)} <span class="muted" style="font-weight:500">${pct(v, total)}</span></b></li>`).join('') || '<li class="muted">–</li>';
+  }
+
+  function renderMini(l) {
+    lista('m-resp', contar(l, 'responsavel'), l.length);
+    lista('m-dest', contar(l, 'destino'), l.length);
+    lista('m-canal', contar(l, 'canal'), l.length);
+    lista('m-plan', contar(l, r => r.motivoPlanilha.charAt(0) + r.motivoPlanilha.slice(1).toLowerCase()), l.length);
+    // Onde o texto do motivo e a coluna MOTIVO da planilha discordam.
+    const arrepComProblema = l.filter(r => r.motivoPlanilha === 'ARREPENDIMENTO' && catDe(r) === 'produto').length;
+    const defeitoSemProblema = l.filter(r => r.motivoPlanilha === 'DEFEITO' && ['cliente', 'logistica'].includes(catDe(r))).length;
+    const partes = [];
+    if (arrepComProblema) partes.push(`<b>${arrepComProblema}</b> marcadas como Arrependimento na planilha, mas o texto fala em defeito ou avaria`);
+    if (defeitoSemProblema) partes.push(`<b>${defeitoSemProblema}</b> marcadas como Defeito, mas o texto fala em arrependimento, cancelamento ou entrega`);
+    $('divergencias').innerHTML = partes.length ? 'Para revisar: ' + partes.join('; ') + '.' : '';
+  }
+
+  function renderTiny(l) {
+    const st = $('tiny-status'), el = $('tiny');
+    if (!tiny || tiny.estado === 'carregando') { st.textContent = 'consultando notas de entrada…'; el.innerHTML = ''; return; }
+    if (tiny.estado === 'erro') { st.textContent = ''; el.innerHTML = `<div class="aviso">Não consegui consultar o Tiny: ${esc(tiny.erro)}</div>`; return; }
+    const doTiny = new Map(tiny.notas.map(n => [n.numero, n]));
+    const comNf = l.filter(r => r.nfEntrada);
+    const nfsPlanilha = new Set(comNf.map(r => r.nfEntrada));
+    const achadas = [...nfsPlanilha].filter(n => doTiny.has(n));
+    const valor = achadas.reduce((s, n) => s + doTiny.get(n).valor, 0);
+    const semNf = l.length - comNf.length;
+    const faltamNoTiny = [...nfsPlanilha].filter(n => !doTiny.has(n));
+    // Notas de entrada do Tiny que a planilha (inteira, sem filtro) não tem, dentro do período filtrado.
+    const todasNfsPlanilha = new Set(dados.registros.map(r => r.nfEntrada).filter(Boolean));
+    const noPeriodo = n => f.mes === 'todos' || (n.data && Number(n.data.slice(5, 7)) === Number(f.mes));
+    const foraPlanilha = tiny.notas.filter(n => !todasNfsPlanilha.has(n.numero) && noPeriodo(n));
+    const pf = foraPlanilha.filter(n => n.pessoa === 'PF');
+    st.textContent = `${tiny.notas.length} notas de entrada no Tiny de ${dataBr(tiny.ini)} a ${dataBr(tiny.fim)}`;
+    const nfLista = arr => arr.slice(0, 40).map(n => typeof n === 'string' ? n : `${n.numero} (${dataBr(n.data)})`).join(', ') + (arr.length > 40 ? '…' : '');
+    el.innerHTML = `<div class="mini">
+      <div><div class="lbl">NFs da planilha achadas no Tiny</div><p style="margin:6px 0 0;font-size:1.3rem;font-weight:800">${fmt(achadas.length)} de ${fmt(nfsPlanilha.size)}</p>
+        <p class="nota">${semNf ? `${fmt(semNf)} devoluções sem NF de entrada na planilha.` : 'Todas as devoluções têm NF de entrada.'}</p></div>
+      <div><div class="lbl">Valor das NFs de entrada</div><p style="margin:6px 0 0;font-size:1.3rem;font-weight:800">${valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+        <p class="nota">Soma do valor total das notas encontradas no Tiny.</p></div>
+      <div><div class="lbl">No Tiny, fora da planilha</div><p style="margin:6px 0 0;font-size:1.3rem;font-weight:800">${fmt(pf.length)} <span class="muted" style="font-size:.85rem;font-weight:500">de pessoa física</span></p>
+        <p class="nota">Notas de entrada de CPF que não aparecem na planilha: podem ser devoluções não lançadas. Outras ${fmt(foraPlanilha.length - pf.length)} são de CNPJ (podem ser compras).</p></div>
+    </div>
+    ${faltamNoTiny.length ? `<details style="margin-top:12px"><summary>${fmt(faltamNoTiny.length)} NFs da planilha não achadas no Tiny</summary><p class="nota" style="margin-top:6px">${esc(nfLista(faltamNoTiny))}</p></details>` : ''}
+    ${pf.length ? `<details style="margin-top:8px"><summary>Ver as ${fmt(pf.length)} notas de CPF fora da planilha</summary><p class="nota" style="margin-top:6px">${esc(nfLista(pf))}</p></details>` : ''}
+    ${tiny.incompleto ? '<p class="aviso" style="margin-top:10px">O período tem mais notas do que a consulta busca de uma vez; a conferência pode estar incompleta.</p>' : ''}`;
+  }
+
+  function renderDetalhe(l) {
+    const ord = [...l].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
+    const doTiny = tiny && tiny.estado === 'ok' ? new Set(tiny.notas.map(n => n.numero)) : null;
+    $('det-cont').textContent = `${fmt(l.length)} devoluções`;
+    $('detalhe').innerHTML = ord.slice(0, limiteDet).map(r => {
+      const g = grupoPorId[r.grupo];
+      const obs = [r.observacoes, r.laudo && 'Laudo: ' + r.laudo].filter(Boolean).join(' · ');
+      const nf = r.nfEntrada ? esc(r.nfEntrada) + (doTiny ? (doTiny.has(r.nfEntrada) ? ' <span class="tiny-ok" title="Achada no Tiny">✓</span>' : ' <span class="tiny-nao" title="Não achada no Tiny">?</span>') : '') : '<span class="muted">–</span>';
+      return `<tr>
+        <td class="peq num">${dataBr(r.data)}</td>
+        <td><div class="sku">${esc(r.sku)}</div><div class="prod">${esc(r.produto)}</div></td>
+        <td class="motivo-txt">${esc(r.motivoTexto) || '<span class="muted">(vazio)</span>'}${obs ? `<span class="obs">${esc(obs)}</span>` : ''}</td>
+        <td><span class="pill g" style="background:${corGrupo(r.grupo)}">${esc(g.nome)}</span></td>
+        <td class="r num">${fmt(r.quantidade)}</td>
+        <td class="peq">${esc(r.responsavel)}</td>
+        <td class="peq">${esc(r.destino)}</td>
+        <td class="peq num">${nf}</td></tr>`;
+    }).join('') || '<tr><td colspan="8" class="vazio">Nenhuma devolução com esses filtros.</td></tr>';
+    $('b-mais').hidden = ord.length <= limiteDet;
+  }
+
+  function montarFiltros() {
+    const meses = [...new Set(dados.registros.map(mesDe).filter(Boolean))].sort((a, b) => a - b);
+    $('f-mes').innerHTML = '<option value="todos">Todos</option>' + meses.map(m => `<option value="${m}">${MESES[m - 1]}</option>`).join('');
+    const canais = contar(dados.registros, 'canal').map(([c]) => c);
+    $('f-canal').innerHTML = '<option value="todos">Todos</option>' + canais.map(c => `<option>${esc(c)}</option>`).join('');
+    $('f-mes').value = f.mes; $('f-canal').value = f.canal;
+    $('grupos-def').innerHTML = dados.grupos.map(g => `<div><b><span class="ponto" style="background:${corGrupo(g.id)}"></span>${esc(g.nome)}</b>${esc(g.descricao)} <span class="muted">· ${esc(catPorId[g.categoria].nome)}</span></div>`).join('');
+    const fonte = dados.fonte || {};
+    const quando = s => (s ? new Date(s).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '–');
+    $('rodape').innerHTML = `<span>Fonte: ${esc(fonte.nome || 'planilha de devoluções')} (só leitura) · alterada em ${quando(fonte.modificadoEm)}</span><span>Lida em ${quando(fonte.lidoEm)}</span>`;
+  }
+
+  function mostrar(resp) {
+    dados = resp;
+    grupoPorId = Object.fromEntries(resp.grupos.map(g => [g.id, g]));
+    catPorId = Object.fromEntries(resp.categorias.map(c => [c.id, c]));
+    $('carregando').hidden = true;
+    $('erro').hidden = !(resp.avisos && resp.avisos.length);
+    if (resp.avisos && resp.avisos.length) { $('erro').className = 'aviso'; $('erro').textContent = resp.avisos.join(' '); }
+    $('conteudo').hidden = false;
+    montarFiltros();
+    render();
+  }
+
+  async function carregarTiny() {
+    // Período = ano da planilha (o mais comum nas datas) desde novembro do ano anterior,
+    // para deixar de fora datas digitadas com o ano errado.
+    const todas = dados.registros.map(r => r.data).filter(Boolean);
+    const anos = contar(todas, d => d.slice(0, 4));
+    const ano = anos.length ? Number(anos[0][0]) : new Date().getFullYear();
+    const datas = todas.filter(d => d >= `${ano - 1}-11-01` && d <= `${ano}-12-31`).sort();
+    if (!datas.length) { tiny = { estado: 'erro', erro: 'a planilha não tem datas de entrada.' }; return render(); }
+    tiny = { estado: 'carregando' }; render();
+    try {
+      const r = await fetch(`/api/rma?parte=tiny&ini=${datas[0]}&fim=${datas[datas.length - 1]}`);
+      const j = await r.json();
+      tiny = j.ok ? { estado: 'ok', ...j } : { estado: 'erro', erro: j.error };
+    } catch (e) { tiny = { estado: 'erro', erro: e.message }; }
+    render();
+  }
+
+  async function carregar(forcar) {
+    $('carregando').hidden = false;
+    $('carregando').textContent = 'Lendo a planilha de devoluções…';
+    try {
+      const r = await fetch('/api/rma' + (forcar ? `?t=${Date.now()}` : ''));
+      const j = await r.json();
+      if (!j.ok) throw Object.assign(new Error(j.error || 'Erro ao ler a planilha.'), { configurar: j.configurar });
+      mostrar(j);
+      carregarTiny();
+    } catch (e) {
+      $('carregando').hidden = true;
+      $('erro').hidden = false; $('erro').className = 'aviso bad';
+      $('erro').textContent = e.configurar
+        ? 'O indicador ainda não está ligado à planilha: falta configurar a conta de serviço do Google na Vercel (veja docs/RMA.md).'
+        : 'Não consegui ler a planilha: ' + e.message;
+    }
+  }
+
+  // Eventos
+  $('f-mes').addEventListener('change', e => { f.mes = e.target.value; limiteDet = POR_PAGINA; render(); });
+  $('f-canal').addEventListener('change', e => { f.canal = e.target.value; limiteDet = POR_PAGINA; render(); });
+  $('f-full').addEventListener('change', e => { f.full = e.target.checked; render(); });
+  let tBusca;
+  $('f-busca').addEventListener('input', e => { clearTimeout(tBusca); tBusca = setTimeout(() => { f.busca = e.target.value; limiteDet = POR_PAGINA; render(); }, 200); });
+  document.querySelectorAll('[data-visao]').forEach(b => b.addEventListener('click', () => {
+    f.visao = b.dataset.visao;
+    document.querySelectorAll('[data-visao]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    if (f.grupo && f.visao !== 'todas' && !VISOES[f.visao].includes(grupoPorId[f.grupo].categoria)) f.grupo = null;
+    render();
+  }));
+  $('grupos').addEventListener('click', e => {
+    const b = e.target.closest('[data-grupo]'); if (!b) return;
+    f.grupo = f.grupo === b.dataset.grupo ? null : b.dataset.grupo; limiteDet = POR_PAGINA; render();
+  });
+  const escolheSku = tr => { f.sku = f.sku === tr.dataset.sku ? null : tr.dataset.sku; limiteDet = POR_PAGINA; render(); };
+  $('produtos').addEventListener('click', e => { const tr = e.target.closest('[data-sku]'); if (tr) escolheSku(tr); });
+  $('produtos').addEventListener('keydown', e => { const tr = e.target.closest('[data-sku]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); escolheSku(tr); } });
+  $('chips').addEventListener('click', e => { const b = e.target.closest('[data-tira]'); if (!b) return; f[b.dataset.tira] = null; render(); });
+  $('b-todos-prod').addEventListener('click', () => { mostrarTodosProd = !mostrarTodosProd; render(); });
+  $('b-mais').addEventListener('click', () => { limiteDet += POR_PAGINA; render(); });
+  $('b-atualizar').addEventListener('click', () => carregar(true));
+
+  carregar(false);
+})();
+</script>
+</body>
+</html>
