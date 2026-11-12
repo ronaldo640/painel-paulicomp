@@ -22,7 +22,7 @@ const inflateRaw = async bytes => new Uint8Array(await inflateRawAsync(bytes));
 const PLANILHA_PADRAO = '1VjhmHb5Y7Czs5EXb04r2t8TDsp90ME9e';
 
 const TINY_URL = 'https://api.tiny.com.br/api2/notas.fiscais.pesquisa.php';
-const TINY_MAX_PAGINAS = 30;
+const TINY_MAX_PAGINAS = 30; // com 1,1 s entre páginas, 30 páginas ainda cabem nos 60 s da função
 
 function dataBr(iso) {
   const [a, m, d] = String(iso).split('-');
@@ -72,6 +72,11 @@ async function parteTiny(req, res) {
       });
     }
     pagina++;
+    // A API do Tiny SP bloqueia por alguns minutos quem faz muitos acessos seguidos
+    // (aconteceu em 12/11/2026), e o bloqueio também pararia a sincronização das
+    // Caixas. Por isso as páginas vão espaçadas: ~16 páginas levam ~20 s, dentro
+    // dos 60 s da função, e o resultado fica 1 h em cache.
+    if (pagina <= totalPaginas && pagina <= TINY_MAX_PAGINAS) await new Promise(r => setTimeout(r, 1100));
   } while (pagina <= totalPaginas && pagina <= TINY_MAX_PAGINAS);
 
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');

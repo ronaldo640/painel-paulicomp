@@ -363,7 +363,13 @@
   function renderTiny(l) {
     const st = $('tiny-status'), el = $('tiny');
     if (!tiny || tiny.estado === 'carregando') { st.textContent = 'consultando notas de entrada…'; el.innerHTML = ''; return; }
-    if (tiny.estado === 'erro') { st.textContent = ''; el.innerHTML = `<div class="aviso">Não consegui consultar o Tiny: ${esc(tiny.erro)}</div>`; return; }
+    if (tiny.estado === 'erro') {
+      st.textContent = '';
+      el.innerHTML = /bloquead|excedido/i.test(tiny.erro || '')
+        ? '<div class="aviso">O Tiny está limitando os acessos agora (muitas consultas seguidas). O resto da tela não é afetado: tente <b>Atualizar</b> em alguns minutos.</div>'
+        : `<div class="aviso">Não consegui consultar o Tiny: ${esc(tiny.erro)}</div>`;
+      return;
+    }
     const comNf = l.filter(r => r.nfEntrada);
     const nfsPlanilha = new Set(comNf.map(r => r.nfEntrada));
     const ligadas = new Map();
