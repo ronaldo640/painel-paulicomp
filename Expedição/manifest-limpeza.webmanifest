@@ -1,10 +1,10 @@
 {
-  "id": "/limpeza/app",
+  "id": "/limpeza/motorista",
   "name": "Fiorino — Limpeza e Checklist",
   "short_name": "Fiorino",
   "description": "Checklist de início do dia e registro de limpeza da Fiorino (Paulicomp, Unidade Bariri).",
   "lang": "pt-BR",
-  "start_url": "/limpeza/app",
+  "start_url": "/limpeza/motorista",
   "scope": "/limpeza/",
   "display": "standalone",
   "orientation": "portrait",

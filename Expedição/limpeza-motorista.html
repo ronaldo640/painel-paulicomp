@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title>Limpeza da Fiorino | Motorista</title>
+<link rel="manifest" href="/manifest-limpeza.webmanifest">
+<meta name="theme-color" content="#020617">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Fiorino">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="/limpeza.css">
 </head>
@@ -513,6 +520,12 @@
 
   carregar();
 })();
+</script>
+<script>
+// App instalável (PWA): só guarda a tela e os arquivos estáticos; a API nunca passa pelo cache (ver sw-limpeza.js).
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () { navigator.serviceWorker.register("/sw-limpeza.js", { scope: "/limpeza/" }).catch(function () {}); });
+}
 </script>
 </body>
 </html>
