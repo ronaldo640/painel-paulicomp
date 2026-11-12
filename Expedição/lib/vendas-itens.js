@@ -80,7 +80,7 @@ const esperar = ms => new Promise(r => setTimeout(r, ms));
 // Carga do histórico: lê as notas de venda de UM dia que ainda não estão em
 // venda_notas. Para no limite de notas ou de tempo; chamar de novo continua
 // de onde parou (devolve quantas faltam).
-export async function cargaHistorico(sql, token, filial, dataIso, buscarItensDaNota, { maxNotas = 40, pausaMs = 900, limiteMs = 48000 } = {}) {
+export async function cargaHistorico(sql, token, filial, dataIso, buscarItensDaNota, { maxNotas = 16, pausaMs = 2500, limiteMs = 46000 } = {}) {
   const inicio = Date.now();
   await garantirTabelas(sql);
   const notas = [];
