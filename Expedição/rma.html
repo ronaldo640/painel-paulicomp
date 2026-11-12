@@ -7,6 +7,8 @@
 <title>Devoluções RMA | Qualidade</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="/limpeza.css">
+<!-- html2pdf.js: mesmo usado nos relatórios do painel (index.html.html) -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
   /* Base (cores, cartões, tabelas) vem de limpeza.css, o mesmo tema escuro do painel. */
   .wrap { max-width: 1240px; }
@@ -88,7 +90,10 @@
       <div class="kicker">Devoluções e garantias (RMA)</div>
       <h1>Produtos devolvidos e motivos</h1>
     </div>
-    <button type="button" class="btn sec" id="b-atualizar">Atualizar</button>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button type="button" class="btn" id="b-relatorio" disabled title="Baixa um PDF com os filtros aplicados (Shift+clique abre uma prévia na tela)">Relatório PDF</button>
+      <button type="button" class="btn sec" id="b-atualizar">Atualizar</button>
+    </div>
   </header>
 
   <div class="aviso bad" id="erro" hidden></div>
@@ -338,45 +343,80 @@
     $('divergencias').innerHTML = partes.length ? 'Para revisar: ' + partes.join('; ') + '.' : '';
   }
 
+  // A planilha não tem a série da NF, e o mesmo número existe na série 1 e na
+  // série 2 (Full). Liga cada devolução à nota do Tiny com a data mais próxima.
+  let tinyPorNumero = null;
+  function notaDoTiny(r) {
+    if (!tiny || tiny.estado !== 'ok' || !r.nfEntrada) return null;
+    if (!tinyPorNumero) {
+      tinyPorNumero = new Map();
+      for (const n of tiny.notas) (tinyPorNumero.get(n.numero) || tinyPorNumero.set(n.numero, []).get(n.numero)).push(n);
+    }
+    const cands = tinyPorNumero.get(r.nfEntrada);
+    if (!cands) return null;
+    if (cands.length === 1 || !r.data) return cands[0];
+    const dist = n => (n.data ? Math.abs(new Date(n.data) - new Date(r.data)) : Infinity);
+    return [...cands].sort((a, b) => dist(a) - dist(b))[0];
+  }
+  const chaveNota = n => `${n.numero}-${n.serie}`;
+
   function renderTiny(l) {
     const st = $('tiny-status'), el = $('tiny');
     if (!tiny || tiny.estado === 'carregando') { st.textContent = 'consultando notas de entrada…'; el.innerHTML = ''; return; }
     if (tiny.estado === 'erro') { st.textContent = ''; el.innerHTML = `<div class="aviso">Não consegui consultar o Tiny: ${esc(tiny.erro)}</div>`; return; }
-    const doTiny = new Map(tiny.notas.map(n => [n.numero, n]));
     const comNf = l.filter(r => r.nfEntrada);
     const nfsPlanilha = new Set(comNf.map(r => r.nfEntrada));
-    const achadas = [...nfsPlanilha].filter(n => doTiny.has(n));
-    const valor = achadas.reduce((s, n) => s + doTiny.get(n).valor, 0);
+    const ligadas = new Map();
+    for (const r of comNf) { const n = notaDoTiny(r); if (n) ligadas.set(chaveNota(n), n); }
+    const achadas = new Set(comNf.filter(r => notaDoTiny(r)).map(r => r.nfEntrada));
+    const valor = [...ligadas.values()].reduce((s, n) => s + n.valor, 0);
     const semNf = l.length - comNf.length;
-    const faltamNoTiny = [...nfsPlanilha].filter(n => !doTiny.has(n));
-    // Notas de entrada do Tiny que a planilha (inteira, sem filtro) não tem, dentro do período filtrado.
-    const todasNfsPlanilha = new Set(dados.registros.map(r => r.nfEntrada).filter(Boolean));
-    const noPeriodo = n => f.mes === 'todos' || (n.data && Number(n.data.slice(5, 7)) === Number(f.mes));
-    const foraPlanilha = tiny.notas.filter(n => !todasNfsPlanilha.has(n.numero) && noPeriodo(n));
-    const pf = foraPlanilha.filter(n => n.pessoa === 'PF');
-    st.textContent = `${tiny.notas.length} notas de entrada no Tiny de ${dataBr(tiny.ini)} a ${dataBr(tiny.fim)}`;
-    const nfLista = arr => arr.slice(0, 40).map(n => typeof n === 'string' ? n : `${n.numero} (${dataBr(n.data)})`).join(', ') + (arr.length > 40 ? '…' : '');
+    const faltamNoTiny = [...nfsPlanilha].filter(n => !achadas.has(n));
+
+    // Notas de entrada do Tiny que nenhuma linha da planilha (inteira, sem filtro) usa,
+    // no período filtrado. Separadas pelo que a amostra no Tiny mostrou:
+    //  - série 1 (CPF ou CNPJ): devolução de venda emitida pela SP ("Devolução de mercadorias",
+    //    referenciando a NF de venda) -> deveria estar na planilha;
+    //  - série 2: devolução do Full, que volta para o depósito do Mercado Livre
+    //    e não passa pela SP -> não entra na planilha.
+    const usadas = new Set(dados.registros.map(notaDoTiny).filter(Boolean).map(chaveNota));
+    const anoRef = Number((tiny.fim || '').slice(0, 4)) || new Date().getFullYear();
+    const noPeriodo = n => f.mes === 'todos' || (n.data && Number(n.data.slice(0, 4)) === anoRef && Number(n.data.slice(5, 7)) === Number(f.mes));
+    const fora = tiny.notas.filter(n => !usadas.has(chaveNota(n)) && noPeriodo(n));
+    const foraS1pf = fora.filter(n => n.serie === '1');
+    const foraS2 = fora.filter(n => n.serie === '2');
+    const foraOutras = fora.filter(n => !foraS1pf.includes(n) && !foraS2.includes(n));
+    const brl = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const soma = arr => arr.reduce((s, n) => s + n.valor, 0);
+
+    st.textContent = `${tiny.notas.length} notas de entrada emitidas no Tiny de ${dataBr(tiny.ini)} a ${dataBr(tiny.fim)}`;
+    const nfLista = arr => arr.slice(0, 60).map(n => typeof n === 'string' ? n : `${n.numero} (${dataBr(n.data)}, ${brl(n.valor)})`).join(' · ') + (arr.length > 60 ? ' …' : '');
+    const grande = (v, sub) => `<p style="margin:6px 0 0;font-size:1.3rem;font-weight:800">${v}${sub ? ` <span class="muted" style="font-size:.85rem;font-weight:500">${sub}</span>` : ''}</p>`;
     el.innerHTML = `<div class="mini">
-      <div><div class="lbl">NFs da planilha achadas no Tiny</div><p style="margin:6px 0 0;font-size:1.3rem;font-weight:800">${fmt(achadas.length)} de ${fmt(nfsPlanilha.size)}</p>
+      <div><div class="lbl">NFs da planilha achadas no Tiny</div>${grande(`${fmt(achadas.size)} de ${fmt(nfsPlanilha.size)}`)}
         <p class="nota">${semNf ? `${fmt(semNf)} devoluções sem NF de entrada na planilha.` : 'Todas as devoluções têm NF de entrada.'}</p></div>
-      <div><div class="lbl">Valor das NFs de entrada</div><p style="margin:6px 0 0;font-size:1.3rem;font-weight:800">${valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
-        <p class="nota">Soma do valor total das notas encontradas no Tiny.</p></div>
-      <div><div class="lbl">No Tiny, fora da planilha</div><p style="margin:6px 0 0;font-size:1.3rem;font-weight:800">${fmt(pf.length)} <span class="muted" style="font-size:.85rem;font-weight:500">de pessoa física</span></p>
-        <p class="nota">Notas de entrada de CPF que não aparecem na planilha: podem ser devoluções não lançadas. Outras ${fmt(foraPlanilha.length - pf.length)} são de CNPJ (podem ser compras).</p></div>
+      <div><div class="lbl">Valor das NFs de entrada</div>${grande(brl(valor))}
+        <p class="nota">Soma das notas do Tiny ligadas às devoluções filtradas.</p></div>
+      <div><div class="lbl">Devoluções da SP fora da planilha</div>${grande(fmt(foraS1pf.length), brl(soma(foraS1pf)))}
+        <p class="nota">Notas de devolução de venda (série 1, de pessoa física ou empresa) emitidas no Tiny que não aparecem na planilha. <b>Vale conferir</b>: podem ser devoluções recebidas e não lançadas.</p></div>
+      <div><div class="lbl">Devoluções do Full</div>${grande(fmt(foraS2.length), brl(soma(foraS2)))}
+        <p class="nota">Série 2: voltam direto para o depósito do Mercado Livre, sem passar pela SP. Por isso não estão na planilha. Só informativo.</p></div>
     </div>
-    ${faltamNoTiny.length ? `<details style="margin-top:12px"><summary>${fmt(faltamNoTiny.length)} NFs da planilha não achadas no Tiny</summary><p class="nota" style="margin-top:6px">${esc(nfLista(faltamNoTiny))}</p></details>` : ''}
-    ${pf.length ? `<details style="margin-top:8px"><summary>Ver as ${fmt(pf.length)} notas de CPF fora da planilha</summary><p class="nota" style="margin-top:6px">${esc(nfLista(pf))}</p></details>` : ''}
+    ${foraS1pf.length ? `<details style="margin-top:12px"><summary>Ver as ${fmt(foraS1pf.length)} devoluções da SP fora da planilha</summary><p class="nota" style="margin-top:6px">${esc(nfLista(foraS1pf))}</p></details>` : ''}
+    ${faltamNoTiny.length ? `<details style="margin-top:8px"><summary>${fmt(faltamNoTiny.length)} NFs da planilha não achadas no Tiny</summary><p class="nota" style="margin-top:6px">${esc(nfLista(faltamNoTiny))}</p></details>` : ''}
+    ${foraOutras.length ? `<p class="nota" style="margin-top:8px">Outras ${fmt(foraOutras.length)} notas de entrada de outras séries ficam de fora da conferência.</p>` : ''}
     ${tiny.incompleto ? '<p class="aviso" style="margin-top:10px">O período tem mais notas do que a consulta busca de uma vez; a conferência pode estar incompleta.</p>' : ''}`;
   }
 
   function renderDetalhe(l) {
     const ord = [...l].sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
-    const doTiny = tiny && tiny.estado === 'ok' ? new Set(tiny.notas.map(n => n.numero)) : null;
+    const tinyOk = tiny && tiny.estado === 'ok';
     $('det-cont').textContent = `${fmt(l.length)} devoluções`;
     $('detalhe').innerHTML = ord.slice(0, limiteDet).map(r => {
       const g = grupoPorId[r.grupo];
       const obs = [r.observacoes, r.laudo && 'Laudo: ' + r.laudo].filter(Boolean).join(' · ');
-      const nf = r.nfEntrada ? esc(r.nfEntrada) + (doTiny ? (doTiny.has(r.nfEntrada) ? ' <span class="tiny-ok" title="Achada no Tiny">✓</span>' : ' <span class="tiny-nao" title="Não achada no Tiny">?</span>') : '') : '<span class="muted">–</span>';
+      const nt = tinyOk ? notaDoTiny(r) : null;
+      const nf = r.nfEntrada ? esc(r.nfEntrada) + (tinyOk ? (nt ? ` <span class="tiny-ok" title="Achada no Tiny (série ${esc(nt.serie)})">✓</span>` : ' <span class="tiny-nao" title="Não achada no Tiny">?</span>') : '') : '<span class="muted">–</span>';
       return `<tr>
         <td class="peq num">${dataBr(r.data)}</td>
         <td><div class="sku">${esc(r.sku)}</div><div class="prod">${esc(r.produto)}</div></td>
@@ -410,6 +450,7 @@
     $('erro').hidden = !(resp.avisos && resp.avisos.length);
     if (resp.avisos && resp.avisos.length) { $('erro').className = 'aviso'; $('erro').textContent = resp.avisos.join(' '); }
     $('conteudo').hidden = false;
+    $('b-relatorio').disabled = false;
     montarFiltros();
     render();
   }
@@ -427,6 +468,7 @@
       const r = await fetch(`/api/rma?parte=tiny&ini=${datas[0]}&fim=${datas[datas.length - 1]}`);
       const j = await r.json();
       tiny = j.ok ? { estado: 'ok', ...j } : { estado: 'erro', erro: j.error };
+      tinyPorNumero = null;
     } catch (e) { tiny = { estado: 'erro', erro: e.message }; }
     render();
   }
@@ -449,7 +491,218 @@
     }
   }
 
+  // ---------------------------------------------------------------
+  // Relatório PDF (A4 paisagem, 3 páginas), no estilo dos relatórios do painel:
+  //  1. resumo: números, motivos e devoluções por mês
+  //  2. produtos mais devolvidos
+  //  3. problemas no produto (defeito/avaria), responsabilidade, destino e Tiny
+  // Usa os filtros aplicados na tela. Shift+clique abre a prévia sem baixar.
+  // ---------------------------------------------------------------
+  const PDF = { fundo: '#070b14', linha: '#1e293b', texto: '#cbd5e1', fraco: '#64748b' };
+
+  function pdfPagina(titulo, subtitulo, conteudo, numero, total, ctx) {
+    const selo = (rotulo, valor, fundo, borda, cor) => `
+      <div style="background:${fundo};border:1px solid ${borda};border-radius:6px;padding:5px 12px;text-align:right;min-width:92px;">
+        <span style="font-size:9px;font-weight:700;color:${cor};text-transform:uppercase;display:block;letter-spacing:.04em;">${rotulo}</span>
+        <span style="font-size:14px;font-weight:800;color:#fff;white-space:nowrap;">${esc(valor)}</span></div>`;
+    return `
+      <div style="width:1123px;height:794px;box-sizing:border-box;padding:26px 34px 22px;background:${PDF.fundo};color:#f1f5f9;font-family:Inter,Arial,sans-serif;position:relative;overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1.5px solid ${PDF.linha};padding-bottom:12px;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div style="height:46px;padding:4px 12px;border:1px solid rgba(51,65,85,.7);border-radius:12px;display:flex;align-items:center;"><img src="/logo-empresa.png" alt="Paulicomp" style="height:34px;width:auto;display:block;"></div>
+            <div style="border-left:1.5px solid ${PDF.linha};padding-left:14px;">
+              <div style="font-size:17px;font-weight:800;color:#fff;text-transform:uppercase;line-height:1.15;">${esc(titulo)}</div>
+              <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-top:3px;">${esc(subtitulo)}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            ${selo('Referência', ctx.referencia, 'rgba(30,58,138,.4)', '#3b82f6', '#93c5fd')}
+            ${selo('Filial', 'PAULICOMP SP', 'rgba(14,116,144,.35)', '#06b6d4', '#67e8f9')}
+          </div>
+        </div>
+        <div style="height:calc(100% - 110px);">${conteudo}</div>
+        <div style="position:absolute;left:34px;right:34px;bottom:12px;display:flex;justify-content:space-between;font-size:9.5px;color:#475569;">
+          <span>Paulicomp — Qualidade · Devoluções e garantias (RMA) · Gerado em ${esc(ctx.geradoEm)} · Planilha alterada em ${esc(ctx.planilhaEm)}</span><span>Página ${numero} de ${total}</span>
+        </div>
+      </div>`;
+  }
+
+  function pdfTabela(colunas, linhas, fonte = 11) {
+    const th = colunas.map(c => `<th style="text-align:${c.num ? 'right' : 'left'};font-size:9.5px;font-weight:700;color:${PDF.fraco};text-transform:uppercase;letter-spacing:.05em;padding:6px 8px;border-bottom:1px solid ${PDF.linha};white-space:nowrap;">${c.titulo}</th>`).join('');
+    const tr = linhas.map(l => `<tr>${l.map((v, i) => `<td style="text-align:${colunas[i].num ? 'right' : 'left'};padding:5px 8px;border-bottom:1px solid #111a2e;font-size:${fonte}px;color:${PDF.texto};${colunas[i].quebra ? '' : 'white-space:nowrap;'}vertical-align:top;">${v}</td>`).join('')}</tr>`).join('');
+    return `<table style="width:100%;border-collapse:collapse;"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
+  }
+
+  const pdfBloco = (titulo, corpo, extra = '') => `<div style="background:#0f172a;border:1px solid ${PDF.linha};border-radius:10px;padding:14px 16px;${extra}">
+    <div style="font-size:11px;font-weight:800;color:#e2e8f0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">${titulo}</div>${corpo}</div>`;
+
+  function pdfBarras(pares, total, cor) {
+    const max = Math.max(1, ...pares.map(p => p[1]));
+    return pares.map(([nome, n, c]) => `<div style="display:flex;align-items:center;gap:10px;margin:6px 0;">
+      <span style="width:190px;font-size:11.5px;color:${PDF.texto};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(nome)}</span>
+      <span style="flex:1;height:12px;background:#151f34;border-radius:6px;overflow:hidden;"><span style="display:block;height:100%;width:${(n / max) * 100}%;background:${c || cor};border-radius:6px;"></span></span>
+      <span style="width:78px;text-align:right;font-size:11.5px;font-weight:700;color:#fff;">${fmt(n)} <span style="color:${PDF.fraco};font-weight:600;">${pct(n, total)}</span></span></div>`).join('');
+  }
+
+  function pdfResumoProdutos(lista) {
+    const porSku = new Map();
+    for (const r of lista) {
+      let p = porSku.get(r.sku);
+      if (!p) porSku.set(r.sku, p = { sku: r.sku, produto: r.produto, n: 0, pecas: 0, prod: 0, anun: 0, grupos: {} });
+      p.n++; p.pecas += r.quantidade;
+      if (catDe(r) === 'produto') p.prod++;
+      if (catDe(r) === 'anuncio') p.anun++;
+      p.grupos[r.grupo] = (p.grupos[r.grupo] || 0) + 1;
+    }
+    return [...porSku.values()];
+  }
+
+  function pdfMontar(ctx, sel) {
+    const total = sel.length;
+    const pecas = sel.reduce((s, r) => s + r.quantidade, 0);
+    const nProd = sel.filter(r => catDe(r) === 'produto').length;
+    const nAnun = sel.filter(r => catDe(r) === 'anuncio').length;
+    const nEst = sel.filter(r => r.destino === 'Voltou ao estoque').length;
+    const nSuc = sel.filter(r => r.destino === 'Sucata').length;
+    const kpi = (rot, val, sub) => `<div style="flex:1;background:#0f172a;border:1px solid ${PDF.linha};border-radius:10px;padding:12px 14px;">
+      <div style="font-size:9.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;">${rot}</div>
+      <div style="font-size:26px;font-weight:800;color:#fff;line-height:1.15;margin-top:2px;">${val}</div>
+      <div style="font-size:10.5px;color:${PDF.fraco};margin-top:2px;">${sub}</div></div>`;
+    const kpis = `<div style="display:flex;gap:10px;margin-bottom:14px;">
+      ${kpi('Devoluções', fmt(total), `${fmt(pecas)} peças`)}
+      ${kpi('Produtos (SKUs)', fmt(new Set(sel.map(r => r.sku)).size), 'com ao menos 1 devolução')}
+      ${kpi('Problema no produto', pct(nProd, total), `${fmt(nProd)} por defeito ou avaria`)}
+      ${kpi('Anúncio / compatib.', pct(nAnun, total), `${fmt(nAnun)} divergente ou incompatível`)}
+      ${kpi('Voltou ao estoque', pct(nEst, total), `${fmt(nSuc)} foram para sucata`)}</div>`;
+
+    // Página 1: motivos + mês
+    const grupos = contar(sel, 'grupo').map(([g, n]) => [grupoPorId[g].nome, n, corGrupo(g)]);
+    const porMes = {};
+    for (const r of sel) { const m = mesDe(r); if (!m) continue; (porMes[m] = porMes[m] || {})[catDe(r)] = (porMes[m][catDe(r)] || 0) + 1; }
+    const meses = Object.keys(porMes).map(Number).sort((a, b) => a - b);
+    const totMes = m => Object.values(porMes[m]).reduce((s, v) => s + v, 0);
+    const maxMes = Math.max(1, ...meses.map(totMes));
+    const colunas = meses.map(m => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;">
+      <span style="font-size:10.5px;font-weight:700;color:#fff;">${totMes(m)}</span>
+      <div style="flex:1;width:70%;max-width:40px;display:flex;flex-direction:column-reverse;">${dados.categorias.filter(c => porMes[m][c.id]).map(c => `<div style="height:${(porMes[m][c.id] / maxMes) * 100}%;background:${c.cor};"></div>`).join('')}</div>
+      <span style="font-size:9.5px;color:#94a3b8;text-transform:uppercase;">${MESES[m - 1]}</span></div>`).join('');
+    const usadas = new Set(sel.map(catDe));
+    const legenda = `<div style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:10px;font-size:10px;color:#94a3b8;">${dados.categorias.filter(c => usadas.has(c.id)).map(c => `<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${c.cor};margin-right:5px;"></span>${esc(c.nome)}</span>`).join('')}</div>`;
+    const pag1 = kpis + `<div style="display:flex;gap:14px;height:calc(100% - 110px);">
+      ${pdfBloco('Motivos de devolução', pdfBarras(grupos, total) + legenda, 'flex:5;')}
+      ${pdfBloco('Devoluções por mês', `<div style="display:flex;align-items:flex-end;gap:6px;height:330px;">${colunas || '<span style="color:#64748b;font-size:12px;">Sem dados.</span>'}</div>` + legenda, 'flex:6;')}
+    </div>`;
+
+    // Página 2: produtos mais devolvidos
+    const produtos = pdfResumoProdutos(sel).sort((a, b) => b.n - a.n || b.pecas - a.pecas).slice(0, 20);
+    const motivoTop = (p, i) => { const e = Object.entries(p.grupos).sort((a, b) => b[1] - a[1])[i]; return e ? `${esc(grupoPorId[e[0]].nome)} <span style="color:${PDF.fraco}">(${e[1]})</span>` : '–'; };
+    const pag2 = pdfTabela(
+      [{ titulo: '#', num: true }, { titulo: 'SKU' }, { titulo: 'Produto' }, { titulo: 'Devol.', num: true }, { titulo: 'Peças', num: true }, { titulo: 'Defeito/avaria', num: true }, { titulo: 'Anúncio/compat.', num: true }, { titulo: 'Principal motivo' }, { titulo: '2º motivo' }],
+      // Nome numa linha só: 20 linhas cabem na página sem invadir o rodapé.
+      produtos.map((p, i) => [i + 1, `<b style="color:#fff">${esc(p.sku)}</b>`, esc(p.produto.length > 40 ? p.produto.slice(0, 38) + '…' : p.produto), `<b style="color:#fff">${p.n}</b>`, p.pecas, p.prod || '–', p.anun || '–', motivoTop(p, 0), motivoTop(p, 1)]),
+      10.5);
+
+    // Página 3: problemas no produto + quadros
+    const comProblema = pdfResumoProdutos(sel).filter(p => p.prod > 0).sort((a, b) => b.prod - a.prod || b.n - a.n).slice(0, 12);
+    const laudoDe = sku => {
+      const ls = sel.filter(r => r.sku === sku && catDe(r) === 'produto' && r.laudo).map(r => r.laudo);
+      return ls.length ? esc(ls[0].length > 60 ? ls[0].slice(0, 58) + '…' : ls[0]) + (ls.length > 1 ? ` <span style="color:${PDF.fraco}">(+${ls.length - 1})</span>` : '') : `<span style="color:${PDF.fraco}">sem laudo</span>`;
+    };
+    const tabProblema = comProblema.length ? pdfTabela(
+      [{ titulo: 'SKU' }, { titulo: 'Produto', quebra: true }, { titulo: 'Defeito/avaria', num: true }, { titulo: 'Total', num: true }, { titulo: 'Laudo A.T. (exemplo)', quebra: true }],
+      comProblema.map(p => [`<b style="color:#fff">${esc(p.sku)}</b>`, esc(p.produto.length > 46 ? p.produto.slice(0, 44) + '…' : p.produto), `<b style="color:#f87171">${p.prod}</b>`, p.n, laudoDe(p.sku)]), 10)
+      : '<span style="color:#64748b;font-size:12px;">Nenhuma devolução por defeito ou avaria com esses filtros.</span>';
+    const listaMini = pares => pares.map(([k, v]) => `<div style="display:flex;justify-content:space-between;font-size:11px;margin:4px 0;color:${PDF.texto};"><span>${esc(k)}</span><b style="color:#fff">${fmt(v)} <span style="color:${PDF.fraco};font-weight:600">${pct(v, total)}</span></b></div>`).join('');
+    let tinyTxt = '<span style="color:#64748b;font-size:11px;">Conferência com o Tiny indisponível.</span>';
+    if (tiny && tiny.estado === 'ok') {
+      const nfs = new Set(sel.map(r => r.nfEntrada).filter(Boolean));
+      const ligadas = new Map();
+      for (const r of sel) { const n = notaDoTiny(r); if (n) ligadas.set(chaveNota(n), n); }
+      const achadas = new Set(sel.filter(r => notaDoTiny(r)).map(r => r.nfEntrada));
+      const valor = [...ligadas.values()].reduce((s, n) => s + n.valor, 0);
+      tinyTxt = `<div style="display:flex;justify-content:space-between;font-size:11px;margin:4px 0;color:${PDF.texto};"><span>NFs de entrada achadas no Tiny</span><b style="color:#fff">${fmt(achadas.size)} <span style="color:${PDF.fraco};font-weight:600">de ${fmt(nfs.size)}</span></b></div>`
+        + `<div style="display:flex;justify-content:space-between;font-size:11px;margin:4px 0;color:${PDF.texto};"><span>Valor das NFs de entrada</span><b style="color:#fff">${valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</b></div>`;
+    }
+    const pag3 = `<div style="display:flex;gap:14px;height:100%;">
+      ${pdfBloco('Produtos com mais devoluções por defeito ou avaria', tabProblema, 'flex:7;')}
+      <div style="flex:3;display:flex;flex-direction:column;gap:12px;">
+        ${pdfBloco('Responsável (coluna "Defeito")', listaMini(contar(sel, 'responsavel')))}
+        ${pdfBloco('Destino do produto', listaMini(contar(sel, 'destino')))}
+        ${pdfBloco('Canal', listaMini(contar(sel, 'canal')))}
+        ${pdfBloco('Conferência com o Tiny SP', tinyTxt)}
+      </div></div>`;
+
+    const filtros = [
+      f.visao !== 'todas' ? (f.visao === 'produto' ? 'Produto e anúncio' : 'Cliente e logística') : null,
+      f.canal !== 'todos' ? 'Canal ' + f.canal : null,
+      f.grupo ? 'Motivo: ' + grupoPorId[f.grupo].nome : null,
+      f.sku ? 'SKU ' + f.sku : null,
+      f.busca.trim() ? `Busca "${f.busca.trim()}"` : null,
+      f.full ? 'com retornos do Full' : 'sem retornos do Full',
+    ].filter(Boolean).join(' · ');
+    return [
+      pdfPagina('Devoluções e motivos', filtros, pag1, 1, 3, ctx),
+      pdfPagina('Produtos mais devolvidos', `Os 20 SKUs com mais devoluções · ${filtros}`, pag2, 2, 3, ctx),
+      pdfPagina('Problemas no produto', `Defeito e avaria por SKU, com o laudo da assistência técnica · ${filtros}`, pag3, 3, 3, ctx),
+    ].join('');
+  }
+
+  async function gerarRelatorio(ev) {
+    const btn = $('b-relatorio');
+    const b = base();
+    const sel = b.filter(r => (!f.grupo || r.grupo === f.grupo) && (!f.sku || r.sku === f.sku));
+    if (!sel.length) return alert('Nenhuma devolução com os filtros atuais.');
+    const agora = new Date();
+    const anoRef = (contar(dados.registros.map(r => r.data).filter(Boolean), d => d.slice(0, 4))[0] || [agora.getFullYear()])[0];
+    const meses = [...new Set(sel.map(mesDe).filter(Boolean))].sort((a, b) => a - b);
+    const ctx = {
+      referencia: f.mes !== 'todos' ? `${MESES[Number(f.mes) - 1]}/${anoRef}` : (meses.length ? `${MESES[meses[0] - 1]}–${MESES[meses[meses.length - 1] - 1]}/${anoRef}` : String(anoRef)),
+      geradoEm: agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      planilhaEm: dados.fonte?.modificadoEm ? new Date(dados.fonte.modificadoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '–',
+    };
+    const raiz = document.createElement('div');
+    raiz.style.cssText = 'width:1123px;';
+    raiz.innerHTML = pdfMontar(ctx, sel);
+
+    if (ev && ev.shiftKey) {
+      const cob = document.createElement('div');
+      cob.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#020617;overflow:auto;padding:16px;';
+      cob.innerHTML = '<button type="button" class="btn" style="position:fixed;top:12px;right:20px;z-index:10000;">Fechar prévia</button>';
+      raiz.style.margin = '0 auto';
+      cob.appendChild(raiz);
+      document.body.appendChild(cob);
+      cob.querySelector('button').addEventListener('click', () => cob.remove());
+      return;
+    }
+    if (!window.html2pdf) return alert('O gerador de PDF ainda não carregou. Tente de novo em alguns segundos.');
+    btn.disabled = true; btn.textContent = 'Gerando…';
+    const area = document.createElement('div');
+    area.style.cssText = 'position:fixed;left:-20000px;top:0;';
+    area.appendChild(raiz);
+    document.body.appendChild(area);
+    try {
+      await html2pdf().set({
+        margin: 0,
+        filename: `Devolucoes_RMA_SP_${agora.toISOString().slice(0, 10)}.pdf`,
+        image: { type: 'jpeg', quality: 0.96 },
+        html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: PDF.fundo },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+        // Sem quebras CSS: com 1123 px de largura, uma folha A4 paisagem tem 794 px
+        // de altura, a mesma altura de cada página. As quebras do html2pdf
+        // somavam um espaço e geravam folhas em branco.
+        pagebreak: { mode: [] },
+      }).from(raiz).save();
+    } catch (e) {
+      console.error('Erro no PDF do RMA:', e);
+      alert('Erro ao gerar o PDF: ' + e.message);
+    } finally {
+      area.remove();
+      btn.disabled = false; btn.textContent = 'Relatório PDF';
+    }
+  }
+
   // Eventos
+  $('b-relatorio').addEventListener('click', gerarRelatorio);
   $('f-mes').addEventListener('change', e => { f.mes = e.target.value; limiteDet = POR_PAGINA; render(); });
   $('f-canal').addEventListener('change', e => { f.canal = e.target.value; limiteDet = POR_PAGINA; render(); });
   $('f-full').addEventListener('change', e => { f.full = e.target.checked; render(); });

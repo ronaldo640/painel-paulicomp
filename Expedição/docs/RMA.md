@@ -94,6 +94,40 @@ está. A tela avisa quando a coluna e o texto discordam.
 O **mês** é o da aba da planilha (mês em que o RMA foi tratado). A "Data de
 Entrada" é a data da nota e às vezes cai no mês anterior.
 
+## Conferência com o Tiny
+
+A planilha não traz a série da NF, e o mesmo número existe na série 1 e na série 2.
+Por isso cada linha da planilha é ligada à nota do Tiny com a **data mais próxima**.
+As notas de entrada do Tiny SP se dividem assim (confirmado em 12/11/2026 com
+uma amostra de notas abertas uma a uma no Tiny):
+
+- **Série 1** (pessoa física ou empresa): "Devolução de mercadorias", referenciando
+  a NF de venda. São devoluções que passaram pela SP. As que não estão na planilha
+  aparecem em **"Devoluções da SP fora da planilha"** para conferir.
+- **Série 2**: devolução do **Full**. O produto volta direto para o depósito do
+  Mercado Livre e não passa pela SP. Só informativo.
+- **"Registrada"**: nota de terceiro (compra de fornecedor). Fica fora da conta.
+
+A API do Tiny SP tem limite baixo de acessos. Abrir nota por nota (nota.fiscal.obter)
+bloqueou a API em poucos segundos. Por isso o painel só usa a pesquisa de notas
+(algumas páginas por consulta, com 1 h de cache), para não atrapalhar a
+sincronização das Caixas.
+
+## Relatório PDF
+
+Botão **Relatório PDF** no topo da tela. Arquivo A4 paisagem
+`Devolucoes_RMA_SP_AAAA-MM-DD.pdf`, gerado no navegador com html2pdf, usando os
+filtros aplicados na tela:
+
+1. Devoluções e motivos: números do topo, motivos e devoluções por mês
+2. Produtos mais devolvidos: os 20 SKUs com mais devoluções
+3. Problemas no produto: SKUs com defeito ou avaria, com o laudo da assistência
+   técnica, além de responsável, destino, canal e conferência com o Tiny
+
+Shift+clique no botão abre uma prévia na tela, sem baixar. Cada página tem
+1123 × 794 px, o tamanho exato de uma folha A4 paisagem nessa largura. O
+html2pdf roda sem quebras CSS, porque com elas ele gerava folhas em branco.
+
 ## Parte técnica
 
 - `GET /api/rma` → rewrite para `/api/tiny-sync?modulo=rma`. O plano Hobby da
