@@ -78,9 +78,39 @@ async function parteTiny(req, res) {
   });
 }
 
+// DIAGNÓSTICO TEMPORÁRIO (remover): natureza de operação de notas de entrada.
+// ?parte=tiny-diag&notas=14280-1,13070-2  (numero-serie). Sem nome/documento do cliente.
+async function parteTinyDiag(req, res) {
+  const token = process.env.TINY_TOKEN_SP;
+  const pedidos = String(req.query.notas || '').split(',').filter(Boolean).slice(0, 15);
+  const out = [];
+  for (const p of pedidos) {
+    const [numero, serie] = p.split('-');
+    try {
+      const ps = new URLSearchParams({ token, formato: 'json', numero, tipoNota: 'E' });
+      const r = (await (await fetch(`${TINY_URL}?${ps}`)).json()).retorno || {};
+      const achadas = (r.notas_fiscais || []).map(i => i.nota_fiscal || {}).filter(n => !serie || String(n.serie) === serie);
+      for (const n of achadas) {
+        const po = new URLSearchParams({ token, formato: 'json', id: String(n.id) });
+        const o = ((await (await fetch(`https://api.tiny.com.br/api2/nota.fiscal.obter.php?${po}`)).json()).retorno || {}).nota_fiscal || {};
+        const itens = (o.itens || []).map(x => x.item || x).map(x => ({ codigo: x.codigo, descricao: String(x.descricao || '').slice(0, 50), qtd: x.quantidade, cfop: x.cfop }));
+        out.push({
+          pedido: p, serie: o.serie, numero: o.numero, data: o.data_emissao, situacao: o.descricao_situacao || n.descricao_situacao,
+          natureza: o.natureza_operacao, finalidade: o.finalidade, tipo: o.tipo_nota || o.tipo, valor: o.valor_nota || n.valor,
+          numero_ecommerce: o.numero_ecommerce, id_venda: o.id_venda, refs: o.notas_referenciadas || o.nfe_referenciada || o.refNFe || null,
+          obs: String(o.obs || o.observacoes || '').slice(0, 200), itens, chaves: Object.keys(o),
+        });
+      }
+      if (!achadas.length) out.push({ pedido: p, erro: (r.erros || []).map(e => e.erro).join('; ') || 'não achada' });
+    } catch (e) { out.push({ pedido: p, erro: e.message }); }
+  }
+  return res.status(200).json({ ok: true, out });
+}
+
 export async function rmaHandler(req, res) {
   try {
     if (req.query.parte === 'tiny') return await parteTiny(req, res);
+    if (req.query.parte === 'tiny-diag') return await parteTinyDiag(req, res);
 
     if (!contaDeServicoConfigurada()) {
       return res.status(200).json({
