@@ -136,6 +136,24 @@
     </div>
 
     <section class="card">
+      <div class="cab">
+        <h2>Devolução × venda, no mesmo canal</h2>
+        <div class="seg" role="group" aria-label="Ordenar">
+          <button type="button" data-ordem="dev" aria-pressed="true">Mais devoluções</button>
+          <button type="button" data-ordem="taxa" aria-pressed="false">Maior taxa</button>
+        </div>
+      </div>
+      <p class="nota" id="taxa-resumo"></p>
+      <div class="rolagem">
+        <table>
+          <thead><tr><th>Produto</th><th>Canal</th><th class="r">Devolvidas</th><th class="r">Vendidas</th><th class="r">Taxa</th><th></th></tr></thead>
+          <tbody id="taxas"></tbody>
+        </table>
+      </div>
+      <button type="button" class="btn ghost" id="b-todas-taxas" hidden>Ver todos</button>
+    </section>
+
+    <section class="card">
       <div class="cab"><h2>Devoluções por mês</h2><span class="muted" style="font-size:.8rem">pela aba do mês na planilha</span></div>
       <div class="meses" id="meses"></div>
     </section>
@@ -238,6 +256,7 @@
     renderMini(sel);
     renderTiny(sel);
     renderDetalhe(sel);
+    renderTaxas(f.sku ? comGrupo.filter(r => r.sku === f.sku) : comGrupo);
   }
 
   function renderChips() {
@@ -306,6 +325,94 @@
         <td><div class="empilhada">${barra}</div></td>
         <td class="peq"><span class="ponto" style="background:${corGrupo(gTop)}"></span>${esc(grupoPorId[gTop].nome)} <span class="muted">(${nTop})</span></td></tr>`;
     }).join('') : '<tr><td colspan="5" class="vazio">Nenhum produto com esses filtros.</td></tr>';
+  }
+
+  // ---------------------------------------------------------------
+  // Devolução × venda: peças devolvidas ÷ peças vendidas do mesmo SKU, no mesmo
+  // canal e no mesmo mês (mês da aba da planilha × mês da nota de venda).
+  // Vendas vêm de /api/rma?parte=vendas (itens das notas de venda do Tiny).
+  // Só entram meses cujas vendas já foram carregadas (95% das notas ou mais).
+  // ---------------------------------------------------------------
+  let vendas = null;          // { estado, porChave: Map('sku|canal|aaaa-mm' -> qtd), cobertos: Set('aaaa-mm'), cobertura }
+  let ordemTaxa = 'dev', todasTaxas = false;
+  const CANAIS_VENDA = new Set(['ML', 'FULL', 'LOJA NUVEM', 'AMAZON', 'SHOPEE']);
+  const anoPlanilha = () => (contar(dados.registros.map(r => r.data).filter(Boolean), d => d.slice(0, 4))[0] || [String(new Date().getFullYear())])[0];
+  const mesIso = r => (mesDe(r) ? `${anoPlanilha()}-${String(mesDe(r)).padStart(2, '0')}` : null);
+
+  // Agrupa por SKU+canal: peças devolvidas e vendidas nos meses com vendas carregadas.
+  function calcularTaxas(lista) {
+    const linhas = new Map();
+    let semCanal = 0, foraCobertura = 0;
+    if (!vendas || vendas.estado !== 'ok') return { linhas: [], semCanal, foraCobertura };
+    for (const r of lista) {
+      const m = mesIso(r);
+      if (!CANAIS_VENDA.has(r.canal)) { semCanal++; continue; }
+      if (!m || !vendas.cobertos.has(m)) { foraCobertura++; continue; }
+      const k = r.sku + '|' + r.canal;
+      let l = linhas.get(k);
+      if (!l) linhas.set(k, l = { sku: r.sku, canal: r.canal, produto: r.produto, dev: 0, meses: new Set() });
+      l.dev += r.quantidade;
+      l.meses.add(m);
+    }
+    // Vendas no mesmo período considerado: o mês filtrado ou todos os meses carregados.
+    const mesesVenda = f.mes !== 'todos' ? [`${anoPlanilha()}-${String(f.mes).padStart(2, '0')}`].filter(m => vendas.cobertos.has(m)) : [...vendas.cobertos];
+    for (const l of linhas.values()) {
+      l.vend = mesesVenda.reduce((s, m) => s + (vendas.porChave.get(`${l.sku}|${l.canal}|${m}`) || 0), 0);
+      l.taxa = l.vend > 0 ? l.dev / l.vend : null;
+    }
+    return { linhas: [...linhas.values()], semCanal, foraCobertura, mesesVenda };
+  }
+
+  const fmtTaxa = t => (t == null ? '–' : (t * 100).toLocaleString('pt-BR', { maximumFractionDigits: t < 0.1 ? 1 : 0 }) + '%');
+  const corTaxa = t => (t == null ? 'var(--muted)' : t >= 0.15 ? 'var(--bad)' : t >= 0.05 ? 'var(--warn)' : 'var(--ok)');
+
+  function renderTaxas(lista) {
+    const resumo = $('taxa-resumo'), corpo = $('taxas');
+    if (!vendas || vendas.estado === 'carregando') { resumo.textContent = 'Carregando vendas…'; corpo.innerHTML = ''; $('b-todas-taxas').hidden = true; return; }
+    if (vendas.estado === 'erro') { resumo.innerHTML = `<span class="aviso" style="display:block">Não consegui ler as vendas: ${esc(vendas.erro)}</span>`; corpo.innerHTML = ''; return; }
+    const { linhas, semCanal, foraCobertura, mesesVenda } = calcularTaxas(lista);
+    if (!vendas.cobertos.size) {
+      resumo.innerHTML = 'As vendas por SKU ainda estão sendo carregadas do Tiny. Assim que um mês estiver completo, a comparação aparece aqui.';
+      corpo.innerHTML = ''; $('b-todas-taxas').hidden = true; return;
+    }
+    const dev = linhas.reduce((s, l) => s + l.dev, 0);
+    const vend = linhas.reduce((s, l) => s + l.vend, 0);
+    const meses = [...vendas.cobertos].sort();
+    const rotMes = m => MESES[Number(m.slice(5, 7)) - 1] + '/' + m.slice(2, 4);
+    const periodo = f.mes !== 'todos' ? rotMes(`${anoPlanilha()}-${String(f.mes).padStart(2, '0')}`) : `${rotMes(meses[0])} a ${rotMes(meses[meses.length - 1])}`;
+    const avisos = [];
+    if (f.mes !== 'todos' && !mesesVenda.length) avisos.push('as vendas deste mês ainda não foram todas carregadas');
+    if (foraCobertura) avisos.push(`${fmt(foraCobertura)} devoluções de meses com vendas ainda carregando ficaram de fora`);
+    if (semCanal) avisos.push(`${fmt(semCanal)} sem canal na planilha`);
+    resumo.innerHTML = `Período: <b>${periodo}</b>. Nos produtos abaixo: <b>${fmt(dev)}</b> peças devolvidas para <b>${fmt(vend)}</b> vendidas nos mesmos canais (<b>${fmtTaxa(vend ? dev / vend : null)}</b>).`
+      + (avisos.length ? ` <span class="muted">Obs.: ${avisos.join('; ')}.</span>` : '');
+    const ord = linhas.sort(ordemTaxa === 'taxa'
+      ? (a, b) => (b.vend >= 5) - (a.vend >= 5) || (b.taxa ?? -1) - (a.taxa ?? -1) || b.dev - a.dev
+      : (a, b) => b.dev - a.dev || (b.taxa ?? -1) - (a.taxa ?? -1));
+    const mostra = todasTaxas ? ord : ord.slice(0, 15);
+    $('b-todas-taxas').hidden = ord.length <= 15;
+    $('b-todas-taxas').textContent = todasTaxas ? 'Só os 15 primeiros' : `Ver todos (${ord.length})`;
+    corpo.innerHTML = mostra.map(l => `<tr class="clic${f.sku === l.sku ? ' sel' : ''}" data-sku="${esc(l.sku)}" tabindex="0">
+      <td><div class="sku">${esc(l.sku)}</div><div class="prod">${esc(l.produto)}</div></td>
+      <td class="peq">${esc(l.canal)}</td>
+      <td class="r num"><b>${fmt(l.dev)}</b></td>
+      <td class="r num">${l.vend ? fmt(l.vend) : '<span class="muted" title="Nenhuma venda deste SKU neste canal no período">0</span>'}</td>
+      <td class="r num"><b style="color:${corTaxa(l.taxa)}">${fmtTaxa(l.taxa)}</b></td>
+      <td style="width:22%"><span class="empilhada" style="display:block"><i style="width:${Math.min(100, (l.taxa || 0) * 100 * 2)}%;background:${corTaxa(l.taxa)}"></i></span></td></tr>`).join('')
+      || '<tr><td colspan="6" class="vazio">Nenhuma devolução com vendas carregadas nesses filtros.</td></tr>';
+  }
+
+  async function carregarVendas() {
+    vendas = { estado: 'carregando' };
+    try {
+      const j = await fetch('/api/rma?parte=vendas').then(r => r.json());
+      if (!j.ok) throw new Error(j.error || 'erro');
+      const porChave = new Map(j.vendas.map(v => [`${v.sku}|${v.canal}|${v.mes}`, Number(v.qtd)]));
+      const total = new Map(j.cobertura.total.map(x => [x.mes, x.notas]));
+      const cobertos = new Set(j.cobertura.lidas.filter(x => total.get(x.mes) && x.notas >= 0.95 * total.get(x.mes)).map(x => x.mes));
+      vendas = { estado: 'ok', porChave, cobertos, cobertura: j.cobertura };
+    } catch (e) { vendas = { estado: 'erro', erro: e.message }; }
+    render();
   }
 
   function renderMeses(lista) {
@@ -487,6 +594,7 @@
       const j = await r.json();
       if (!j.ok) throw Object.assign(new Error(j.error || 'Erro ao ler a planilha.'), { configurar: j.configurar });
       mostrar(j);
+      carregarVendas();
       carregarTiny();
     } catch (e) {
       $('carregando').hidden = true;
@@ -602,11 +710,28 @@
     // Página 2: produtos mais devolvidos
     const produtos = pdfResumoProdutos(sel).sort((a, b) => b.n - a.n || b.pecas - a.pecas).slice(0, 20);
     const motivoTop = (p, i) => { const e = Object.entries(p.grupos).sort((a, b) => b[1] - a[1])[i]; return e ? `${esc(grupoPorId[e[0]].nome)} <span style="color:${PDF.fraco}">(${e[1]})</span>` : '–'; };
+    // Taxa de devolução por SKU: soma dos canais (cada canal comparado com as vendas dele).
+    const taxaSku = new Map();
+    for (const l of calcularTaxas(sel).linhas) {
+      const t = taxaSku.get(l.sku) || { dev: 0, vend: 0 };
+      t.dev += l.dev; t.vend += l.vend;
+      taxaSku.set(l.sku, t);
+    }
+    const colTaxa = sku => {
+      const t = taxaSku.get(sku);
+      if (!t) return ['–', '–'];
+      const tx = t.vend ? t.dev / t.vend : null;
+      const cor = tx == null ? PDF.fraco : tx >= 0.15 ? '#f87171' : tx >= 0.05 ? '#fbbf24' : '#34d399';
+      return [t.vend ? fmt(t.vend) : '0', `<b style="color:${cor}">${fmtTaxa(tx)}</b>`];
+    };
     const pag2 = pdfTabela(
-      [{ titulo: '#', num: true }, { titulo: 'SKU' }, { titulo: 'Produto' }, { titulo: 'Devol.', num: true }, { titulo: 'Peças', num: true }, { titulo: 'Defeito/avaria', num: true }, { titulo: 'Anúncio/compat.', num: true }, { titulo: 'Principal motivo' }, { titulo: '2º motivo' }],
+      [{ titulo: '#', num: true }, { titulo: 'SKU' }, { titulo: 'Produto' }, { titulo: 'Devol.', num: true }, { titulo: 'Peças', num: true }, { titulo: 'Vendidas', num: true }, { titulo: 'Taxa', num: true }, { titulo: 'Defeito/avaria', num: true }, { titulo: 'Principal motivo' }, { titulo: '2º motivo' }],
       // Nome numa linha só: 20 linhas cabem na página sem invadir o rodapé.
-      produtos.map((p, i) => [i + 1, `<b style="color:#fff">${esc(p.sku)}</b>`, esc(p.produto.length > 40 ? p.produto.slice(0, 38) + '…' : p.produto), `<b style="color:#fff">${p.n}</b>`, p.pecas, p.prod || '–', p.anun || '–', motivoTop(p, 0), motivoTop(p, 1)]),
-      10.5);
+      produtos.map((p, i) => [i + 1, `<b style="color:#fff">${esc(p.sku)}</b>`, esc(p.produto.length > 34 ? p.produto.slice(0, 32) + '…' : p.produto), `<b style="color:#fff">${p.n}</b>`, p.pecas, ...colTaxa(p.sku), p.prod || '–', motivoTop(p, 0), motivoTop(p, 1)]),
+      10.5)
+      + (vendas && vendas.estado === 'ok' && vendas.cobertos.size
+        ? `<div style="font-size:9.5px;color:${PDF.fraco};margin-top:8px;">Vendidas e Taxa: peças devolvidas ÷ peças vendidas do mesmo SKU, no mesmo canal e mês, só nos meses com as vendas já carregadas do Tiny.</div>`
+        : `<div style="font-size:9.5px;color:${PDF.fraco};margin-top:8px;">Vendidas e Taxa: as vendas por SKU ainda estão sendo carregadas do Tiny.</div>`);
 
     // Página 3: problemas no produto + quadros
     const comProblema = pdfResumoProdutos(sel).filter(p => p.prod > 0).sort((a, b) => b.prod - a.prod || b.n - a.n).slice(0, 12);
@@ -730,6 +855,14 @@
   $('chips').addEventListener('click', e => { const b = e.target.closest('[data-tira]'); if (!b) return; f[b.dataset.tira] = null; render(); });
   $('b-todos-prod').addEventListener('click', () => { mostrarTodosProd = !mostrarTodosProd; render(); });
   $('b-mais').addEventListener('click', () => { limiteDet += POR_PAGINA; render(); });
+  document.querySelectorAll('[data-ordem]').forEach(b => b.addEventListener('click', () => {
+    ordemTaxa = b.dataset.ordem;
+    document.querySelectorAll('[data-ordem]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    render();
+  }));
+  $('b-todas-taxas').addEventListener('click', () => { todasTaxas = !todasTaxas; render(); });
+  $('taxas').addEventListener('click', e => { const tr = e.target.closest('[data-sku]'); if (tr) escolheSku(tr); });
+  $('taxas').addEventListener('keydown', e => { const tr = e.target.closest('[data-sku]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); escolheSku(tr); } });
   $('b-atualizar').addEventListener('click', () => carregar(true));
 
   carregar(false);

@@ -19,6 +19,7 @@ import { neon } from '@neondatabase/serverless';
 import { verificarEAvisar, enviarTeste, enviarTesteInsumo, avisarFalhaBaixa } from '../lib/caixa-alerta.js';
 import testeDeConsumo from '../lib/caixa-auto-teste.js';
 import { avisarLimpezaAtrasada } from '../lib/limpeza-alerta.js';
+import { canalDaNota, gravarVenda, cargaHistorico } from '../lib/vendas-itens.js';
 
 const TINY_BASE_URL = 'https://api.tiny.com.br/api2';
 const TINY_FILIAIS = {
@@ -65,6 +66,8 @@ async function buscarNotasPeriodo(token, dataInicialBr, dataFinalBr) {
       notas.push({
         id: nf.id, numero: nf.numero, cliente: (nf.cliente || {}).nome || null, isFulfillment,
         dataIso: brParaIso(nf.data_emissao),
+        // para o comparativo devolução × venda do RMA (lib/vendas-itens.js)
+        serie: String(nf.serie || ''), canal: canalDaNota(nf),
       });
     });
     pagina++;
@@ -122,6 +125,23 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Parâmetro "alerta" deve ser "simular" ou "teste".' });
     } catch (error) {
       console.error('Erro nos avisos por e-mail:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Carga do histórico de itens vendidos (comparativo devolução × venda do RMA):
+  //   ?vendas=historico&data=AAAA-MM-DD   lê as notas de venda desse dia que faltam
+  // Só lê o Tiny e grava em venda_notas/venda_itens; não mexe em caixas.
+  // Mora aqui pra não gastar uma das 12 funções do plano Hobby da Vercel.
+  if (req.query.vendas === 'historico') {
+    const tokenH = process.env[TINY_FILIAIS[filial]];
+    const dataH = String(req.query.data || '');
+    if (!tokenH) return res.status(400).json({ error: `Token do Tiny não configurado para a filial "${filial}".` });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dataH)) return res.status(400).json({ error: 'Informe data=AAAA-MM-DD.' });
+    try {
+      return res.status(200).json(await cargaHistorico(neon(process.env.DATABASE_URL), tokenH, filial, dataH, buscarItensDaNota));
+    } catch (error) {
+      console.error('Erro na carga do histórico de vendas:', error);
       return res.status(500).json({ error: error.message });
     }
   }
@@ -229,6 +249,14 @@ export default async function handler(req, res) {
       } catch (err) {
         pendencias.push({ nota: nota.numero, motivo: 'erro_ao_obter_nota', detalhe: err.message });
         continue;
+      }
+
+      // Aproveita os itens já lidos para o comparativo devolução × venda do RMA.
+      // Isolado: uma falha aqui nunca atrapalha a baixa de caixas.
+      try {
+        await gravarVenda(sql, filial, nota, itens);
+      } catch (err) {
+        console.error('Falha ao gravar itens vendidos (RMA):', err.message);
       }
 
       const consumoDaNota = new Map(); // modelo_id -> qtd_caixas

@@ -13,6 +13,8 @@ import { promisify } from 'node:util';
 import { lerXlsx } from './xlsx-ler.js';
 import { lerRegistrosRma, GRUPOS, CATEGORIAS } from './rma.js';
 import { baixarComoXlsx, contaDeServicoConfigurada } from './google-drive.js';
+import { neon } from '@neondatabase/serverless';
+import { garantirTabelas } from './vendas-itens.js';
 
 const inflateRawAsync = promisify(zlib.inflateRaw);
 const inflateRaw = async bytes => new Uint8Array(await inflateRawAsync(bytes));
@@ -86,9 +88,38 @@ async function parteTiny(req, res) {
   });
 }
 
+// Peças vendidas por SKU, canal e mês (tabelas de lib/vendas-itens.js), para a
+// taxa de devolução. Também devolve quantas notas de venda já foram lidas por
+// mês, para a tela avisar quando o histórico ainda está incompleto.
+async function parteVendas(req, res) {
+  const sql = neon(process.env.DATABASE_URL);
+  try {
+    await garantirTabelas(sql);
+    const desde = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.desde || '')) ? String(req.query.desde) : '2025-11-01';
+    const vendas = await sql`
+      SELECT i.sku, n.canal, to_char(n.data, 'YYYY-MM') AS mes, SUM(i.quantidade)::float AS qtd
+      FROM venda_itens i JOIN venda_notas n ON n.nota_id = i.nota_id
+      WHERE n.filial = 'SP' AND n.data >= ${desde}::date
+      GROUP BY 1, 2, 3`;
+    const lidas = await sql`
+      SELECT to_char(data, 'YYYY-MM') AS mes, COUNT(*)::int AS notas
+      FROM venda_notas WHERE filial = 'SP' AND data >= ${desde}::date GROUP BY 1`;
+    // Total de notas de venda por mês (tabela da expedição), para medir a cobertura.
+    const total = await sql`
+      SELECT to_char(data, 'YYYY-MM') AS mes, COUNT(*)::int AS notas
+      FROM dispatches WHERE filial = 'PAULICOMP SP' AND data >= ${desde}::date GROUP BY 1`;
+    res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=3600');
+    return res.status(200).json({ ok: true, vendas, cobertura: { lidas, total } });
+  } catch (error) {
+    console.error('Erro nas vendas do RMA:', error);
+    return res.status(200).json({ ok: false, error: error.message });
+  }
+}
+
 export async function rmaHandler(req, res) {
   try {
     if (req.query.parte === 'tiny') return await parteTiny(req, res);
+    if (req.query.parte === 'vendas') return await parteVendas(req, res);
 
     if (!contaDeServicoConfigurada()) {
       return res.status(200).json({
