@@ -4132,13 +4132,20 @@
             area.style.cssText = 'position:fixed;left:-20000px;top:0;';
             area.appendChild(raiz);
             document.body.appendChild(area);
+            // a última folha não pode quebrar página depois dela, senão sai uma página em branco a mais
+            const folhas = raiz.querySelectorAll('.cxp-pagina');
+            if (folhas.length) folhas[folhas.length - 1].style.pageBreakAfter = 'auto';
+            // a captura leva em conta a rolagem da tela: se a página estiver rolada, o conteúdo
+            // desce o mesmo tanto no PDF (e vira "metade da página"). Volta ao topo só durante a captura.
+            const rolagem = [window.scrollX, window.scrollY];
+            window.scrollTo(0, 0);
             const hoje = cxTodayIso();
             try {
                 await html2pdf().set({
                     margin: 0,
                     filename: `${op.prefixo}_${CX_FILIAL}_${hoje}.pdf`,
                     image: { type: 'jpeg', quality: 0.96 },
-                    html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#070b14' },
+                    html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#070b14', scrollX: 0, scrollY: 0 },
                     jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
                     pagebreak: { mode: ['css'] },
                 }).from(raiz).save();
@@ -4148,6 +4155,7 @@
                 cxToast('Erro ao gerar o PDF.', 'error');
             } finally {
                 area.remove();
+                window.scrollTo(rolagem[0], rolagem[1]);
                 btn.disabled = false;
             }
         }
