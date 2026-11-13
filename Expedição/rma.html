@@ -642,14 +642,17 @@
 
   // ---------------------------------------------------------------
   // Relatório PDF (A4 paisagem, 3 páginas), no estilo dos relatórios do painel:
-  //  1. resumo: números, motivos e devoluções por mês
+  //  1. resumo: números, motivos (barras + pizza) e devoluções por mês (ou o
+  //     top 10 de produtos, quando o relatório é de um mês ou de N dias)
   //  2. produtos mais devolvidos
-  //  3. problemas no produto (defeito/avaria), responsabilidade, destino e Tiny
+  //  3. problemas no produto (defeito/avaria); conferência com o Tiny no cabeçalho
   // Usa os filtros aplicados na tela. Shift+clique abre a prévia sem baixar.
   // ---------------------------------------------------------------
   const PDF = { fundo: '#070b14', linha: '#1e293b', texto: '#cbd5e1', fraco: '#64748b' };
 
-  function pdfPagina(titulo, subtitulo, conteudo, numero, total, ctx) {
+  // seloExtra: quadro opcional no cabeçalho, antes de "Referência" (a página 3 usa
+  // para a conferência com o Tiny).
+  function pdfPagina(titulo, subtitulo, conteudo, numero, total, ctx, seloExtra = '') {
     const selo = (rotulo, valor, fundo, borda, cor) => `
       <div style="background:${fundo};border:1px solid ${borda};border-radius:6px;padding:5px 12px;text-align:right;min-width:92px;">
         <span style="font-size:9px;font-weight:700;color:${cor};text-transform:uppercase;display:block;letter-spacing:.04em;">${rotulo}</span>
@@ -665,6 +668,7 @@
             </div>
           </div>
           <div style="display:flex;gap:8px;">
+            ${seloExtra}
             ${selo('Referência', ctx.referencia, 'rgba(30,58,138,.4)', '#3b82f6', '#93c5fd')}
             ${selo('Filial', 'PAULICOMP SP', 'rgba(14,116,144,.35)', '#06b6d4', '#67e8f9')}
           </div>
@@ -691,6 +695,55 @@
       <span style="width:190px;font-size:11.5px;color:${PDF.texto};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(nome)}</span>
       <span style="flex:1;height:12px;background:#151f34;border-radius:6px;overflow:hidden;"><span style="display:block;height:100%;width:${(n / max) * 100}%;background:${c || cor};border-radius:6px;"></span></span>
       <span style="width:78px;text-align:right;font-size:11.5px;font-weight:700;color:#fff;">${fmt(n)} <span style="color:${PDF.fraco};font-weight:600;">${pct(n, total)}</span></span></div>`).join('');
+  }
+
+  // Pizza dos motivos: só cor e percentual (os nomes estão nas barras logo acima,
+  // com as mesmas cores). SVG como imagem, porque o html2canvas não desenha
+  // conic-gradient. Fatias grandes levam o percentual dentro; as pequenas, fora.
+  function pdfPizza(pares, total) {
+    const W = 320, H = 262, cx = W / 2, cy = H / 2, r = 84;
+    let ang = -Math.PI / 2, seguidas = 0;
+    const fatias = [], rotulos = [];
+    for (const [, n, cor] of pares) {
+      const a = (n / total) * Math.PI * 2;
+      if (a >= Math.PI * 2 - 1e-6) fatias.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${cor}"/>`);
+      else {
+        const x1 = cx + r * Math.cos(ang), y1 = cy + r * Math.sin(ang);
+        const x2 = cx + r * Math.cos(ang + a), y2 = cy + r * Math.sin(ang + a);
+        fatias.push(`<path d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${a > Math.PI ? 1 : 0} 1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" fill="${cor}" stroke="#0f172a" stroke-width="1.5"/>`);
+      }
+      const meio = ang + a / 2, dentro = a > 0.42;
+      // Fatias pequenas seguidas: rótulos em distâncias alternadas (16/30/44 px),
+      // ligados à fatia por uma linha fina, para não se sobreporem.
+      seguidas = dentro ? 0 : seguidas + 1;
+      const rr = dentro ? r * 0.66 : r + 16 + 14 * ((seguidas - 1) % 3);
+      const tx = cx + rr * Math.cos(meio), ty = cy + rr * Math.sin(meio);
+      if (!dentro) rotulos.push(`<line x1="${(cx + (r + 2) * Math.cos(meio)).toFixed(1)}" y1="${(cy + (r + 2) * Math.sin(meio)).toFixed(1)}" x2="${(cx + (rr - 4) * Math.cos(meio)).toFixed(1)}" y2="${(cy + (rr - 4) * Math.sin(meio)).toFixed(1)}" stroke="#64748b" stroke-width="1"/>`);
+      const ancora = dentro ? 'middle' : Math.cos(meio) >= 0 ? 'start' : 'end';
+      rotulos.push(`<text x="${tx.toFixed(1)}" y="${(ty + 4).toFixed(1)}" text-anchor="${ancora}" font-family="Arial, sans-serif" font-size="${dentro ? 13 : 10.5}" font-weight="700" fill="${dentro ? '#0b1220' : '#e2e8f0'}">${pct(n, total)}</text>`);
+      ang += a;
+    }
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${fatias.join('')}${rotulos.join('')}</svg>`;
+    return `<div style="display:flex;justify-content:center;margin-top:14px;"><img alt="" style="width:${W}px;height:${H}px;" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}"></div>`;
+  }
+
+  // Top 10 por devoluções, barras horizontais empilhadas por categoria (página 1,
+  // no lugar do gráfico de meses quando o relatório é de um mês ou de N dias).
+  function pdfTop10(lista) {
+    const porSku = new Map();
+    for (const r of lista) {
+      let p = porSku.get(r.sku);
+      if (!p) porSku.set(r.sku, p = { sku: r.sku, produto: r.produto, n: 0, cats: {} });
+      p.n++; p.cats[catDe(r)] = (p.cats[catDe(r)] || 0) + 1;
+    }
+    const top = [...porSku.values()].sort((a, b) => b.n - a.n).slice(0, 10);
+    const max = Math.max(1, ...top.map(p => p.n));
+    return top.map(p => `<div style="display:flex;align-items:center;gap:10px;margin:0 0 11px;">
+      <div style="width:200px;overflow:hidden;"><div style="font-size:11px;font-weight:800;color:#fff;white-space:nowrap;">${esc(p.sku)}</div>
+        <div style="font-size:9.5px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(p.produto)}</div></div>
+      <div style="flex:1;height:14px;background:#151f34;border-radius:4px;overflow:hidden;"><div style="display:flex;height:100%;width:${(p.n / max) * 100}%;">${dados.categorias.filter(c => p.cats[c.id]).map(c => `<div style="width:${(p.cats[c.id] / p.n) * 100}%;background:${c.cor};"></div>`).join('')}</div></div>
+      <span style="width:28px;text-align:right;font-size:12px;font-weight:800;color:#fff;">${p.n}</span></div>`).join('')
+      || '<span style="color:#64748b;font-size:12px;">Sem dados.</span>';
   }
 
   function pdfResumoProdutos(lista) {
@@ -738,8 +791,11 @@
     const usadas = new Set(sel.map(catDe));
     const legenda = `<div style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:10px;font-size:10px;color:#94a3b8;">${dados.categorias.filter(c => usadas.has(c.id)).map(c => `<span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${c.cor};margin-right:5px;"></span>${esc(c.nome)}</span>`).join('')}</div>`;
     const pag1 = kpis + `<div style="display:flex;gap:14px;height:calc(100% - 110px);">
-      ${pdfBloco('Motivos de devolução', pdfBarras(grupos, total) + legenda, 'flex:5;')}
-      ${pdfBloco('Devoluções por mês', `<div style="display:flex;align-items:flex-end;gap:6px;height:330px;">${colunas || '<span style="color:#64748b;font-size:12px;">Sem dados.</span>'}</div>` + legenda, 'flex:6;')}
+      ${pdfBloco('Motivos de devolução', pdfBarras(grupos, total) + legenda + pdfPizza(grupos, total), 'flex:5;')}
+      ${f.mes === 'todos'
+        ? pdfBloco('Devoluções por mês', `<div style="display:flex;align-items:flex-end;gap:6px;height:330px;">${colunas || '<span style="color:#64748b;font-size:12px;">Sem dados.</span>'}</div>` + legenda, 'flex:6;')
+        // Um mês só ou últimos N dias: o gráfico de meses teria uma ou duas colunas.
+        : pdfBloco('Top 10 produtos mais devolvidos', pdfTop10(sel) + legenda, 'flex:6;')}
     </div>`;
 
     // Página 2: produtos mais devolvidos
@@ -778,7 +834,7 @@
         : `<div style="font-size:9.5px;color:${PDF.fraco};margin-top:8px;">Vendidas e Taxa: as vendas por SKU ainda estão sendo carregadas do Tiny.</div>`);
 
     // Página 3: problemas no produto + quadros
-    const comProblema = pdfResumoProdutos(sel).filter(p => p.prod > 0).sort((a, b) => b.prod - a.prod || b.n - a.n).slice(0, 12);
+    const comProblema = pdfResumoProdutos(sel).filter(p => p.prod > 0).sort((a, b) => b.prod - a.prod || b.n - a.n).slice(0, 20); // largura toda: até 20 linhas
     const laudoDe = sku => {
       const ls = sel.filter(r => r.sku === sku && catDe(r) === 'produto' && r.laudo).map(r => r.laudo);
       return ls.length ? esc(ls[0].length > 60 ? ls[0].slice(0, 58) + '…' : ls[0]) + (ls.length > 1 ? ` <span style="color:${PDF.fraco}">(+${ls.length - 1})</span>` : '') : `<span style="color:${PDF.fraco}">sem laudo</span>`;
@@ -787,21 +843,21 @@
       [{ titulo: 'SKU' }, { titulo: 'Produto', quebra: true }, { titulo: 'Defeito/avaria', num: true }, { titulo: 'Total', num: true }, { titulo: 'Laudo A.T. (exemplo)', quebra: true }],
       comProblema.map(p => [`<b style="color:#fff">${esc(p.sku)}</b>`, esc(p.produto.length > 46 ? p.produto.slice(0, 44) + '…' : p.produto), `<b style="color:#f87171">${p.prod}</b>`, p.n, laudoDe(p.sku)]), 10)
       : '<span style="color:#64748b;font-size:12px;">Nenhuma devolução por defeito ou avaria com esses filtros.</span>';
-    let tinyTxt = '<span style="color:#64748b;font-size:11px;">Conferência com o Tiny indisponível.</span>';
+    // Conferência com o Tiny: quadro no cabeçalho da página 3, antes de "Referência".
+    let tinyValor = '<span style="font-size:12px;color:#94a3b8;">indisponível</span>';
     if (tiny && tiny.estado === 'ok') {
       const nfs = new Set(sel.map(r => r.nfEntrada).filter(Boolean));
       const ligadas = new Map();
       for (const r of sel) { const n = notaDoTiny(r); if (n) ligadas.set(chaveNota(n), n); }
       const achadas = new Set(sel.filter(r => notaDoTiny(r)).map(r => r.nfEntrada));
       const valor = [...ligadas.values()].reduce((s, n) => s + n.valor, 0);
-      tinyTxt = `<div style="display:flex;justify-content:space-between;font-size:11px;margin:4px 0;color:${PDF.texto};"><span>NFs de entrada achadas no Tiny</span><b style="color:#fff">${fmt(achadas.size)} <span style="color:${PDF.fraco};font-weight:600">de ${fmt(nfs.size)}</span></b></div>`
-        + `<div style="display:flex;justify-content:space-between;font-size:11px;margin:4px 0;color:${PDF.texto};"><span>Valor das NFs de entrada</span><b style="color:#fff">${valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</b></div>`;
+      // Duas linhas curtas, para o quadro não apertar o subtítulo da página.
+      tinyValor = `<span style="display:block;font-size:12.5px;font-weight:800;color:#fff;white-space:nowrap;line-height:1.25;">${fmt(achadas.size)} <span style="font-size:10px;color:#94a3b8;font-weight:600;">de ${fmt(nfs.size)} NFs</span></span>`
+        + `<span style="display:block;font-size:12.5px;font-weight:800;color:#fff;white-space:nowrap;line-height:1.25;">${valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>`;
     }
-    const pag3 = `<div style="display:flex;gap:14px;height:100%;">
-      ${pdfBloco('Produtos com mais devoluções por defeito ou avaria', tabProblema, 'flex:7;')}
-      <div style="flex:3;display:flex;flex-direction:column;gap:12px;">
-        ${pdfBloco('Conferência com o Tiny SP', tinyTxt)}
-      </div></div>`;
+    const seloTiny = `<div style="background:rgba(6,95,70,.35);border:1px solid #10b981;border-radius:6px;padding:5px 12px;text-align:right;min-width:92px;">
+      <span style="font-size:9px;font-weight:700;color:#6ee7b7;text-transform:uppercase;display:block;letter-spacing:.04em;">Conferência Tiny SP</span>${tinyValor}</div>`;
+    const pag3 = pdfBloco('Produtos com mais devoluções por defeito ou avaria', tabProblema, 'height:100%;box-sizing:border-box;');
 
     const filtros = [
       f.visao !== 'todas' ? (f.visao === 'produto' ? 'Produto e anúncio' : 'Cliente e logística') : null,
@@ -814,7 +870,7 @@
     return [
       pdfPagina('Devoluções e motivos', filtros, pag1, 1, 3, ctx),
       pdfPagina('Produtos mais devolvidos', `Os 20 SKUs com mais devoluções, da maior para a menor taxa · ${filtros}`, pag2, 2, 3, ctx),
-      pdfPagina('Problemas no produto', `Defeito e avaria por SKU, com o laudo da assistência técnica · ${filtros}`, pag3, 3, 3, ctx),
+      pdfPagina('Problemas no produto', `Defeito e avaria por SKU, com laudo da assistência técnica · ${filtros}`, pag3, 3, 3, ctx, seloTiny),
     ].join('');
   }
 
