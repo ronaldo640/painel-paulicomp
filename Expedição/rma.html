@@ -740,7 +740,6 @@
     </div>`;
 
     // Página 2: produtos mais devolvidos
-    const produtos = pdfResumoProdutos(sel).sort((a, b) => b.n - a.n || b.pecas - a.pecas).slice(0, 20);
     const motivoTop = (p, i) => { const e = Object.entries(p.grupos).sort((a, b) => b[1] - a[1])[i]; return e ? `${esc(grupoPorId[e[0]].nome)} <span style="color:${PDF.fraco}">(${e[1]})</span>` : '–'; };
     // Taxa de devolução por SKU: soma dos canais (cada canal comparado com as vendas dele).
     const taxaSku = new Map();
@@ -749,6 +748,12 @@
       t.dev += l.dev; t.vend += l.vend;
       taxaSku.set(l.sku, t);
     }
+    const txDe = sku => { const t = taxaSku.get(sku); return t && t.vend ? t.dev / t.vend : -1; };
+    // Os 20 SKUs com mais devoluções, ordenados pela taxa (maior primeiro; sem
+    // venda no período vai para o fim). Pegar a maior taxa entre todos os SKUs
+    // encheria a lista de itens com 1 venda e 1 devolução.
+    const produtos = pdfResumoProdutos(sel).sort((a, b) => b.n - a.n || b.pecas - a.pecas).slice(0, 20)
+      .sort((a, b) => txDe(b.sku) - txDe(a.sku) || b.n - a.n);
     const colTaxa = sku => {
       const t = taxaSku.get(sku);
       if (!t) return ['–', '–'];
@@ -805,7 +810,7 @@
     ].filter(Boolean).join(' · ');
     return [
       pdfPagina('Devoluções e motivos', filtros, pag1, 1, 3, ctx),
-      pdfPagina('Produtos mais devolvidos', `Os 20 SKUs com mais devoluções · ${filtros}`, pag2, 2, 3, ctx),
+      pdfPagina('Produtos mais devolvidos', `Os 20 SKUs com mais devoluções, da maior para a menor taxa · ${filtros}`, pag2, 2, 3, ctx),
       pdfPagina('Problemas no produto', `Defeito e avaria por SKU, com o laudo da assistência técnica · ${filtros}`, pag3, 3, 3, ctx),
     ].join('');
   }
