@@ -129,6 +129,7 @@
         <div class="cab"><h2>Motivos</h2><span class="muted" style="font-size:.8rem">clique para filtrar</span></div>
         <div class="barras" id="grupos"></div>
         <div class="legenda" id="legenda"></div>
+        <div id="pizza"></div>
       </section>
       <section class="card">
         <div class="cab"><h2>Top 10 Produtos mais devolvidos</h2><button type="button" class="btn ghost" id="b-todos-prod">Ver todos</button></div>
@@ -322,6 +323,9 @@
     }).join('') : '<p class="vazio">Nenhuma devolução com esses filtros.</p>';
     const usadas = new Set(linhas.map(g => g.categoria));
     $('legenda').innerHTML = dados.categorias.filter(c => usadas.has(c.id)).map(c => `<span><i style="background:${c.cor}"></i>${esc(c.nome)}</span>`).join('');
+    // Mesma pizza do PDF (só cor e percentual), no espaço livre do quadro.
+    const fatias = linhas.filter(g => cont.get(g.id)).map(g => [g.nome, cont.get(g.id), corGrupo(g.id)]);
+    $('pizza').innerHTML = total ? pdfPizza(fatias, total) : '';
   }
 
   function renderProdutos(lista) {
@@ -724,7 +728,7 @@
       ang += a;
     }
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${fatias.join('')}${rotulos.join('')}</svg>`;
-    return `<div style="display:flex;justify-content:center;margin-top:14px;"><img alt="" style="width:${W}px;height:${H}px;" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}"></div>`;
+    return `<div style="display:flex;justify-content:center;margin-top:14px;"><img alt="Gráfico de pizza dos motivos de devolução" style="width:${W}px;max-width:100%;height:auto;" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}"></div>`;
   }
 
   // Top 10 por devoluções, barras horizontais empilhadas por categoria (página 1,
