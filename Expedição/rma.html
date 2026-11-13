@@ -45,6 +45,12 @@
 
   .empilhada { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--panel2); min-width: 90px; }
   .empilhada i { display: block; height: 100%; }
+  .destaque-taxa { display: flex; gap: 12px; align-items: flex-start; margin: 10px 0 12px; padding: 12px 14px;
+    border: 1px solid rgba(251, 191, 36, .45); border-left: 4px solid #fbbf24; border-radius: 10px; background: rgba(251, 191, 36, .1); }
+  .destaque-taxa .ico { flex: none; width: 24px; height: 24px; border-radius: 50%; background: #fbbf24; color: #1f2937;
+    font-weight: 800; display: grid; place-items: center; font-size: .9rem; }
+  .destaque-taxa p { margin: 0; font-size: .92rem; line-height: 1.45; color: var(--text, #e5e7eb); }
+  .destaque-taxa .tit { color: #fbbf24; }
   tr.clic { cursor: pointer; }
   tr.clic:hover td { background: var(--panel2); }
   tr.sel td { background: rgba(59, 130, 246, .12); }
@@ -143,7 +149,10 @@
           <button type="button" data-ordem="taxa" aria-pressed="false">Maior taxa</button>
         </div>
       </div>
-      <p class="nota muted" style="margin-top:6px">Devoluções e vendas do mesmo período do filtro <b>Mês</b>. Quem devolve geralmente comprou antes, então num período curto (um mês só) a taxa pode distorcer e até passar de 100%. Para uma leitura mais estável, use <b>Últimos 60</b> ou <b>90 dias</b>, ou <b>Todos</b>.</p>
+      <div class="destaque-taxa" role="note">
+        <span class="ico" aria-hidden="true">!</span>
+        <p><b class="tit">Atenção ao ler a taxa.</b> Devoluções e vendas são do mesmo período do filtro <b>Mês</b>. Quem devolve geralmente comprou antes, então num período curto (um mês só) a taxa pode distorcer e até passar de 100%. Para uma leitura mais estável, use <b>Últimos 60</b> ou <b>90 dias</b>, ou <b>Todos</b>.</p>
+      </div>
       <p class="nota" id="taxa-resumo"></p>
       <div class="rolagem">
         <table>
