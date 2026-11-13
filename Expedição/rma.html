@@ -799,7 +799,11 @@
       produtos.map((p, i) => [i + 1, `<b style="color:#fff">${esc(p.sku)}</b>`, esc(p.produto.length > 34 ? p.produto.slice(0, 32) + '…' : p.produto), `<b style="color:#fff">${p.n}</b>`, p.pecas, ...colTaxa(p.sku), p.prod || '–', motivoTop(p, 0), motivoTop(p, 1)]),
       10.5)
       + (vendas && vendas.estado === 'ok' && vendas.cobertos.size
-        ? `<div style="font-size:9.5px;color:${PDF.fraco};margin-top:8px;">Vendidas e Taxa: peças devolvidas ÷ peças vendidas do mesmo SKU e canal, no mesmo período do relatório, só nos meses com as vendas já carregadas do Tiny. Em período curto (um mês só) a taxa pode distorcer, porque quem devolve geralmente comprou antes.</div>`
+        // Mesmo destaque amarelo do aviso da tela (quadro Devolução × venda).
+        ? `<div style="display:flex;gap:10px;align-items:flex-start;margin-top:10px;padding:9px 12px;border:1px solid rgba(251,191,36,.45);border-left:4px solid #fbbf24;border-radius:8px;background:rgba(251,191,36,.1);">
+            <span style="flex:none;width:18px;height:18px;border-radius:50%;background:#fbbf24;color:#1f2937;font-weight:800;font-size:11px;line-height:18px;text-align:center;">!</span>
+            <div style="font-size:10.5px;line-height:1.45;color:#e5e7eb;"><b style="color:#fbbf24;">Atenção ao ler a taxa.</b> Vendidas e Taxa: peças devolvidas ÷ peças vendidas do mesmo SKU e canal, no mesmo período do relatório (só meses com as vendas já carregadas do Tiny). Quem devolve geralmente comprou antes, então num período curto (um mês só) a taxa pode distorcer e até passar de 100%. Para uma leitura mais estável, gere o relatório com <b>Últimos 60</b> ou <b>90 dias</b>, ou <b>Todos</b>.</div>
+          </div>`
         : `<div style="font-size:9.5px;color:${PDF.fraco};margin-top:8px;">Vendidas e Taxa: as vendas por SKU ainda estão sendo carregadas do Tiny.</div>`);
 
     // Página 3: problemas no produto + quadros
