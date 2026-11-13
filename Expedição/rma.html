@@ -131,7 +131,7 @@
         <div class="legenda" id="legenda"></div>
       </section>
       <section class="card">
-        <div class="cab"><h2>Produtos mais devolvidos</h2><button type="button" class="btn ghost" id="b-todos-prod">Ver todos</button></div>
+        <div class="cab"><h2>Top 10 Produtos mais devolvidos</h2><button type="button" class="btn ghost" id="b-todos-prod">Ver todos</button></div>
         <div class="rolagem">
           <table>
             <thead><tr><th>Produto</th><th class="r">Devol.</th><th class="r">Peças</th><th>Motivos</th><th>Principal motivo</th></tr></thead>
@@ -143,7 +143,7 @@
 
     <section class="card">
       <div class="cab">
-        <h2>Devolução × venda, no mesmo canal</h2>
+        <h2>Taxa de Devolução</h2>
         <div class="seg" role="group" aria-label="Ordenar">
           <button type="button" data-ordem="dev" aria-pressed="true">Mais devoluções</button>
           <button type="button" data-ordem="taxa" aria-pressed="false">Maior taxa</button>
@@ -169,17 +169,6 @@
     </section>
 
     <section class="card">
-      <h2>Responsabilidade, destino e canal</h2>
-      <div class="mini">
-        <div><div class="lbl">Responsável (coluna "Defeito")</div><ul id="m-resp"></ul></div>
-        <div><div class="lbl">Destino do produto</div><ul id="m-dest"></ul></div>
-        <div><div class="lbl">Canal</div><ul id="m-canal"></ul></div>
-        <div><div class="lbl">Motivo marcado na planilha</div><ul id="m-plan"></ul></div>
-      </div>
-      <p class="nota" id="divergencias"></p>
-    </section>
-
-    <section class="card">
       <div class="cab"><h2>Conferência com o Tiny SP</h2><span class="muted" id="tiny-status" style="font-size:.85rem"></span></div>
       <div id="tiny"></div>
     </section>
@@ -192,7 +181,7 @@
           <tbody id="detalhe"></tbody>
         </table>
       </div>
-      <button type="button" class="btn sec" id="b-mais" hidden>Mostrar mais</button>
+      <button type="button" class="btn sec" id="b-mais" hidden>Ver todos</button>
     </section>
 
     <section class="card">
@@ -212,7 +201,7 @@
   const $ = id => document.getElementById(id);
   const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   const VISOES = { produto: ['produto', 'anuncio'], cliente: ['cliente', 'logistica'] };
-  const POR_PAGINA = 50;
+  const POR_PAGINA = 20; // quadro Devoluções: as 20 mais recentes; "Ver todos" abre a lista inteira
 
   let dados = null;      // resposta de /api/rma
   let tiny = null;       // { estado: 'carregando'|'ok'|'erro', notas, erro }
@@ -287,7 +276,6 @@
     renderGrupos(comSku);
     renderProdutos(comGrupo);
     renderMeses(sel);
-    renderMini(sel);
     renderTiny(sel);
     renderDetalhe(sel);
     renderTaxas(f.sku ? comGrupo.filter(r => r.sku === f.sku) : comGrupo);
@@ -347,9 +335,9 @@
       p.grupos[r.grupo] = (p.grupos[r.grupo] || 0) + 1;
     }
     const todos = [...porSku.values()].sort((a, b) => b.n - a.n || b.pecas - a.pecas);
-    const mostra = mostrarTodosProd ? todos : todos.slice(0, 15);
-    $('b-todos-prod').hidden = todos.length <= 15;
-    $('b-todos-prod').textContent = mostrarTodosProd ? 'Só os 15 primeiros' : `Ver todos (${todos.length})`;
+    const mostra = mostrarTodosProd ? todos : todos.slice(0, 10);
+    $('b-todos-prod').hidden = todos.length <= 10;
+    $('b-todos-prod').textContent = mostrarTodosProd ? 'Só os 10 primeiros' : `Ver todos (${todos.length})`;
     $('produtos').innerHTML = mostra.length ? mostra.map(p => {
       const barra = dados.categorias.filter(c => p.cats[c.id]).map(c => `<i style="width:${(p.cats[c.id] / p.n) * 100}%;background:${c.cor}" title="${esc(c.nome)}: ${p.cats[c.id]}"></i>`).join('');
       const [gTop, nTop] = Object.entries(p.grupos).sort((a, b) => b[1] - a[1])[0];
@@ -492,24 +480,6 @@
     }).join('') : '<p class="vazio">Sem dados no período.</p>';
   }
 
-  function lista(el, pares, total) {
-    $(el).innerHTML = pares.map(([k, v]) => `<li><span>${esc(k)}</span><b>${fmt(v)} <span class="muted" style="font-weight:500">${pct(v, total)}</span></b></li>`).join('') || '<li class="muted">–</li>';
-  }
-
-  function renderMini(l) {
-    lista('m-resp', contar(l, 'responsavel'), l.length);
-    lista('m-dest', contar(l, 'destino'), l.length);
-    lista('m-canal', contar(l, 'canal'), l.length);
-    lista('m-plan', contar(l, r => r.motivoPlanilha.charAt(0) + r.motivoPlanilha.slice(1).toLowerCase()), l.length);
-    // Onde o texto do motivo e a coluna MOTIVO da planilha discordam.
-    const arrepComProblema = l.filter(r => r.motivoPlanilha === 'ARREPENDIMENTO' && catDe(r) === 'produto').length;
-    const defeitoSemProblema = l.filter(r => r.motivoPlanilha === 'DEFEITO' && ['cliente', 'logistica'].includes(catDe(r))).length;
-    const partes = [];
-    if (arrepComProblema) partes.push(`<b>${arrepComProblema}</b> marcadas como Arrependimento na planilha, mas o texto fala em defeito ou avaria`);
-    if (defeitoSemProblema) partes.push(`<b>${defeitoSemProblema}</b> marcadas como Defeito, mas o texto fala em arrependimento, cancelamento ou entrega`);
-    $('divergencias').innerHTML = partes.length ? 'Para revisar: ' + partes.join('; ') + '.' : '';
-  }
-
   // A planilha não tem a série da NF, e o mesmo número existe na série 1 e na
   // série 2 (Full). Liga cada devolução à nota do Tiny com a data mais próxima.
   let tinyPorNumero = null;
@@ -602,7 +572,8 @@
         <td class="peq">${esc(r.destino)}</td>
         <td class="peq num">${nf}</td></tr>`;
     }).join('') || '<tr><td colspan="8" class="vazio">Nenhuma devolução com esses filtros.</td></tr>';
-    $('b-mais').hidden = ord.length <= limiteDet;
+    $('b-mais').hidden = ord.length <= POR_PAGINA;
+    $('b-mais').textContent = limiteDet > POR_PAGINA ? `Só as ${POR_PAGINA} últimas` : `Ver todos (${fmt(ord.length)})`;
   }
 
   function montarFiltros() {
@@ -816,7 +787,6 @@
       [{ titulo: 'SKU' }, { titulo: 'Produto', quebra: true }, { titulo: 'Defeito/avaria', num: true }, { titulo: 'Total', num: true }, { titulo: 'Laudo A.T. (exemplo)', quebra: true }],
       comProblema.map(p => [`<b style="color:#fff">${esc(p.sku)}</b>`, esc(p.produto.length > 46 ? p.produto.slice(0, 44) + '…' : p.produto), `<b style="color:#f87171">${p.prod}</b>`, p.n, laudoDe(p.sku)]), 10)
       : '<span style="color:#64748b;font-size:12px;">Nenhuma devolução por defeito ou avaria com esses filtros.</span>';
-    const listaMini = pares => pares.map(([k, v]) => `<div style="display:flex;justify-content:space-between;font-size:11px;margin:4px 0;color:${PDF.texto};"><span>${esc(k)}</span><b style="color:#fff">${fmt(v)} <span style="color:${PDF.fraco};font-weight:600">${pct(v, total)}</span></b></div>`).join('');
     let tinyTxt = '<span style="color:#64748b;font-size:11px;">Conferência com o Tiny indisponível.</span>';
     if (tiny && tiny.estado === 'ok') {
       const nfs = new Set(sel.map(r => r.nfEntrada).filter(Boolean));
@@ -830,9 +800,6 @@
     const pag3 = `<div style="display:flex;gap:14px;height:100%;">
       ${pdfBloco('Produtos com mais devoluções por defeito ou avaria', tabProblema, 'flex:7;')}
       <div style="flex:3;display:flex;flex-direction:column;gap:12px;">
-        ${pdfBloco('Responsável (coluna "Defeito")', listaMini(contar(sel, 'responsavel')))}
-        ${pdfBloco('Destino do produto', listaMini(contar(sel, 'destino')))}
-        ${pdfBloco('Canal', listaMini(contar(sel, 'canal')))}
         ${pdfBloco('Conferência com o Tiny SP', tinyTxt)}
       </div></div>`;
 
@@ -928,7 +895,7 @@
   $('produtos').addEventListener('keydown', e => { const tr = e.target.closest('[data-sku]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); escolheSku(tr); } });
   $('chips').addEventListener('click', e => { const b = e.target.closest('[data-tira]'); if (!b) return; f[b.dataset.tira] = null; render(); });
   $('b-todos-prod').addEventListener('click', () => { mostrarTodosProd = !mostrarTodosProd; render(); });
-  $('b-mais').addEventListener('click', () => { limiteDet += POR_PAGINA; render(); });
+  $('b-mais').addEventListener('click', () => { limiteDet = limiteDet > POR_PAGINA ? POR_PAGINA : Infinity; render(); });
   document.querySelectorAll('[data-ordem]').forEach(b => b.addEventListener('click', () => {
     ordemTaxa = b.dataset.ordem;
     document.querySelectorAll('[data-ordem]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
