@@ -574,8 +574,8 @@
         <p class="nota">Soma das notas do Tiny ligadas às devoluções filtradas.</p></div>
       <div><div class="lbl">Devoluções da SP fora da planilha</div>${grande(fmt(foraS1pf.length), brl(soma(foraS1pf)))}
         <p class="nota">Notas de devolução de venda (série 1, de pessoa física ou empresa) emitidas no Tiny que não aparecem na planilha. <b>Vale conferir</b>: podem ser devoluções recebidas e não lançadas.</p></div>
-      <div><div class="lbl">Devoluções do Full</div>${grande(fmt(foraS2.length), brl(soma(foraS2)))}
-        <p class="nota">Série 2: voltam direto para o depósito do Mercado Livre, sem passar pela SP. Por isso não estão na planilha. Só informativo.</p></div>
+      ${''/* "Devoluções do Full" (série 2) oculto a pedido do usuário em 13/11/2026, até
+         entender se há controle dessas devoluções que ficam no ML. O cálculo (foraS2) continua acima. */}
     </div>
     ${foraS1pf.length ? `<details style="margin-top:12px"><summary>Ver as ${fmt(foraS1pf.length)} devoluções da SP fora da planilha</summary><p class="nota" style="margin-top:6px">${esc(nfLista(foraS1pf))}</p></details>` : ''}
     ${faltamNoTiny.length ? `<details style="margin-top:8px"><summary>${fmt(faltamNoTiny.length)} NFs da planilha não achadas no Tiny</summary><p class="nota" style="margin-top:6px">${esc(nfLista(faltamNoTiny))}</p></details>` : ''}
