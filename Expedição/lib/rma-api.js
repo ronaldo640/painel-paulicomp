@@ -96,11 +96,15 @@ async function parteVendas(req, res) {
   try {
     await garantirTabelas(sql);
     const desde = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.desde || '')) ? String(req.query.desde) : '2025-11-01';
-    const vendas = await sql`
-      SELECT i.sku, n.canal, to_char(n.data, 'YYYY-MM') AS mes, SUM(i.quantidade)::float AS qtd
+    // Por dia, em lista compacta [sku, canal, 'aaaa-mm-dd', qtd]: a tela soma as
+    // vendas numa janela de 30/60/90 dias antes da devolução.
+    const linhas = await sql`
+      SELECT i.sku, n.canal, to_char(n.data, 'YYYY-MM-DD') AS dia, SUM(i.quantidade)::float AS qtd
       FROM venda_itens i JOIN venda_notas n ON n.nota_id = i.nota_id
       WHERE n.filial = 'SP' AND n.data >= ${desde}::date
       GROUP BY 1, 2, 3`;
+    const vendas = linhas.map(v => [v.sku, v.canal, v.dia, v.qtd]);
+    const [ult] = await sql`SELECT to_char(MAX(data), 'YYYY-MM-DD') AS dia FROM venda_notas WHERE filial = 'SP'`;
     const lidas = await sql`
       SELECT to_char(data, 'YYYY-MM') AS mes, COUNT(*)::int AS notas
       FROM venda_notas WHERE filial = 'SP' AND data >= ${desde}::date GROUP BY 1`;
@@ -109,7 +113,7 @@ async function parteVendas(req, res) {
       SELECT to_char(data, 'YYYY-MM') AS mes, COUNT(*)::int AS notas
       FROM dispatches WHERE filial = 'PAULICOMP SP' AND data >= ${desde}::date GROUP BY 1`;
     res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=3600');
-    return res.status(200).json({ ok: true, vendas, cobertura: { lidas, total } });
+    return res.status(200).json({ ok: true, vendas, ultimoDia: ult?.dia || null, cobertura: { lidas, total } });
   } catch (error) {
     console.error('Erro nas vendas do RMA:', error);
     return res.status(200).json({ ok: false, error: error.message });

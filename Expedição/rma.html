@@ -138,11 +138,19 @@
     <section class="card">
       <div class="cab">
         <h2>Devolução × venda, no mesmo canal</h2>
-        <div class="seg" role="group" aria-label="Ordenar">
-          <button type="button" data-ordem="dev" aria-pressed="true">Mais devoluções</button>
-          <button type="button" data-ordem="taxa" aria-pressed="false">Maior taxa</button>
+        <div class="cab" style="gap:10px">
+          <div class="seg" role="group" aria-label="Vendas consideradas">
+            <button type="button" data-janela="30" aria-pressed="false" title="Só as vendas do mesmo período das devoluções">30 dias</button>
+            <button type="button" data-janela="60" aria-pressed="true" title="Vendas do período e dos 30 dias anteriores">60 dias</button>
+            <button type="button" data-janela="90" aria-pressed="false" title="Vendas do período e dos 60 dias anteriores">90 dias</button>
+          </div>
+          <div class="seg" role="group" aria-label="Ordenar">
+            <button type="button" data-ordem="dev" aria-pressed="true">Mais devoluções</button>
+            <button type="button" data-ordem="taxa" aria-pressed="false">Maior taxa</button>
+          </div>
         </div>
       </div>
+      <p class="nota muted" style="margin-top:6px">Quem devolve num mês geralmente comprou antes, então comparar só com as vendas do mesmo mês distorce a taxa (pode passar de 100%). Escolha a janela de vendas: <b>30 dias</b> = só o período das devoluções; <b>60</b> = o período e os 30 dias anteriores; <b>90</b> = o período e os 60 dias anteriores. Taxa acima de 100% ainda pode aparecer quando a venda foi antes da janela ou o SKU vende pouco.</p>
       <p class="nota" id="taxa-resumo"></p>
       <div class="rolagem">
         <table>
@@ -329,12 +337,18 @@
 
   // ---------------------------------------------------------------
   // Devolução × venda: peças devolvidas ÷ peças vendidas do mesmo SKU, no mesmo
-  // canal e no mesmo mês (mês da aba da planilha × mês da nota de venda).
-  // Vendas vêm de /api/rma?parte=vendas (itens das notas de venda do Tiny).
+  // canal. As devoluções são as dos meses do filtro (mês da aba da planilha);
+  // as vendas, as de uma janela que termina no fim desse período e começa
+  // (janela − 30) dias antes do início dele: quem devolve num mês comprou antes.
+  // Vendas vêm de /api/rma?parte=vendas (itens das notas de venda do Tiny, por dia).
   // Só entram meses cujas vendas já foram carregadas (95% das notas ou mais).
   // ---------------------------------------------------------------
-  let vendas = null;          // { estado, porChave: Map('sku|canal|aaaa-mm' -> qtd), cobertos: Set('aaaa-mm'), cobertura }
-  let ordemTaxa = 'dev', todasTaxas = false;
+  let vendas = null;          // { estado, porChave: Map('sku|canal' -> [[aaaa-mm-dd, qtd]]), cobertos: Set('aaaa-mm'), ultimoDia, cobertura }
+  let ordemTaxa = 'dev', todasTaxas = false, janela = 60;
+  const isoDia = d => d.toISOString().slice(0, 10);
+  const somaDias = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return isoDia(d); };
+  const fimDoMes = m => isoDia(new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0, 12)));
+  const diaBr = iso => iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(2, 4);
   const CANAIS_VENDA = new Set(['ML', 'FULL', 'LOJA NUVEM', 'AMAZON', 'SHOPEE']);
   const anoPlanilha = () => (contar(dados.registros.map(r => r.data).filter(Boolean), d => d.slice(0, 4))[0] || [String(new Date().getFullYear())])[0];
   const mesIso = r => (mesDe(r) ? `${anoPlanilha()}-${String(mesDe(r)).padStart(2, '0')}` : null);
@@ -354,13 +368,25 @@
       l.dev += r.quantidade;
       l.meses.add(m);
     }
-    // Vendas no mesmo período considerado: o mês filtrado ou todos os meses carregados.
-    const mesesVenda = f.mes !== 'todos' ? [`${anoPlanilha()}-${String(f.mes).padStart(2, '0')}`].filter(m => vendas.cobertos.has(m)) : [...vendas.cobertos];
-    for (const l of linhas.values()) {
-      l.vend = mesesVenda.reduce((s, m) => s + (vendas.porChave.get(`${l.sku}|${l.canal}|${m}`) || 0), 0);
-      l.taxa = l.vend > 0 ? l.dev / l.vend : null;
+    // Janela de vendas: do início do período das devoluções menos (janela − 30)
+    // dias até o fim dele (ou o último dia com vendas lidas). Dias de meses ainda
+    // não carregados não entram (e a tela avisa).
+    const mesesDev = [...new Set([...linhas.values()].flatMap(l => [...l.meses]))].sort();
+    let jan = null;
+    if (mesesDev.length) {
+      const ini = somaDias(mesesDev[0] + '-01', -(janela - 30));
+      let fim = fimDoMes(mesesDev[mesesDev.length - 1]);
+      if (vendas.ultimoDia && vendas.ultimoDia < fim) fim = vendas.ultimoDia;
+      const faltando = [];
+      for (let d = ini.slice(0, 7); d <= fim.slice(0, 7); d = somaDias(d + '-01', 32).slice(0, 7)) if (!vendas.cobertos.has(d)) faltando.push(d);
+      jan = { ini, fim, faltando };
+      for (const l of linhas.values()) {
+        l.vend = (vendas.porChave.get(l.sku + '|' + l.canal) || [])
+          .reduce((s, [dia, q]) => (dia >= ini && dia <= fim && vendas.cobertos.has(dia.slice(0, 7)) ? s + q : s), 0);
+        l.taxa = l.vend > 0 ? l.dev / l.vend : null;
+      }
     }
-    return { linhas: [...linhas.values()], semCanal, foraCobertura, mesesVenda };
+    return { linhas: [...linhas.values()], semCanal, foraCobertura, jan };
   }
 
   const fmtTaxa = t => (t == null ? '–' : (t * 100).toLocaleString('pt-BR', { maximumFractionDigits: t < 0.1 ? 1 : 0 }) + '%');
@@ -370,21 +396,22 @@
     const resumo = $('taxa-resumo'), corpo = $('taxas');
     if (!vendas || vendas.estado === 'carregando') { resumo.textContent = 'Carregando vendas…'; corpo.innerHTML = ''; $('b-todas-taxas').hidden = true; return; }
     if (vendas.estado === 'erro') { resumo.innerHTML = `<span class="aviso" style="display:block">Não consegui ler as vendas: ${esc(vendas.erro)}</span>`; corpo.innerHTML = ''; return; }
-    const { linhas, semCanal, foraCobertura, mesesVenda } = calcularTaxas(lista);
+    const { linhas, semCanal, foraCobertura, jan } = calcularTaxas(lista);
     if (!vendas.cobertos.size) {
       resumo.innerHTML = 'As vendas por SKU ainda estão sendo carregadas do Tiny. Assim que um mês estiver completo, a comparação aparece aqui.';
       corpo.innerHTML = ''; $('b-todas-taxas').hidden = true; return;
     }
     const dev = linhas.reduce((s, l) => s + l.dev, 0);
     const vend = linhas.reduce((s, l) => s + l.vend, 0);
-    const meses = [...vendas.cobertos].sort();
     const rotMes = m => MESES[Number(m.slice(5, 7)) - 1] + '/' + m.slice(2, 4);
-    const periodo = f.mes !== 'todos' ? rotMes(`${anoPlanilha()}-${String(f.mes).padStart(2, '0')}`) : `${rotMes(meses[0])} a ${rotMes(meses[meses.length - 1])}`;
+    const mesesDev = [...new Set(linhas.flatMap(l => [...l.meses]))].sort();
+    const periodo = !mesesDev.length ? '–' : mesesDev.length === 1 ? rotMes(mesesDev[0]) : `${rotMes(mesesDev[0])} a ${rotMes(mesesDev[mesesDev.length - 1])}`;
     const avisos = [];
-    if (f.mes !== 'todos' && !mesesVenda.length) avisos.push('as vendas deste mês ainda não foram todas carregadas');
+    if (f.mes !== 'todos' && !mesesDev.length && !foraCobertura) avisos.push('nenhuma devolução com canal neste mês');
     if (foraCobertura) avisos.push(`${fmt(foraCobertura)} devoluções de meses com vendas ainda carregando ficaram de fora`);
+    if (jan && jan.faltando.length) avisos.push(`vendas de ${jan.faltando.map(rotMes).join(', ')} ainda não estão carregadas e não entram na janela`);
     if (semCanal) avisos.push(`${fmt(semCanal)} sem canal na planilha`);
-    resumo.innerHTML = `Período: <b>${periodo}</b>. Nos produtos abaixo: <b>${fmt(dev)}</b> peças devolvidas para <b>${fmt(vend)}</b> vendidas nos mesmos canais (<b>${fmtTaxa(vend ? dev / vend : null)}</b>).`
+    resumo.innerHTML = `Devoluções de <b>${periodo}</b> × vendas de <b>${jan ? diaBr(jan.ini) + ' a ' + diaBr(jan.fim) : '–'}</b> (${janela} dias). Nos produtos abaixo: <b>${fmt(dev)}</b> peças devolvidas para <b>${fmt(vend)}</b> vendidas nos mesmos canais (<b>${fmtTaxa(vend ? dev / vend : null)}</b>).`
       + (avisos.length ? ` <span class="muted">Obs.: ${avisos.join('; ')}.</span>` : '');
     const ord = linhas.sort(ordemTaxa === 'taxa'
       ? (a, b) => (b.vend >= 5) - (a.vend >= 5) || (b.taxa ?? -1) - (a.taxa ?? -1) || b.dev - a.dev
@@ -407,10 +434,15 @@
     try {
       const j = await fetch('/api/rma?parte=vendas').then(r => r.json());
       if (!j.ok) throw new Error(j.error || 'erro');
-      const porChave = new Map(j.vendas.map(v => [`${v.sku}|${v.canal}|${v.mes}`, Number(v.qtd)]));
+      const porChave = new Map();
+      for (const [sku, canal, dia, qtd] of j.vendas) {
+        const k = sku + '|' + canal;
+        if (!porChave.has(k)) porChave.set(k, []);
+        porChave.get(k).push([dia, Number(qtd)]);
+      }
       const total = new Map(j.cobertura.total.map(x => [x.mes, x.notas]));
       const cobertos = new Set(j.cobertura.lidas.filter(x => total.get(x.mes) && x.notas >= 0.95 * total.get(x.mes)).map(x => x.mes));
-      vendas = { estado: 'ok', porChave, cobertos, cobertura: j.cobertura };
+      vendas = { estado: 'ok', porChave, cobertos, ultimoDia: j.ultimoDia, cobertura: j.cobertura };
     } catch (e) { vendas = { estado: 'erro', erro: e.message }; }
     render();
   }
@@ -730,7 +762,7 @@
       produtos.map((p, i) => [i + 1, `<b style="color:#fff">${esc(p.sku)}</b>`, esc(p.produto.length > 34 ? p.produto.slice(0, 32) + '…' : p.produto), `<b style="color:#fff">${p.n}</b>`, p.pecas, ...colTaxa(p.sku), p.prod || '–', motivoTop(p, 0), motivoTop(p, 1)]),
       10.5)
       + (vendas && vendas.estado === 'ok' && vendas.cobertos.size
-        ? `<div style="font-size:9.5px;color:${PDF.fraco};margin-top:8px;">Vendidas e Taxa: peças devolvidas ÷ peças vendidas do mesmo SKU, no mesmo canal e mês, só nos meses com as vendas já carregadas do Tiny.</div>`
+        ? `<div style="font-size:9.5px;color:${PDF.fraco};margin-top:8px;">Vendidas e Taxa: peças devolvidas ÷ peças vendidas do mesmo SKU e canal, com vendas numa janela de ${janela} dias (o período das devoluções${janela > 30 ? ` e os ${janela - 30} dias anteriores` : ''}), só nos meses com as vendas já carregadas do Tiny.</div>`
         : `<div style="font-size:9.5px;color:${PDF.fraco};margin-top:8px;">Vendidas e Taxa: as vendas por SKU ainda estão sendo carregadas do Tiny.</div>`);
 
     // Página 3: problemas no produto + quadros
@@ -858,6 +890,11 @@
   document.querySelectorAll('[data-ordem]').forEach(b => b.addEventListener('click', () => {
     ordemTaxa = b.dataset.ordem;
     document.querySelectorAll('[data-ordem]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    render();
+  }));
+  document.querySelectorAll('[data-janela]').forEach(b => b.addEventListener('click', () => {
+    janela = Number(b.dataset.janela);
+    document.querySelectorAll('[data-janela]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     render();
   }));
   $('b-todas-taxas').addEventListener('click', () => { todasTaxas = !todasTaxas; render(); });
