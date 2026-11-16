@@ -1,5 +1,6 @@
-// RMA (devoluções e garantias) — transforma as abas da planilha "Retorno de
-// materiais SP" em registros e classifica o motivo de cada devolução em grupos.
+// RMA (devoluções e garantias) — transforma as abas das planilhas "Retorno de
+// materiais SP" e "Retorno de Materiais PR" (Sul e Trade juntos) em registros e
+// classifica o motivo de cada devolução em grupos.
 //
 // A planilha é preenchida por várias pessoas e só é LIDA aqui: nada é gravado
 // de volta. Cada mês é uma aba, e as colunas mudam de um mês para outro
@@ -30,7 +31,8 @@ export const GRUPOS = [
   {
     id: 'retorno_full', nome: 'Retorno do Fulfillment', categoria: 'fora',
     descricao: 'Produto voltando do estoque Full. Não é devolução de cliente.',
-    regra: /ret\w*no do full|retirada do full/,
+    // "Retirada estoque full S/venda" aparece na planilha do Sul/Trade (PR).
+    regra: /ret\w*no do full|retirada (do |estoque )?full/,
   },
   {
     id: 'cancelamento', nome: 'Cancelamento da venda', categoria: 'cliente',
@@ -125,6 +127,10 @@ const COLUNAS = {
   'laudo a.t.': 'laudo',
   'defeito': 'responsavel',
   'destino': 'destino',
+  // Planilha PR (Sul e Trade): o destino vem em duas colunas. "Responsável" lá é
+  // o nome de quem atendeu, não a responsabilidade, e fica de fora.
+  'setor de destino': 'setorDestino',
+  'destino final': 'destinoFinal',
 };
 
 const MESES = ['JANEIRO', 'FEVEREIRO', 'MARCO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'];
@@ -168,7 +174,23 @@ function padronizarResultado(v) {
 function padronizarCanal(v) {
   const s = texto(v).toUpperCase();
   if (!s || s === '-') return 'Não informado';
+  // Planilha PR: "ML SUL" / "ML TRADE" = Mercado Livre da filial (a filial sai à parte).
+  if (/^ML (SUL|TRADE)$/.test(s)) return 'ML';
   return s;
+}
+
+// Planilha PR (Sul e Trade juntos): não há coluna de filial. "ML TRADE" e
+// "Remessa" (NF de saída da série 13xxx–16xxx) são da Comp Trade; o resto (ML SUL,
+// SHOPEE, LOJA, NF 6xxxx) é da Paulicomp Sul (confirmado pelo usuário em 16/11/2026).
+// Empresa vazia: decide pela NF de saída (>= 50000 = Sul).
+export function filialDaLinhaPr(empresa, nfSaida) {
+  const s = texto(empresa).toUpperCase();
+  if (/TRADE|REMESSA/.test(s)) return 'TRADE';
+  if (s && s !== '-') return 'SUL';
+  const nf = Number(nfSaida) || 0;
+  if (nf >= 50000) return 'SUL';
+  if (nf > 0) return 'TRADE';
+  return 'SUL';
 }
 
 function padronizarResponsavel(v) {
@@ -186,6 +208,19 @@ function padronizarDestino(v) {
   if (n.startsWith('voltou')) return 'Voltou ao estoque';
   if (n.startsWith('sucata')) return 'Sucata';
   return texto(v);
+}
+
+// Planilha PR: "Destino Final" (Sucata) manda; senão "Setor de Destino"
+// (ESTOQUE = voltou ao estoque; A.T. = assistência técnica).
+function destinoPr(setor, final) {
+  const nf = normalizar(final);
+  if (nf.startsWith('sucata')) return 'Sucata';
+  if (nf) return texto(final);
+  const ns = normalizar(setor);
+  if (!ns) return 'Não informado';
+  if (ns.startsWith('estoque')) return 'Voltou ao estoque';
+  if (/^a\.?\s?t\.?$/.test(ns)) return 'Assistência técnica';
+  return texto(setor);
 }
 
 export function lerRegistrosRma(abas) {
@@ -239,7 +274,11 @@ export function lerRegistrosRma(abas) {
         canal: padronizarCanal(pega('canal')),
         nfEntrada: numeroNota(pega('nfEntrada')),
         responsavel: padronizarResponsavel(pega('responsavel')),
-        destino: padronizarDestino(pega('destino')),
+        destino: mapa.destino == null && (mapa.setorDestino != null || mapa.destinoFinal != null)
+          ? destinoPr(pega('setorDestino'), pega('destinoFinal'))
+          : padronizarDestino(pega('destino')),
+        // Só a planilha PR mistura filiais; a API filtra por este campo.
+        filialPr: filialDaLinhaPr(pega('canal'), numeroNota(pega('nfSaida'))),
       });
     }
   }
