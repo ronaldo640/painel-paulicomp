@@ -1015,12 +1015,16 @@
     area.style.cssText = 'position:fixed;left:-20000px;top:0;';
     area.appendChild(raiz);
     document.body.appendChild(area);
+    // A captura leva em conta a rolagem da tela: com a página rolada, o conteúdo
+    // desce o mesmo tanto no PDF. Volta ao topo só durante a captura.
+    const rolagem = [window.scrollX, window.scrollY];
+    window.scrollTo(0, 0);
     try {
       await html2pdf().set({
         margin: 0,
         filename: `Devolucoes_RMA_${filial}_${agora.toISOString().slice(0, 10)}.pdf`,
         image: { type: 'jpeg', quality: 0.96 },
-        html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: PDF.fundo },
+        html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: PDF.fundo, scrollX: 0, scrollY: 0 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
         // Sem quebras CSS: com 1123 px de largura, uma folha A4 paisagem tem 794 px
         // de altura, a mesma altura de cada página. As quebras do html2pdf
@@ -1032,6 +1036,7 @@
       alert('Erro ao gerar o PDF: ' + e.message);
     } finally {
       area.remove();
+      window.scrollTo(rolagem[0], rolagem[1]);
       btn.disabled = false; btn.textContent = 'Relatório PDF';
     }
   }
