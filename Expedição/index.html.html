@@ -232,6 +232,32 @@
             .cx-kpis { grid-template-columns: repeat(2,1fr); }
             .cx-row-2 { grid-template-columns: 1fr; }
         }
+
+        /* Seletor de período (mesmo do RMA): botão que abre uma janelinha com atalhos e dia/mês/intervalo. */
+        .periodo { position: relative; }
+        .periodo-btn { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 11rem; padding: 6px 10px;
+            background: #1e293b; border: 1px solid rgba(59, 130, 246, .5); border-radius: 6px; color: #fff; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+        .periodo-btn:hover, .periodo-btn[aria-expanded="true"] { border-color: #3b82f6; }
+        .periodo-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; width: 430px; max-width: calc(100vw - 32px); box-sizing: border-box;
+            padding: 16px 18px; background: #0f172a; border: 1px solid #1e293b; border-radius: 14px; box-shadow: 0 18px 40px rgba(0, 0, 0, .45); font-size: 13px; }
+        .periodo-pop[hidden] { display: none; }
+        .pp-tit { font-size: 13px; color: #94a3b8; margin-bottom: 8px; }
+        .pp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+        .pp-chips button { padding: 6px 12px; border-radius: 999px; border: 1px solid #1e293b; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+        .pp-chips button:hover { border-color: #94a3b8; }
+        .pp-chips button[aria-pressed="true"] { color: #60a5fa; border-color: #3b82f6; background: rgba(59, 130, 246, .1); }
+        .pp-nav { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 6px 8px; border: 1px solid #1e293b; border-radius: 10px; }
+        .pp-nav button { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 1px solid #1e293b; background: transparent; color: inherit; font-size: 16px; cursor: pointer; }
+        .pp-nav button:disabled { opacity: .35; cursor: default; }
+        .pp-nav input, .pp-nav .pp-val { flex: 1; min-width: 0; padding: 6px 4px; background: transparent; border: 0; color: inherit; font: inherit; font-size: 15px; color-scheme: dark; }
+        .pp-int { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+        .pp-int label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #94a3b8; }
+        .pp-int input { padding: 8px 10px; background: #1e293b; border: 1px solid #1e293b; border-radius: 10px; color: inherit; font: inherit; color-scheme: dark; }
+        .pp-acoes { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
+        .pp-btn { border-radius: 999px; padding: 8px 20px; background: #3b82f6; color: #fff; border: 0; font: inherit; font-weight: 700; cursor: pointer; }
+        .pp-btn:hover { background: #2563eb; }
+        .pp-link { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 8px 4px; }
+        .pp-erro { margin-top: 8px; font-size: 12px; color: #f87171; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-blue-600 selection:text-white">
@@ -310,11 +336,21 @@
                             <svg class="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                             </svg>
-                            Mês:
+                            Período:
                         </span>
-                        <select id="filterMes" class="bg-slate-800 border border-blue-500/50 text-white text-xs font-bold rounded-md px-2.5 py-1.5 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
-                            <option value="ALL">Todos os Meses (Consolidado)</option>
-                        </select>
+                        <!-- Mesmo seletor do RMA (modelo do filtro de datas do Tiny): atalhos + dia / mês / intervalo, aplicar ou cancelar. -->
+                        <div class="periodo">
+                            <button type="button" class="periodo-btn" id="b-periodo" aria-haspopup="dialog" aria-expanded="false" aria-controls="periodo-pop"><span id="periodo-rot">sem filtro</span><span aria-hidden="true">▾</span></button>
+                            <div class="periodo-pop" id="periodo-pop" role="dialog" aria-label="Escolher período" hidden>
+                                <div class="pp-tit">Período</div>
+                                <div class="pp-chips" id="pp-chips"></div>
+                                <div id="pp-ctrl"></div>
+                                <div class="pp-acoes">
+                                    <button type="button" class="pp-btn" id="pp-aplicar">aplicar</button>
+                                    <button type="button" class="pp-link" id="pp-cancelar">cancelar</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="flex items-center gap-1.5">
@@ -1364,45 +1400,150 @@
             }, 5000);
         }
 
-        // Monta o seletor em hierarquia Ano > Mês: cada ano vira um <optgroup> com uma opção
-        // "Ano Completo" (filtra o ano inteiro) seguida dos meses daquele ano.
+        // ---------------------------------------------------------------
+        // Período (substitui o antigo seletor "Mês"). Mesmo modelo do RMA e do filtro de
+        // datas do Tiny: atalhos (sem filtro, últimos N dias) e "do dia" / "do mês" /
+        // "do intervalo". Só vale ao clicar em aplicar; cancelar (ou Esc, ou clicar fora) descarta.
+        //   PERIODO.tipo: 'todos' | 'd7' | 'd30' | 'd60' | 'd90' | 'dia' | 'mes' | 'int'
+        //   (dia/int usam ini/fim, mes usa PERIODO.mes = 'AAAA-MM').
+        // "Sem filtro" = tudo que está carregado (últimos MESES_PADRAO meses, ou a base
+        // inteira depois de "histórico completo"). Período que começa antes do corte baixa
+        // o histórico completo sozinho — a economia do Neon continua no uso normal.
+        // ---------------------------------------------------------------
+        const PERIODO = { tipo: 'todos', ini: null, fim: null, mes: null };
+        const PP_ATALHOS = [['todos', 'sem filtro'], ['d7', 'últimos 7 dias'], ['d30', 'últimos 30 dias'], ['d60', 'últimos 60 dias'], ['d90', 'últimos 90 dias'],
+            ['dia', 'do dia'], ['mes', 'do mês'], ['int', 'do intervalo']];
+        let ppMeses = [];      // 'AAAA-MM' que existem na base carregada (do mais antigo ao mais novo)
+        let ppRasc = null;     // escolha ainda não aplicada
+        const ppHoje = () => new Date().toLocaleDateString('sv');
+        const ppIsoMais = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+        const ppDataBr = iso => (iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '–');
+        const ppMesRot = ym => `${ptMonths[Number(ym.slice(5, 7)) - 1]}/${ym.slice(0, 4)}`;
+
+        // Intervalo [ini, fim] (AAAA-MM-DD) do período aplicado; null = sem filtro.
+        function periodoIntervalo() {
+            const t = PERIODO.tipo;
+            if (t === 'todos') return null;
+            if (/^d\d+$/.test(t)) { const n = Number(t.slice(1)), fim = ppHoje(); return { ini: ppIsoMais(fim, -(n - 1)), fim }; }
+            if (t === 'mes') {
+                const [y, m] = PERIODO.mes.split('-').map(Number);
+                return { ini: `${PERIODO.mes}-01`, fim: `${PERIODO.mes}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}` };
+            }
+            return { ini: PERIODO.ini, fim: PERIODO.fim };
+        }
+        const dentroDoPeriodo = iso => { const p = periodoIntervalo(); return !p || (!!iso && iso >= p.ini && iso <= p.fim); };
+
+        // Texto do período (botão, subtítulo do gráfico e PDF).
+        function rotuloPeriodo(curto) {
+            const t = PERIODO.tipo, p = periodoIntervalo();
+            if (t === 'todos') return historicoCompleto ? 'sem filtro (histórico completo)' : `sem filtro (últimos ${MESES_PADRAO} meses)`;
+            if (t === 'mes') return ppMesRot(PERIODO.mes);
+            if (t === 'dia') return ppDataBr(p.ini);
+            if (t === 'int') return `${ppDataBr(p.ini)} a ${ppDataBr(p.fim)}`;
+            return `últimos ${t.slice(1)} dias` + (curto ? '' : ` (${ppDataBr(p.ini)} a ${ppDataBr(p.fim)})`);
+        }
+
+        // 'ano' | 'mes' | 'dia' — como o gráfico de evolução agrupa os dados.
+        function granularidadePeriodo() {
+            const p = periodoIntervalo();
+            if (!p) return historicoCompleto ? 'ano' : 'mes';
+            const n = Math.round((new Date(p.fim + 'T12:00:00Z') - new Date(p.ini + 'T12:00:00Z')) / 864e5) + 1;
+            return n > 92 ? 'mes' : 'dia';
+        }
+
+        // Chamado depois de cada carga/sincronização: atualiza os meses disponíveis e o rótulo.
         function populateMonthFilter() {
-            const select = document.getElementById('filterMes');
-            if (!select) return;
-            const previousVal = select.value;
-            const yearMap = {};
-            database.forEach(d => {
-                if (d.data) {
-                    const [y, m] = d.data.split('-');
-                    if (!yearMap[y]) yearMap[y] = new Set();
-                    yearMap[y].add(m);
-                }
+            const set = new Set();
+            database.forEach(d => { if (d.data) set.add(d.data.slice(0, 7)); });
+            ppMeses = Array.from(set).sort();
+            const rot = document.getElementById('periodo-rot');
+            if (rot) rot.textContent = rotuloPeriodo(true);
+        }
+
+        function abrirPeriodo() {
+            const hoje = ppHoje(), p = periodoIntervalo(), t = PERIODO.tipo;
+            ppRasc = {
+                tipo: t,
+                dia: t === 'dia' ? PERIODO.ini : hoje,
+                mes: t === 'mes' ? PERIODO.mes : (ppMeses[ppMeses.length - 1] || hoje.slice(0, 7)),
+                ini: t === 'int' ? p.ini : ppIsoMais(hoje, -29),
+                fim: t === 'int' ? p.fim : hoje,
+            };
+            desenharPeriodo();
+            document.getElementById('periodo-pop').hidden = false;
+            document.getElementById('b-periodo').setAttribute('aria-expanded', 'true');
+            document.querySelector('#periodo-pop [aria-pressed="true"]')?.focus();
+        }
+        function fecharPeriodo() {
+            document.getElementById('periodo-pop').hidden = true;
+            document.getElementById('b-periodo').setAttribute('aria-expanded', 'false');
+        }
+
+        function desenharPeriodo(erro) {
+            const atalhos = historicoCompleto ? PP_ATALHOS : PP_ATALHOS.concat([['completo', 'histórico completo']]);
+            document.getElementById('pp-chips').innerHTML = atalhos.map(([v, t]) => `<button type="button" data-pp="${v}" aria-pressed="${ppRasc.tipo === v}">${t}</button>`).join('');
+            const i = ppMeses.indexOf(ppRasc.mes);
+            document.getElementById('pp-ctrl').innerHTML = ppRasc.tipo === 'dia'
+                ? `<div class="pp-nav"><button type="button" data-ppnav="-1" aria-label="Dia anterior">‹</button><input type="date" id="pp-dia" value="${ppRasc.dia}" aria-label="Dia"><button type="button" data-ppnav="1" aria-label="Próximo dia">›</button></div>`
+                : ppRasc.tipo === 'mes'
+                ? `<div class="pp-nav"><button type="button" data-ppnav="-1" aria-label="Mês anterior" ${i <= 0 ? 'disabled' : ''}>‹</button><span class="pp-val">${ppMesRot(ppRasc.mes)}</span><button type="button" data-ppnav="1" aria-label="Próximo mês" ${i >= ppMeses.length - 1 ? 'disabled' : ''}>›</button></div>`
+                : ppRasc.tipo === 'int'
+                ? `<div class="pp-int"><label>de<input type="date" id="pp-ini" value="${ppRasc.ini}"></label><label>até<input type="date" id="pp-fim" value="${ppRasc.fim}"></label></div>`
+                : ppRasc.tipo === 'completo'
+                ? `<div class="pp-erro" style="color:#94a3b8">Baixa a base inteira (anos anteriores) — pode levar alguns segundos.</div>`
+                : '';
+            if (erro) document.getElementById('pp-ctrl').insertAdjacentHTML('beforeend', `<div class="pp-erro">${erro}</div>`);
+        }
+
+        async function aplicarPeriodo() {
+            const ok = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '');
+            const r = ppRasc;
+            if (r.tipo === 'dia') {
+                if (!ok(r.dia)) return desenharPeriodo('Escolha o dia.');
+                Object.assign(PERIODO, { tipo: 'dia', ini: r.dia, fim: r.dia });
+            } else if (r.tipo === 'int') {
+                if (!ok(r.ini) || !ok(r.fim)) return desenharPeriodo('Preencha as duas datas.');
+                const [a, b] = r.ini <= r.fim ? [r.ini, r.fim] : [r.fim, r.ini];
+                Object.assign(PERIODO, { tipo: 'int', ini: a, fim: b });
+            } else if (r.tipo === 'mes') {
+                Object.assign(PERIODO, { tipo: 'mes', mes: r.mes });
+            } else if (r.tipo === 'completo') {
+                PERIODO.tipo = 'todos';
+                if (!historicoCompleto) await carregarHistoricoCompleto();
+            } else {
+                PERIODO.tipo = r.tipo;
+            }
+            fecharPeriodo();
+            // Período que começa antes do corte dos últimos meses precisa da base inteira.
+            const p = periodoIntervalo();
+            if (p && !historicoCompleto && p.ini < dataCorteIso()) await carregarHistoricoCompleto();
+            populateMonthFilter();
+            updateDashboard();
+        }
+
+        function iniciarSeletorPeriodo() {
+            const pop = document.getElementById('periodo-pop'), bPer = document.getElementById('b-periodo');
+            if (!pop || !bPer) return;
+            bPer.addEventListener('click', () => (pop.hidden ? abrirPeriodo() : fecharPeriodo()));
+            document.getElementById('pp-cancelar').addEventListener('click', () => { fecharPeriodo(); bPer.focus(); });
+            document.getElementById('pp-aplicar').addEventListener('click', aplicarPeriodo);
+            pop.addEventListener('click', e => {
+                const c = e.target.closest('[data-pp]');
+                if (c) { ppRasc.tipo = c.dataset.pp; return desenharPeriodo(); }
+                const n = e.target.closest('[data-ppnav]');
+                if (!n) return;
+                const passo = Number(n.dataset.ppnav);
+                if (ppRasc.tipo === 'dia') ppRasc.dia = ppIsoMais(ppRasc.dia || ppHoje(), passo);
+                if (ppRasc.tipo === 'mes') { const i = ppMeses.indexOf(ppRasc.mes) + passo; if (ppMeses[i]) ppRasc.mes = ppMeses[i]; }
+                desenharPeriodo();
             });
-            const sortedYears = Object.keys(yearMap).sort().reverse();
-            const validValues = new Set(['ALL']);
-            // Com só parte da base carregada, "Todos os Meses" na verdade é "últimos N meses", e
-            // o ano em que o corte cai fica incompleto (não pode se chamar "Ano Completo").
-            const corte = dataCorteIso();
-            const anoIncompleto = (!historicoCompleto && corte.substring(5, 7) !== '01') ? corte.substring(0, 4) : null;
-            let html = `<option value="ALL">${historicoCompleto ? 'Todos os Meses (Consolidado)' : `Últimos ${MESES_PADRAO} meses (padrão)`}</option>`;
-            if (!historicoCompleto) html += '<option value="FULL">⏬ Carregar histórico completo (anos anteriores)</option>';
-            sortedYears.forEach(year => {
-                const months = Array.from(yearMap[year]).sort().reverse();
-                html += `<optgroup label="${year}">`;
-                if (year !== anoIncompleto) {
-                    validValues.add(year);
-                    html += `<option value="${year}">Ano Completo — ${year}</option>`;
-                }
-                months.forEach(m => {
-                    const ym = `${year}-${m}`;
-                    validValues.add(ym);
-                    const monthName = ptMonths[parseInt(m, 10) - 1];
-                    html += `<option value="${ym}">${monthName}/${year}</option>`;
-                });
-                html += `</optgroup>`;
+            pop.addEventListener('input', e => {
+                if (e.target.id === 'pp-dia') ppRasc.dia = e.target.value;
+                if (e.target.id === 'pp-ini') ppRasc.ini = e.target.value;
+                if (e.target.id === 'pp-fim') ppRasc.fim = e.target.value;
             });
-            select.innerHTML = html;
-            select.value = validValues.has(previousVal) ? previousVal : 'ALL';
+            document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pop.hidden) { fecharPeriodo(); bPer.focus(); } });
+            document.addEventListener('mousedown', e => { if (!pop.hidden && !e.target.closest('.periodo')) fecharPeriodo(); });
         }
 
         // Popula o filtro "Canal" com os valores reais que existem na base (em vez de uma
@@ -1449,25 +1590,25 @@
         }
 
         function updateDashboard() {
-            const fMes = document.getElementById('filterMes')?.value || 'ALL';
             const fFilial = document.getElementById('filterFilial')?.value || 'ALL';
             const fCanal = document.getElementById('filterCanal')?.value || 'ALL';
             const fTipo = document.getElementById('filterTipo')?.value || 'ALL';
 
-            // "ALL" (tudo) ou um ano inteiro (ex: "2026") cobrem vários meses — agrupar por mês
-            // (ou por ano, quando é "Todos os Meses") evita um gráfico poluído com dezenas de
-            // barras quinzenais/diárias.
-            const isMultiMonth = (fMes === 'ALL' || fMes.length === 4);
+            // Período longo (sem filtro, ou mais de ~3 meses) agrupa por mês (por ano, sem filtro
+            // com a base completa); período curto (um mês, últimos N dias, dia) mostra dia a dia.
+            // Evita um gráfico poluído com dezenas de barras diárias.
+            const gran = granularidadePeriodo();
+            const isMultiMonth = (gran !== 'dia');
             const granText = document.getElementById('granularityText');
             const chartSub = document.getElementById('chart1Subtitle');
             // Por ano só faz sentido com a base completa; com só os últimos meses carregados,
-            // "Todos" cai na visão por mês.
-            const agruparPorAno = (fMes === 'ALL' && historicoCompleto);
+            // "sem filtro" cai na visão por mês.
+            const agruparPorAno = (gran === 'ano');
             if (granText) granText.innerText = agruparPorAno ? "Visão Anual (Consolidado)" : (isMultiMonth ? "Visão Mensal (Consolidado)" : "Visão Diária Detalhada");
             if (chartSub) chartSub.innerText = agruparPorAno ? "Agrupado por Ano" : (isMultiMonth ? "Agrupado por Mês" : "Detalhamento Diário");
 
             const filtered = database.filter(d => {
-                return (fMes === 'ALL' || (d.data && d.data.startsWith(fMes))) &&
+                return dentroDoPeriodo(d.data) &&
                        (fFilial === 'ALL' || d.filial === fFilial) &&
                        (fCanal === 'ALL' || normalizeCanal(d.canal) === fCanal) &&
                        (fTipo === 'ALL' || d.tipo === fTipo);
@@ -1738,9 +1879,8 @@
         function gerarRelatorioPDF() {
             showToast("Gerando relatório executivo em PDF...", "info");
 
-            const selMes = document.getElementById('filterMes');
             const selFilial = document.getElementById('filterFilial');
-            const mesText = selMes.options[selMes.selectedIndex].text;
+            const mesText = rotuloPeriodo(false);
             const filialText = selFilial.options[selFilial.selectedIndex].text;
 
             document.querySelectorAll('#pdfReportTemplate #repRefMes').forEach(el => el.innerText = mesText);
@@ -2250,15 +2390,8 @@
             ['filterFilial', 'filterCanal', 'filterTipo'].forEach(id => {
                 document.getElementById(id)?.addEventListener('change', updateDashboard);
             });
-            // "Carregar histórico completo" não é um período: baixa a base inteira e volta
-            // o filtro pra "Todos os Meses" já com os anos anteriores disponíveis.
-            document.getElementById('filterMes')?.addEventListener('change', async (e) => {
-                if (e.target.value === 'FULL') {
-                    e.target.value = 'ALL';
-                    await carregarHistoricoCompleto();
-                }
-                updateDashboard();
-            });
+            // Seletor "Período" (substitui o antigo "Mês"); "histórico completo" é um atalho dele.
+            iniciarSeletorPeriodo();
 
             // Botão PDF
             document.getElementById('btnPdfReport')?.addEventListener('click', gerarRelatorioPDF);
