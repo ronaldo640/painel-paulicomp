@@ -112,7 +112,7 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="marca"><img src="/logo-empresa.png" alt="Paulicomp"><span>Qualidade · Filial SP</span></div>
+  <div class="marca"><img src="/logo-empresa.png" alt="Paulicomp"><span id="marca-filial">Qualidade · Filial SP</span></div>
   <header class="top">
     <div>
       <div class="kicker">Devoluções e garantias (RMA)</div>
@@ -129,6 +129,14 @@
 
   <div id="conteudo" hidden style="display:flex;flex-direction:column;gap:18px">
     <section class="filtros" aria-label="Filtros">
+      <!-- Mesmo seletor de filial do dash da expedição -->
+      <div class="field"><label for="f-filial">Filial</label>
+        <select id="f-filial">
+          <option value="SP">PAULICOMP SP</option>
+          <option value="SUL">PAULICOMP SUL</option>
+          <option value="TRADE">COMP TRADE</option>
+        </select>
+      </div>
       <div class="field periodo">
         <span class="lbl">Período</span>
         <button type="button" class="periodo-btn" id="b-periodo" aria-haspopup="dialog" aria-expanded="false" aria-controls="periodo-pop"><span id="periodo-rot">sem filtro</span><span aria-hidden="true">▾</span></button>
@@ -205,7 +213,7 @@
     </section>
 
     <section class="card">
-      <div class="cab"><h2>Conferência com o Tiny SP</h2><span class="muted" id="tiny-status" style="font-size:.85rem"></span></div>
+      <div class="cab"><h2>Conferência com o Tiny <span id="tiny-filial">SP</span></h2><span class="muted" id="tiny-status" style="font-size:.85rem"></span></div>
       <div id="tiny"></div>
     </section>
 
@@ -247,6 +255,17 @@
   const f = { mes: 'todos', ini: null, fim: null, umDia: false, canal: 'todos', visao: 'todas', full: false, busca: '', grupo: null, sku: null };
   let mostrarTodosProd = false, limiteDet = POR_PAGINA;
   let mesesPlanilha = []; // meses (abas) que existem na planilha, para o "do mês"
+
+  // Filiais. SP lê a planilha da SP; Sul e Trade leem a planilha PR (as duas
+  // juntas), separadas pela API. vendas: false = histórico de vendas ainda em
+  // carga, a Taxa de Devolução fica desligada até ser liberada aqui.
+  const FILIAIS_RMA = {
+    SP: { nome: 'PAULICOMP SP', curto: 'SP', vendas: true },
+    SUL: { nome: 'PAULICOMP SUL', curto: 'Sul', vendas: false },
+    TRADE: { nome: 'COMP TRADE', curto: 'Trade', vendas: false },
+  };
+  let filial = (() => { try { const v = new URLSearchParams(location.search).get('filial'); return FILIAIS_RMA[String(v).toUpperCase()] ? String(v).toUpperCase() : 'SP'; } catch { return 'SP'; } })();
+  let geracao = 0; // muda a cada troca de filial; respostas antigas são descartadas
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = n => Number(n || 0).toLocaleString('pt-BR');
@@ -397,7 +416,7 @@
       vendSku.set(l.sku, (vendSku.get(l.sku) || 0) + (l.vend || 0));
       devSku.set(l.sku, (devSku.get(l.sku) || 0) + l.dev);
     }
-    const celVend = p => !tx ? '<span class="muted" title="Vendas ainda carregando">…</span>'
+    const celVend = p => !tx ? `<span class="muted" title="Vendas ainda carregando">${vendas && vendas.estado === 'desligado' ? '–' : '…'}</span>`
       : vendSku.has(p.sku) ? fmt(vendSku.get(p.sku)) : '<span class="muted" title="Devoluções sem canal ou de mês sem vendas carregadas">–</span>';
     const celTaxa = p => {
       if (!tx || !vendSku.has(p.sku)) return '<span class="muted">–</span>';
@@ -477,6 +496,10 @@
 
   function renderTaxas(lista) {
     const resumo = $('taxa-resumo'), corpo = $('taxas');
+    if (vendas && vendas.estado === 'desligado') {
+      resumo.innerHTML = `As vendas por SKU da <b>${esc(FILIAIS_RMA[filial].nome)}</b> estão sendo carregadas do Tiny. A taxa de devolução desta filial aparece aqui quando a carga terminar e for conferida.`;
+      corpo.innerHTML = ''; $('b-todas-taxas').hidden = true; return;
+    }
     if (!vendas || vendas.estado === 'carregando') { resumo.textContent = 'Carregando vendas…'; corpo.innerHTML = ''; $('b-todas-taxas').hidden = true; return; }
     if (vendas.estado === 'erro') { resumo.innerHTML = `<span class="aviso" style="display:block">Não consegui ler as vendas: ${esc(vendas.erro)}</span>`; corpo.innerHTML = ''; return; }
     const { linhas, semCanal, foraCobertura, jan } = calcularTaxas(lista);
@@ -515,9 +538,13 @@
   }
 
   async function carregarVendas() {
+    const ger = geracao;
+    // Filial com o histórico de vendas ainda em carga: a taxa fica desligada.
+    if (!FILIAIS_RMA[filial].vendas) { vendas = { estado: 'desligado' }; return render(); }
     vendas = { estado: 'carregando' };
     try {
-      const j = await fetch('/api/rma?parte=vendas').then(r => r.json());
+      const j = await fetch(`/api/rma?parte=vendas&filial=${filial}`).then(r => r.json());
+      if (ger !== geracao) return; // trocou de filial no meio
       if (!j.ok) throw new Error(j.error || 'erro');
       const porChave = new Map();
       for (const [sku, canal, dia, qtd] of j.vendas) {
@@ -528,7 +555,7 @@
       const total = new Map(j.cobertura.total.map(x => [x.mes, x.notas]));
       const cobertos = new Set(j.cobertura.lidas.filter(x => total.get(x.mes) && x.notas >= 0.95 * total.get(x.mes)).map(x => x.mes));
       vendas = { estado: 'ok', porChave, cobertos, ultimoDia: j.ultimoDia, cobertura: j.cobertura };
-    } catch (e) { vendas = { estado: 'erro', erro: e.message }; }
+    } catch (e) { if (ger !== geracao) return; vendas = { estado: 'erro', erro: e.message }; }
     render();
   }
 
@@ -611,12 +638,12 @@
         <p class="nota">${semNf ? `${fmt(semNf)} devoluções sem NF de entrada na planilha.` : 'Todas as devoluções têm NF de entrada.'}</p></div>
       <div><div class="lbl">Valor das NFs de entrada</div>${grande(brl(valor))}
         <p class="nota">Soma das notas do Tiny ligadas às devoluções filtradas.</p></div>
-      <div><div class="lbl">Devoluções da SP fora da planilha</div>${grande(fmt(foraS1pf.length), brl(soma(foraS1pf)))}
+      <div><div class="lbl">Devoluções da filial fora da planilha</div>${grande(fmt(foraS1pf.length), brl(soma(foraS1pf)))}
         <p class="nota">Notas de devolução de venda (série 1, de pessoa física ou empresa) emitidas no Tiny que não aparecem na planilha. <b>Vale conferir</b>: podem ser devoluções recebidas e não lançadas.</p></div>
       ${''/* "Devoluções do Full" (série 2) oculto a pedido do usuário em 13/11/2026, até
          entender se há controle dessas devoluções que ficam no ML. O cálculo (foraS2) continua acima. */}
     </div>
-    ${foraS1pf.length ? `<details style="margin-top:12px"><summary>Ver as ${fmt(foraS1pf.length)} devoluções da SP fora da planilha</summary><p class="nota" style="margin-top:6px">${esc(nfLista(foraS1pf))}</p></details>` : ''}
+    ${foraS1pf.length ? `<details style="margin-top:12px"><summary>Ver as ${fmt(foraS1pf.length)} devoluções da filial fora da planilha</summary><p class="nota" style="margin-top:6px">${esc(nfLista(foraS1pf))}</p></details>` : ''}
     ${faltamNoTiny.length ? `<details style="margin-top:8px"><summary>${fmt(faltamNoTiny.length)} NFs da planilha não achadas no Tiny</summary><p class="nota" style="margin-top:6px">${esc(nfLista(faltamNoTiny))}</p></details>` : ''}
     ${foraOutras.length ? `<p class="nota" style="margin-top:8px">Outras ${fmt(foraOutras.length)} notas de entrada de outras séries ficam de fora da conferência.</p>` : ''}
     ${tiny.incompleto ? '<p class="aviso" style="margin-top:10px">O período tem mais notas do que a consulta busca de uma vez; a conferência pode estar incompleta.</p>' : ''}`;
@@ -650,7 +677,11 @@
     $('periodo-rot').textContent = rotuloPeriodo(true);
     const canais = contar(dados.registros, 'canal').map(([c]) => c);
     $('f-canal').innerHTML = '<option value="todos">Todos</option>' + canais.map(c => `<option>${esc(c)}</option>`).join('');
+    if (!canais.includes(f.canal)) f.canal = 'todos';
     $('f-canal').value = f.canal;
+    $('f-filial').value = filial;
+    $('marca-filial').textContent = 'Qualidade · Filial ' + FILIAIS_RMA[filial].curto;
+    $('tiny-filial').textContent = FILIAIS_RMA[filial].curto;
     $('grupos-def').innerHTML = dados.grupos.map(g => `<div><b><span class="ponto" style="background:${corGrupo(g.id)}"></span>${esc(g.nome)}</b>${esc(g.descricao)} <span class="muted">· ${esc(catPorId[g.categoria].nome)}</span></div>`).join('');
     const fonte = dados.fonte || {};
     const quando = s => (s ? new Date(s).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '–');
@@ -679,26 +710,31 @@
     const datas = todas.filter(d => d >= `${ano - 1}-11-01` && d <= `${ano}-12-31`).sort();
     if (!datas.length) { tiny = { estado: 'erro', erro: 'a planilha não tem datas de entrada.' }; return render(); }
     tiny = { estado: 'carregando' }; render();
+    const ger = geracao;
     try {
-      const r = await fetch(`/api/rma?parte=tiny&ini=${datas[0]}&fim=${datas[datas.length - 1]}`);
+      const r = await fetch(`/api/rma?parte=tiny&filial=${filial}&ini=${datas[0]}&fim=${datas[datas.length - 1]}`);
       const j = await r.json();
+      if (ger !== geracao) return;
       tiny = j.ok ? { estado: 'ok', ...j } : { estado: 'erro', erro: j.error };
       tinyPorNumero = null;
-    } catch (e) { tiny = { estado: 'erro', erro: e.message }; }
+    } catch (e) { if (ger !== geracao) return; tiny = { estado: 'erro', erro: e.message }; }
     render();
   }
 
   async function carregar(forcar) {
+    const ger = ++geracao;
     $('carregando').hidden = false;
-    $('carregando').textContent = 'Lendo a planilha de devoluções…';
+    $('carregando').textContent = `Lendo a planilha de devoluções (${FILIAIS_RMA[filial].nome})…`;
     try {
-      const r = await fetch('/api/rma' + (forcar ? `?t=${Date.now()}` : ''));
+      const r = await fetch(`/api/rma?filial=${filial}` + (forcar ? `&t=${Date.now()}` : ''));
       const j = await r.json();
+      if (ger !== geracao) return;
       if (!j.ok) throw Object.assign(new Error(j.error || 'Erro ao ler a planilha.'), { configurar: j.configurar });
       mostrar(j);
       carregarVendas();
       carregarTiny();
     } catch (e) {
+      if (ger !== geracao) return;
       $('carregando').hidden = true;
       $('erro').hidden = false; $('erro').className = 'aviso bad';
       $('erro').textContent = e.configurar
@@ -737,7 +773,7 @@
           <div style="display:flex;gap:8px;">
             ${seloExtra}
             ${selo('Referência', ctx.referencia, 'rgba(30,58,138,.4)', '#3b82f6', '#93c5fd')}
-            ${selo('Filial', 'PAULICOMP SP', 'rgba(14,116,144,.35)', '#06b6d4', '#67e8f9')}
+            ${selo('Filial', FILIAIS_RMA[filial].nome,'rgba(14,116,144,.35)', '#06b6d4', '#67e8f9')}
           </div>
         </div>
         <div style="height:calc(100% - 110px);">${conteudo}</div>
@@ -924,7 +960,7 @@
         + `<span style="display:block;font-size:12.5px;font-weight:800;color:#fff;white-space:nowrap;line-height:1.25;">${valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>`;
     }
     const seloTiny = `<div style="background:rgba(6,95,70,.35);border:1px solid #10b981;border-radius:6px;padding:5px 12px;text-align:right;min-width:92px;">
-      <span style="font-size:9px;font-weight:700;color:#6ee7b7;text-transform:uppercase;display:block;letter-spacing:.04em;">Conferência Tiny SP</span>${tinyValor}</div>`;
+      <span style="font-size:9px;font-weight:700;color:#6ee7b7;text-transform:uppercase;display:block;letter-spacing:.04em;">Conferência Tiny ${FILIAIS_RMA[filial].curto}</span>${tinyValor}</div>`;
     const pag3 = pdfBloco('Produtos com mais devoluções por defeito ou avaria', tabProblema, 'height:100%;box-sizing:border-box;');
 
     const filtros = [
@@ -979,7 +1015,7 @@
     try {
       await html2pdf().set({
         margin: 0,
-        filename: `Devolucoes_RMA_SP_${agora.toISOString().slice(0, 10)}.pdf`,
+        filename: `Devolucoes_RMA_${filial}_${agora.toISOString().slice(0, 10)}.pdf`,
         image: { type: 'jpeg', quality: 0.96 },
         html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: PDF.fundo },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
@@ -1106,6 +1142,16 @@
   $('taxas').addEventListener('click', e => { const tr = e.target.closest('[data-sku]'); if (tr) escolheSku(tr); });
   $('taxas').addEventListener('keydown', e => { const tr = e.target.closest('[data-sku]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); escolheSku(tr); } });
   $('b-atualizar').addEventListener('click', () => carregar(true));
+  // Troca de filial: lê de novo planilha, Tiny e vendas. Mantém período, visão e
+  // busca; canal, motivo e SKU escolhidos voltam a "todos" (são de outra filial).
+  $('f-filial').addEventListener('change', e => {
+    filial = e.target.value;
+    try { const u = new URL(location.href); u.searchParams.set('filial', filial); history.replaceState(null, '', u); } catch {}
+    Object.assign(f, { canal: 'todos', grupo: null, sku: null });
+    tiny = null; vendas = null; tinyPorNumero = null; limiteDet = POR_PAGINA;
+    $('conteudo').hidden = true; $('b-relatorio').disabled = true;
+    carregar(false);
+  });
 
   carregar(false);
 })();
