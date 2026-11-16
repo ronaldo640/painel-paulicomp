@@ -15,6 +15,28 @@
   .filtros { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
   .filtros .field select, .filtros .field input[type="text"] { width: auto; min-width: 9rem; padding: 8px 10px; }
   .filtros .seg button { padding: 8px 12px; font-size: .88rem; }
+  .periodo { position: relative; }
+  .periodo-btn { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 12rem; padding: 8px 12px;
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; color: inherit; font: inherit; font-size: .92rem; cursor: pointer; }
+  .periodo-btn:hover, .periodo-btn[aria-expanded="true"] { border-color: var(--accent); }
+  .periodo-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; width: 430px; max-width: calc(100vw - 32px); box-sizing: border-box;
+    padding: 16px 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 18px 40px rgba(0, 0, 0, .45); }
+  .pp-tit { font-size: .85rem; color: var(--muted); margin-bottom: 8px; }
+  .pp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pp-chips button { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: inherit; font: inherit; font-size: .88rem; cursor: pointer; }
+  .pp-chips button:hover { border-color: var(--muted); }
+  .pp-chips button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: rgba(59, 130, 246, .1); }
+  .pp-nav { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; }
+  .pp-nav button { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: inherit; font-size: 1rem; cursor: pointer; }
+  .pp-nav button:disabled { opacity: .35; cursor: default; }
+  .pp-nav input, .pp-nav .pp-val { flex: 1; min-width: 0; padding: 6px 4px; background: transparent; border: 0; color: inherit; font: inherit; font-size: 1rem; color-scheme: dark; }
+  .pp-int { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .pp-int label { display: flex; flex-direction: column; gap: 4px; font-size: .8rem; color: var(--muted); }
+  .pp-int input { padding: 8px 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; color: inherit; font: inherit; color-scheme: dark; }
+  .pp-acoes { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
+  .pp-acoes .btn { border-radius: 999px; padding: 8px 20px; }
+  .pp-link { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 8px 4px; }
+  .pp-erro { margin-top: 8px; font-size: .82rem; color: var(--bad); }
   .chk { display: flex; align-items: center; gap: 8px; font-size: .88rem; color: var(--muted); padding: 8px 0; cursor: pointer; }
   .chk input { width: 18px; height: 18px; accent-color: var(--accent); }
 
@@ -107,7 +129,20 @@
 
   <div id="conteudo" hidden style="display:flex;flex-direction:column;gap:18px">
     <section class="filtros" aria-label="Filtros">
-      <div class="field"><label for="f-mes">Mês</label><select id="f-mes"></select></div>
+      <div class="field periodo">
+        <span class="lbl">Período</span>
+        <button type="button" class="periodo-btn" id="b-periodo" aria-haspopup="dialog" aria-expanded="false" aria-controls="periodo-pop"><span id="periodo-rot">sem filtro</span><span aria-hidden="true">▾</span></button>
+        <!-- Mesmo modelo do filtro de datas do Tiny: atalhos + dia / mês / intervalo, aplicar ou cancelar. -->
+        <div class="periodo-pop" id="periodo-pop" role="dialog" aria-label="Escolher período" hidden>
+          <div class="pp-tit">Período</div>
+          <div class="pp-chips" id="pp-chips"></div>
+          <div id="pp-ctrl"></div>
+          <div class="pp-acoes">
+            <button type="button" class="btn" id="pp-aplicar">aplicar</button>
+            <button type="button" class="pp-link" id="pp-cancelar">cancelar</button>
+          </div>
+        </div>
+      </div>
       <div class="field"><label for="f-canal">Canal</label><select id="f-canal"></select></div>
       <div class="field">
         <span class="lbl">Visão</span>
@@ -135,7 +170,7 @@
         <div class="cab"><h2>Top 10 Produtos mais devolvidos</h2><button type="button" class="btn ghost" id="b-todos-prod">Ver todos</button></div>
         <div class="rolagem">
           <table>
-            <thead><tr><th>Produto</th><th class="r">Devol.</th><th class="r">Peças</th><th>Motivos</th><th>Principal motivo</th></tr></thead>
+            <thead><tr><th>Produto</th><th class="r">Devol.</th><th class="r">Peças</th><th class="r" title="Peças vendidas do SKU no mesmo período e nos mesmos canais das devoluções (mesmo cálculo do quadro Taxa de Devolução)">Vendidas</th><th class="r" title="Peças devolvidas ÷ peças vendidas, como no quadro Taxa de Devolução">Taxa</th><th>Motivos</th><th>Principal motivo</th></tr></thead>
             <tbody id="produtos"></tbody>
           </table>
         </div>
@@ -207,8 +242,11 @@
   let dados = null;      // resposta de /api/rma
   let tiny = null;       // { estado: 'carregando'|'ok'|'erro', notas, erro }
   let grupoPorId = {}, catPorId = {};
-  const f = { mes: 'todos', canal: 'todos', visao: 'todas', full: false, busca: '', grupo: null, sku: null };
+  // f.mes: 'todos' | 'dN' (últimos N dias) | 'int' (dia ou intervalo, em f.ini/f.fim;
+  // f.umDia marca "do dia") | número do mês ('1'..'12', mês da aba da planilha).
+  const f = { mes: 'todos', ini: null, fim: null, umDia: false, canal: 'todos', visao: 'todas', full: false, busca: '', grupo: null, sku: null };
   let mostrarTodosProd = false, limiteDet = POR_PAGINA;
+  let mesesPlanilha = []; // meses (abas) que existem na planilha, para o "do mês"
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = n => Number(n || 0).toLocaleString('pt-BR');
@@ -220,17 +258,28 @@
   // data da nota e às vezes cai no mês anterior, por isso não é usada aqui.
   const mesDe = r => r.mes || (r.data ? Number(r.data.slice(5, 7)) : null);
 
-  // Filtro "Últimos 30/60/90 dias" (valores d30/d60/d90 no seletor de mês).
+  // Período por datas: "últimos N dias" (d7/d30/d60/d90), "do dia" e "do intervalo".
   // Dia da devolução: a Data de Entrada, quando cai no mês da aba ou no anterior
   // (728 de 736 linhas em 11/2026); senão (vazia ou ano digitado errado), dia 15
   // do mês da aba.
-  const ehDias = () => /^d\d+$/.test(f.mes);
+  const ehDias = () => /^d\d+$/.test(f.mes) || f.mes === 'int';
   const hojeIso = () => new Date().toLocaleDateString('sv');
+  const isoMais = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   function periodoDias() {
+    if (f.mes === 'int') {
+      const n = Math.round((new Date(f.fim + 'T12:00:00Z') - new Date(f.ini + 'T12:00:00Z')) / 864e5) + 1;
+      return { n, ini: f.ini, fim: f.fim, umDia: f.umDia };
+    }
     const n = Number(f.mes.slice(1));
     const fim = hojeIso();
-    const d = new Date(fim + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - (n - 1));
-    return { n, ini: d.toISOString().slice(0, 10), fim };
+    return { n, ini: isoMais(fim, -(n - 1)), fim };
+  }
+  // Texto do período escolhido (botão do filtro, quadro Taxa de Devolução, PDF).
+  function rotuloPeriodo(curto) {
+    if (f.mes === 'todos') return 'sem filtro';
+    if (f.mes === 'int') return f.umDia ? dataBr(f.ini) : `${dataBr(f.ini)} a ${dataBr(f.fim)}`;
+    if (/^d\d+$/.test(f.mes)) { const pd = periodoDias(); return `últimos ${pd.n} dias` + (curto ? '' : ` (${dataBr(pd.ini)} a ${dataBr(pd.fim)})`); }
+    return `${MESES[Number(f.mes) - 1]}/${anoPlanilha()}`;
   }
   function diaDe(r) {
     const m = mesDe(r);
@@ -339,6 +388,22 @@
       p.grupos[r.grupo] = (p.grupos[r.grupo] || 0) + 1;
     }
     const todos = [...porSku.values()].sort((a, b) => b.n - a.n || b.pecas - a.pecas);
+    // Peças vendidas: mesmo cálculo do quadro Taxa de Devolução (mesmo período e
+    // canal de cada devolução), somando os canais do SKU.
+    const vendSku = new Map();
+    const tx = vendas && vendas.estado === 'ok' && vendas.cobertos.size ? calcularTaxas(lista) : null;
+    const devSku = new Map(); // peças devolvidas que entram na taxa (com canal e vendas carregadas)
+    if (tx) for (const l of tx.linhas) {
+      vendSku.set(l.sku, (vendSku.get(l.sku) || 0) + (l.vend || 0));
+      devSku.set(l.sku, (devSku.get(l.sku) || 0) + l.dev);
+    }
+    const celVend = p => !tx ? '<span class="muted" title="Vendas ainda carregando">…</span>'
+      : vendSku.has(p.sku) ? fmt(vendSku.get(p.sku)) : '<span class="muted" title="Devoluções sem canal ou de mês sem vendas carregadas">–</span>';
+    const celTaxa = p => {
+      if (!tx || !vendSku.has(p.sku)) return '<span class="muted">–</span>';
+      const v = vendSku.get(p.sku), t = v ? devSku.get(p.sku) / v : null;
+      return `<b style="color:${corTaxa(t)}">${fmtTaxa(t)}</b>`;
+    };
     const mostra = mostrarTodosProd ? todos : todos.slice(0, 10);
     $('b-todos-prod').hidden = todos.length <= 10;
     $('b-todos-prod').textContent = mostrarTodosProd ? 'Só os 10 primeiros' : `Ver todos (${todos.length})`;
@@ -347,10 +412,10 @@
       const [gTop, nTop] = Object.entries(p.grupos).sort((a, b) => b[1] - a[1])[0];
       return `<tr class="clic${f.sku === p.sku ? ' sel' : ''}" data-sku="${esc(p.sku)}" tabindex="0">
         <td><div class="sku">${esc(p.sku)}</div><div class="prod">${esc(p.produto)}</div></td>
-        <td class="r num"><b>${fmt(p.n)}</b></td><td class="r num">${fmt(p.pecas)}</td>
+        <td class="r num"><b>${fmt(p.n)}</b></td><td class="r num">${fmt(p.pecas)}</td><td class="r num">${celVend(p)}</td><td class="r num">${celTaxa(p)}</td>
         <td><div class="empilhada">${barra}</div></td>
         <td class="peq"><span class="ponto" style="background:${corGrupo(gTop)}"></span>${esc(grupoPorId[gTop].nome)} <span class="muted">(${nTop})</span></td></tr>`;
-    }).join('') : '<tr><td colspan="5" class="vazio">Nenhum produto com esses filtros.</td></tr>';
+    }).join('') : '<tr><td colspan="7" class="vazio">Nenhum produto com esses filtros.</td></tr>';
   }
 
   // ---------------------------------------------------------------
@@ -424,13 +489,13 @@
     const rotMes = m => MESES[Number(m.slice(5, 7)) - 1] + '/' + m.slice(2, 4);
     const mesesDev = [...new Set(linhas.flatMap(l => [...l.meses]))].sort();
     const pd = ehDias() ? periodoDias() : null;
-    const periodo = pd ? `últimos ${pd.n} dias (${diaBr(pd.ini)} a ${diaBr(pd.fim)})` : !mesesDev.length ? '–' : mesesDev.length === 1 ? rotMes(mesesDev[0]) : `${rotMes(mesesDev[0])} a ${rotMes(mesesDev[mesesDev.length - 1])}`;
+    const periodo = pd ? rotuloPeriodo() : !mesesDev.length ? '–' : mesesDev.length === 1 ? rotMes(mesesDev[0]) : `${rotMes(mesesDev[0])} a ${rotMes(mesesDev[mesesDev.length - 1])}`;
     const avisos = [];
     if (f.mes !== 'todos' && !mesesDev.length && !foraCobertura) avisos.push('nenhuma devolução com canal neste período');
     if (foraCobertura) avisos.push(`${fmt(foraCobertura)} devoluções de meses com vendas ainda carregando ficaram de fora`);
     if (jan && jan.faltando.length) avisos.push(`vendas de ${jan.faltando.map(rotMes).join(', ')} ainda não estão carregadas`);
     if (semCanal) avisos.push(`${fmt(semCanal)} sem canal na planilha`);
-    if (!pd && f.mes !== 'todos') avisos.push('mês isolado: a taxa pode distorcer, porque parte das devoluções vem de vendas do mês anterior');
+    if (f.mes !== 'todos' && (!pd || pd.n < 45)) avisos.push('período curto: a taxa pode distorcer, porque parte das devoluções vem de vendas anteriores ao período');
     resumo.innerHTML = `Período: <b>${periodo}</b>${jan && !pd ? ` (vendas de ${diaBr(jan.ini)} a ${diaBr(jan.fim)})` : ''}. Nos produtos abaixo: <b>${fmt(dev)}</b> peças devolvidas para <b>${fmt(vend)}</b> vendidas nos mesmos canais (<b>${fmtTaxa(vend ? dev / vend : null)}</b>).`
       + (avisos.length ? ` <span class="muted">Obs.: ${avisos.join('; ')}.</span>` : '');
     const ord = linhas.sort(ordemTaxa === 'taxa'
@@ -581,13 +646,11 @@
   }
 
   function montarFiltros() {
-    const meses = [...new Set(dados.registros.map(mesDe).filter(Boolean))].sort((a, b) => a - b);
-    $('f-mes').innerHTML = '<option value="todos">Todos</option>'
-      + [30, 60, 90].map(n => `<option value="d${n}">Últimos ${n} dias</option>`).join('')
-      + meses.map(m => `<option value="${m}">${MESES[m - 1]}</option>`).join('');
+    mesesPlanilha = [...new Set(dados.registros.map(mesDe).filter(Boolean))].sort((a, b) => a - b);
+    $('periodo-rot').textContent = rotuloPeriodo(true);
     const canais = contar(dados.registros, 'canal').map(([c]) => c);
     $('f-canal').innerHTML = '<option value="todos">Todos</option>' + canais.map(c => `<option>${esc(c)}</option>`).join('');
-    $('f-mes').value = f.mes; $('f-canal').value = f.canal;
+    $('f-canal').value = f.canal;
     $('grupos-def').innerHTML = dados.grupos.map(g => `<div><b><span class="ponto" style="background:${corGrupo(g.id)}"></span>${esc(g.nome)}</b>${esc(g.descricao)} <span class="muted">· ${esc(catPorId[g.categoria].nome)}</span></div>`).join('');
     const fonte = dados.fonte || {};
     const quando = s => (s ? new Date(s).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '–');
@@ -888,7 +951,7 @@
     const anoRef = (contar(dados.registros.map(r => r.data).filter(Boolean), d => d.slice(0, 4))[0] || [agora.getFullYear()])[0];
     const meses = [...new Set(sel.map(mesDe).filter(Boolean))].sort((a, b) => a - b);
     const ctx = {
-      referencia: ehDias() ? (pd => `${dataBr(pd.ini)} a ${dataBr(pd.fim)}`)(periodoDias())
+      referencia: ehDias() ? (pd => pd.umDia ? dataBr(pd.ini) : `${dataBr(pd.ini)} a ${dataBr(pd.fim)}`)(periodoDias())
         : f.mes !== 'todos' ? `${MESES[Number(f.mes) - 1]}/${anoRef}` : (meses.length ? `${MESES[meses[0] - 1]}–${MESES[meses[meses.length - 1] - 1]}/${anoRef}` : String(anoRef)),
       geradoEm: agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       planilhaEm: dados.fonte?.modificadoEm ? new Date(dados.fonte.modificadoEm).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '–',
@@ -936,7 +999,84 @@
 
   // Eventos
   $('b-relatorio').addEventListener('click', gerarRelatorio);
-  $('f-mes').addEventListener('change', e => { f.mes = e.target.value; limiteDet = POR_PAGINA; render(); });
+  // ---------------------------------------------------------------
+  // Seletor de período, no modelo do Tiny: atalhos (sem filtro, últimos N dias)
+  // e "do dia" / "do mês" / "do intervalo" com navegação. Só vale ao clicar em
+  // aplicar; cancelar (ou Esc, ou clicar fora) descarta.
+  // ---------------------------------------------------------------
+  const ATALHOS = [['todos', 'sem filtro'], ['d7', 'últimos 7 dias'], ['d30', 'últimos 30 dias'], ['d60', 'últimos 60 dias'], ['d90', 'últimos 90 dias'],
+    ['dia', 'do dia'], ['mes', 'do mês'], ['int', 'do intervalo']];
+  let rasc = null; // escolha ainda não aplicada
+  const pop = $('periodo-pop'), bPer = $('b-periodo');
+
+  function abrirPeriodo() {
+    const hoje = hojeIso();
+    const ultMes = mesesPlanilha[mesesPlanilha.length - 1];
+    rasc = {
+      tipo: f.mes === 'int' ? (f.umDia ? 'dia' : 'int') : /^\d+$/.test(f.mes) ? 'mes' : f.mes,
+      dia: f.mes === 'int' && f.umDia ? f.ini : hoje,
+      mes: /^\d+$/.test(f.mes) ? Number(f.mes) : ultMes,
+      ini: f.mes === 'int' && !f.umDia ? f.ini : isoMais(hoje, -29),
+      fim: f.mes === 'int' && !f.umDia ? f.fim : hoje,
+    };
+    desenharPeriodo();
+    pop.hidden = false; bPer.setAttribute('aria-expanded', 'true');
+    pop.querySelector('[aria-pressed="true"]')?.focus();
+  }
+  function fecharPeriodo() { pop.hidden = true; bPer.setAttribute('aria-expanded', 'false'); }
+
+  function desenharPeriodo(erro) {
+    $('pp-chips').innerHTML = ATALHOS.map(([v, t]) => `<button type="button" data-pp="${v}" aria-pressed="${rasc.tipo === v}">${t}</button>`).join('');
+    const i = mesesPlanilha.indexOf(rasc.mes);
+    $('pp-ctrl').innerHTML = rasc.tipo === 'dia'
+      ? `<div class="pp-nav"><button type="button" data-ppnav="-1" aria-label="Dia anterior">‹</button><input type="date" id="pp-dia" value="${rasc.dia}" aria-label="Dia"><button type="button" data-ppnav="1" aria-label="Próximo dia">›</button></div>`
+      : rasc.tipo === 'mes'
+      ? `<div class="pp-nav"><button type="button" data-ppnav="-1" aria-label="Mês anterior" ${i <= 0 ? 'disabled' : ''}>‹</button><span class="pp-val">${MESES[rasc.mes - 1]}/${anoPlanilha()}</span><button type="button" data-ppnav="1" aria-label="Próximo mês" ${i >= mesesPlanilha.length - 1 ? 'disabled' : ''}>›</button></div>`
+      : rasc.tipo === 'int'
+      ? `<div class="pp-int"><label>de<input type="date" id="pp-ini" value="${rasc.ini}"></label><label>até<input type="date" id="pp-fim" value="${rasc.fim}"></label></div>`
+      : '';
+    if (erro) $('pp-ctrl').insertAdjacentHTML('beforeend', `<div class="pp-erro">${esc(erro)}</div>`);
+  }
+
+  function aplicarPeriodo() {
+    const ok = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '');
+    if (rasc.tipo === 'dia') {
+      if (!ok(rasc.dia)) return desenharPeriodo('Escolha o dia.');
+      Object.assign(f, { mes: 'int', ini: rasc.dia, fim: rasc.dia, umDia: true });
+    } else if (rasc.tipo === 'int') {
+      if (!ok(rasc.ini) || !ok(rasc.fim)) return desenharPeriodo('Preencha as duas datas.');
+      const [a, b] = rasc.ini <= rasc.fim ? [rasc.ini, rasc.fim] : [rasc.fim, rasc.ini];
+      Object.assign(f, { mes: 'int', ini: a, fim: b, umDia: false });
+    } else if (rasc.tipo === 'mes') {
+      Object.assign(f, { mes: String(rasc.mes), umDia: false });
+    } else {
+      Object.assign(f, { mes: rasc.tipo, umDia: false });
+    }
+    $('periodo-rot').textContent = rotuloPeriodo(true);
+    fecharPeriodo();
+    limiteDet = POR_PAGINA; render();
+  }
+
+  bPer.addEventListener('click', () => (pop.hidden ? abrirPeriodo() : fecharPeriodo()));
+  $('pp-cancelar').addEventListener('click', () => { fecharPeriodo(); bPer.focus(); });
+  $('pp-aplicar').addEventListener('click', aplicarPeriodo);
+  pop.addEventListener('click', e => {
+    const c = e.target.closest('[data-pp]');
+    if (c) { rasc.tipo = c.dataset.pp; return desenharPeriodo(); }
+    const n = e.target.closest('[data-ppnav]');
+    if (!n) return;
+    const passo = Number(n.dataset.ppnav);
+    if (rasc.tipo === 'dia') rasc.dia = isoMais(rasc.dia || hojeIso(), passo);
+    if (rasc.tipo === 'mes') { const i = mesesPlanilha.indexOf(rasc.mes) + passo; if (mesesPlanilha[i]) rasc.mes = mesesPlanilha[i]; }
+    desenharPeriodo();
+  });
+  pop.addEventListener('input', e => {
+    if (e.target.id === 'pp-dia') rasc.dia = e.target.value;
+    if (e.target.id === 'pp-ini') rasc.ini = e.target.value;
+    if (e.target.id === 'pp-fim') rasc.fim = e.target.value;
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pop.hidden) { fecharPeriodo(); bPer.focus(); } });
+  document.addEventListener('mousedown', e => { if (!pop.hidden && !e.target.closest('.periodo')) fecharPeriodo(); });
   $('f-canal').addEventListener('change', e => { f.canal = e.target.value; limiteDet = POR_PAGINA; render(); });
   $('f-full').addEventListener('change', e => { f.full = e.target.checked; render(); });
   let tBusca;
