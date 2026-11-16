@@ -126,3 +126,24 @@ export async function cargaHistorico(sql, token, filial, dataIso, buscarItensDaN
   }
   return { data: dataIso, notas_do_dia: notas.length, ja_lidas: jaLidas.size, gravadas, faltam: faltando.length - gravadas, erros };
 }
+
+// Atualização diária das vendas (Sul e Trade; a SP é gravada pela rotina das
+// Caixas). Lê as notas que faltam de ontem até `dias` atrás, do dia mais
+// recente para trás, enquanto houver tempo. Dias que ficarem pela metade são
+// completados na próxima chamada (a rotina chama a si mesma) ou no dia seguinte.
+export async function cargaDiaria(sql, token, filial, buscarItensDaNota, { dias = 7, limiteMs = 48000, hoje = new Date() } = {}) {
+  const inicio = Date.now();
+  const resumo = [];
+  let faltam = 0, bloqueado = false;
+  for (let i = 1; i <= dias; i++) {
+    const resta = limiteMs - (Date.now() - inicio);
+    if (resta < 8000) { faltam += 1; break; } // sem tempo: fica para a próxima chamada
+    // Dia no fuso de Brasília (UTC-3), para o "ontem" não virar anteontem.
+    const d = new Date(hoje.getTime() - 3 * 3600e3 - i * 86400e3).toISOString().slice(0, 10);
+    const r = await cargaHistorico(sql, token, filial, d, buscarItensDaNota, { maxNotas: 1000, limiteMs: resta - 4000 });
+    resumo.push({ data: d, notas: r.notas_do_dia, gravadas: r.gravadas, faltam: r.faltam, erros: r.erros.length });
+    faltam += r.faltam;
+    if (r.erros.some(e => /bloquead|excedido/i.test(e.erro))) { bloqueado = true; break; }
+  }
+  return { filial, faltam, bloqueado, dias: resumo };
+}

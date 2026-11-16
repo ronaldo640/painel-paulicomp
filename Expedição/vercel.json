@@ -20,6 +20,8 @@
   ],
   "crons": [
     { "path": "/api/tiny-sync", "schedule": "0 6 * * *" },
-    { "path": "/api/caixa-auto-executar?filial=SP", "schedule": "0 8 * * *" }
+    { "path": "/api/caixa-auto-executar?filial=SP", "schedule": "0 8 * * *" },
+    { "path": "/api/caixa-auto-executar?filial=SUL&vendas=diario", "schedule": "0 10 * * *" },
+    { "path": "/api/caixa-auto-executar?filial=TRADE&vendas=diario", "schedule": "30 10 * * *" }
   ]
 }

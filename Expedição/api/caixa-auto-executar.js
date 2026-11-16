@@ -19,7 +19,7 @@ import { neon } from '@neondatabase/serverless';
 import { verificarEAvisar, enviarTeste, enviarTesteInsumo, avisarFalhaBaixa } from '../lib/caixa-alerta.js';
 import testeDeConsumo from '../lib/caixa-auto-teste.js';
 import { avisarLimpezaAtrasada } from '../lib/limpeza-alerta.js';
-import { canalDaNota, gravarVenda, cargaHistorico } from '../lib/vendas-itens.js';
+import { canalDaNota, gravarVenda, cargaHistorico, cargaDiaria } from '../lib/vendas-itens.js';
 
 const TINY_BASE_URL = 'https://api.tiny.com.br/api2';
 const TINY_FILIAIS = {
@@ -142,6 +142,32 @@ export default async function handler(req, res) {
       return res.status(200).json(await cargaHistorico(neon(process.env.DATABASE_URL), tokenH, filial, dataH, buscarItensDaNota));
     } catch (error) {
       console.error('Erro na carga do histórico de vendas:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
+  // Atualização diária das vendas do Sul e da Trade (taxa de devolução do RMA):
+  //   ?vendas=diario   lê as notas de venda de ontem (e dos 6 dias antes, se
+  //                    faltar alguma). Chamada pelo cron; se o tempo acabar com
+  //                    notas faltando, chama a si mesma de novo (até 8 vezes).
+  // A SP não precisa: a rotina das Caixas já grava as vendas dela.
+  if (req.query.vendas === 'diario') {
+    const tokenD = process.env[TINY_FILIAIS[filial]];
+    if (!tokenD) return res.status(400).json({ error: `Token do Tiny não configurado para a filial "${filial}".` });
+    const salto = Number(req.query.salto) || 0;
+    try {
+      const r = await cargaDiaria(neon(process.env.DATABASE_URL), tokenD, filial, buscarItensDaNota);
+      r.salto = salto;
+      if (r.faltam > 0 && !r.bloqueado && salto < 8 && req.headers.host) {
+        // Dispara a próxima rodada sem esperar a resposta (ela roda numa nova
+        // execução da função, com seus próprios 60 s).
+        const prox = `https://${req.headers.host}/api/caixa-auto-executar?filial=${filial}&vendas=diario&salto=${salto + 1}`;
+        await fetch(prox, { signal: AbortSignal.timeout(2500) }).catch(() => {});
+        r.proxima = salto + 1;
+      }
+      return res.status(200).json(r);
+    } catch (error) {
+      console.error('Erro na atualização diária de vendas:', error);
       return res.status(500).json({ error: error.message });
     }
   }
