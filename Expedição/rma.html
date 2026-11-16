@@ -265,7 +265,7 @@
   const FILIAIS_RMA = {
     SP: { nome: 'PAULICOMP SP', curto: 'SP', vendas: true },
     SUL: { nome: 'PAULICOMP SUL', curto: 'Sul', vendas: false },
-    TRADE: { nome: 'COMP TRADE', curto: 'Trade', vendas: false },
+    TRADE: { nome: 'COMP TRADE', curto: 'Trade', vendas: false, fullNoMl: true },
   };
   let filial = (() => { try { const v = new URLSearchParams(location.search).get('filial'); return FILIAIS_RMA[String(v).toUpperCase()] ? String(v).toUpperCase() : 'SP'; } catch { return 'SP'; } })();
   let geracao = 0; // muda a cada troca de filial; respostas antigas são descartadas
@@ -522,7 +522,7 @@
     if (jan && jan.faltando.length) avisos.push(`vendas de ${jan.faltando.map(rotMes).join(', ')} ainda não estão carregadas`);
     if (semCanal) avisos.push(`${fmt(semCanal)} sem canal na planilha`);
     if (f.mes !== 'todos' && (!pd || pd.n < 45)) avisos.push('período curto: a taxa pode distorcer, porque parte das devoluções vem de vendas anteriores ao período');
-    resumo.innerHTML = `Período: <b>${periodo}</b>${jan && !pd ? ` (vendas de ${diaBr(jan.ini)} a ${diaBr(jan.fim)})` : ''}. Nos produtos abaixo: <b>${fmt(dev)}</b> peças devolvidas para <b>${fmt(vend)}</b> vendidas nos mesmos canais (<b>${fmtTaxa(vend ? dev / vend : null)}</b>).`
+    resumo.innerHTML = `Período: <b>${periodo}</b>${jan && !pd ? ` (vendas de ${diaBr(jan.ini)} a ${diaBr(jan.fim)})` : ''}. Nos produtos abaixo: <b>${fmt(dev)}</b> peças devolvidas para <b>${fmt(vend)}</b> vendidas nos mesmos canais (<b>${fmtTaxa(vend ? dev / vend : null)}</b>)${FILIAIS_RMA[filial].fullNoMl ? '; no ML estão somadas as vendas do Full' : ''}.`
       + (avisos.length ? ` <span class="muted">Obs.: ${avisos.join('; ')}.</span>` : '');
     const ord = linhas.sort(ordemTaxa === 'taxa'
       ? (a, b) => (b.vend >= 5) - (a.vend >= 5) || (b.taxa ?? -1) - (a.taxa ?? -1) || b.dev - a.dev
@@ -550,8 +550,11 @@
       if (ger !== geracao) return; // trocou de filial no meio
       if (!j.ok) throw new Error(j.error || 'erro');
       const porChave = new Map();
+      // Na planilha PR a devolução do Full vem como "ML TRADE" (não há canal FULL),
+      // então na Trade as vendas do Full somam nas do ML.
+      const fullNoMl = FILIAIS_RMA[filial].fullNoMl;
       for (const [sku, canal, dia, qtd] of j.vendas) {
-        const k = sku + '|' + canal;
+        const k = sku + '|' + (fullNoMl && canal === 'FULL' ? 'ML' : canal);
         if (!porChave.has(k)) porChave.set(k, []);
         porChave.get(k).push([dia, Number(qtd)]);
       }
