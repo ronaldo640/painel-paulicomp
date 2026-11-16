@@ -19,9 +19,21 @@ import { garantirTabelas } from './vendas-itens.js';
 const inflateRawAsync = promisify(zlib.inflateRaw);
 const inflateRaw = async bytes => new Uint8Array(await inflateRawAsync(bytes));
 
-// "Retorno de materiais SP 2026.xlsx". Para o ano seguinte, troque pela
-// variável RMA_PLANILHA_ID na Vercel, sem mexer no código.
+// Planilhas por filial. Para o ano seguinte, troque pelas variáveis na Vercel
+// (RMA_PLANILHA_ID = SP, RMA_PLANILHA_ID_PR = Sul e Trade), sem mexer no código.
+//   SP:        "Retorno de materiais SP 2026.xlsx"
+//   SUL/TRADE: "Retorno de Materiais PR 2026.xlsx" (as duas filiais juntas; a
+//              filial de cada linha sai da coluna Empresa, ver lib/rma.js)
 const PLANILHA_PADRAO = '1VjhmHb5Y7Czs5EXb04r2t8TDsp90ME9e';
+const PLANILHA_PR_PADRAO = '1T8lLxYMQbJQmFDoPcbLf3YPHI4igSWGb';
+
+// ?filial=SP|SUL|TRADE (padrão SP). Nome na tabela dispatches (expedição).
+const FILIAIS = {
+  SP: { token: 'TINY_TOKEN_SP', expedicao: 'PAULICOMP SP' },
+  SUL: { token: 'TINY_TOKEN_SUL', expedicao: 'PAULICOMP SUL' },
+  TRADE: { token: 'TINY_TOKEN_TRADE', expedicao: 'COMP TRADE' },
+};
+const filialDe = req => (FILIAIS[String(req.query.filial || 'SP').toUpperCase()] ? String(req.query.filial || 'SP').toUpperCase() : 'SP');
 
 const TINY_URL = 'https://api.tiny.com.br/api2/notas.fiscais.pesquisa.php';
 const TINY_MAX_PAGINAS = 30; // com 1,1 s entre páginas, 30 páginas ainda cabem nos 60 s da função
@@ -32,8 +44,9 @@ function dataBr(iso) {
 }
 
 async function parteTiny(req, res) {
-  const token = process.env.TINY_TOKEN_SP;
-  if (!token) return res.status(200).json({ ok: false, error: 'TINY_TOKEN_SP não configurado na Vercel.' });
+  const { token: envToken } = FILIAIS[filialDe(req)];
+  const token = process.env[envToken];
+  if (!token) return res.status(200).json({ ok: false, error: `${envToken} não configurado na Vercel.` });
   const iso = /^\d{4}-\d{2}-\d{2}$/;
   const ini = String(req.query.ini || ''), fim = String(req.query.fim || '');
   if (!iso.test(ini) || !iso.test(fim)) return res.status(400).json({ ok: false, error: 'Informe ini e fim no formato aaaa-mm-dd.' });
@@ -95,23 +108,24 @@ async function parteVendas(req, res) {
   const sql = neon(process.env.DATABASE_URL);
   try {
     await garantirTabelas(sql);
+    const filial = filialDe(req), expedicao = FILIAIS[filial].expedicao;
     const desde = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.desde || '')) ? String(req.query.desde) : '2025-11-01';
     // Por dia, em lista compacta [sku, canal, 'aaaa-mm-dd', qtd]: a tela soma as
     // vendas numa janela de 30/60/90 dias antes da devolução.
     const linhas = await sql`
       SELECT i.sku, n.canal, to_char(n.data, 'YYYY-MM-DD') AS dia, SUM(i.quantidade)::float AS qtd
       FROM venda_itens i JOIN venda_notas n ON n.nota_id = i.nota_id
-      WHERE n.filial = 'SP' AND n.data >= ${desde}::date
+      WHERE n.filial = ${filial} AND n.data >= ${desde}::date
       GROUP BY 1, 2, 3`;
     const vendas = linhas.map(v => [v.sku, v.canal, v.dia, v.qtd]);
-    const [ult] = await sql`SELECT to_char(MAX(data), 'YYYY-MM-DD') AS dia FROM venda_notas WHERE filial = 'SP'`;
+    const [ult] = await sql`SELECT to_char(MAX(data), 'YYYY-MM-DD') AS dia FROM venda_notas WHERE filial = ${filial}`;
     const lidas = await sql`
       SELECT to_char(data, 'YYYY-MM') AS mes, COUNT(*)::int AS notas
-      FROM venda_notas WHERE filial = 'SP' AND data >= ${desde}::date GROUP BY 1`;
+      FROM venda_notas WHERE filial = ${filial} AND data >= ${desde}::date GROUP BY 1`;
     // Total de notas de venda por mês (tabela da expedição), para medir a cobertura.
     const total = await sql`
       SELECT to_char(data, 'YYYY-MM') AS mes, COUNT(*)::int AS notas
-      FROM dispatches WHERE filial = 'PAULICOMP SP' AND data >= ${desde}::date GROUP BY 1`;
+      FROM dispatches WHERE filial = ${expedicao} AND data >= ${desde}::date GROUP BY 1`;
     res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=3600');
     return res.status(200).json({ ok: true, vendas, ultimoDia: ult?.dia || null, cobertura: { lidas, total } });
   } catch (error) {
@@ -131,15 +145,24 @@ export async function rmaHandler(req, res) {
         error: 'A conta de serviço do Google ainda não foi configurada na Vercel (GOOGLE_SERVICE_ACCOUNT_JSON).',
       });
     }
-    const id = process.env.RMA_PLANILHA_ID || PLANILHA_PADRAO;
+    const filial = filialDe(req);
+    const id = filial === 'SP'
+      ? process.env.RMA_PLANILHA_ID || PLANILHA_PADRAO
+      : process.env.RMA_PLANILHA_ID_PR || PLANILHA_PR_PADRAO;
     const arquivo = await baixarComoXlsx(id);
     const abas = await lerXlsx(arquivo.bytes, inflateRaw);
-    const { registros, avisos } = lerRegistrosRma(abas);
+    const lidos = lerRegistrosRma(abas);
+    const avisos = lidos.avisos;
+    // A planilha PR traz Sul e Trade juntos: fica só a filial pedida.
+    const registros = lidos.registros
+      .filter(r => filial === 'SP' || r.filialPr === filial)
+      .map(({ filialPr, ...r }) => r);
 
     // Cache na CDN da Vercel: a planilha é baixada no máximo a cada 15 min.
     res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=3600');
     return res.status(200).json({
       ok: true,
+      filial,
       fonte: { nome: arquivo.nome, modificadoEm: arquivo.modificadoEm, lidoEm: new Date().toISOString(), abas: abas.map(a => a.nome) },
       categorias: CATEGORIAS,
       grupos: GRUPOS.map(({ regra, ...g }) => g),
