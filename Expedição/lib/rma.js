@@ -32,7 +32,7 @@ export const GRUPOS = [
     id: 'retorno_full', nome: 'Retorno do Fulfillment', categoria: 'fora',
     descricao: 'Produto voltando do estoque Full. Não é devolução de cliente.',
     // "Retirada estoque full S/venda" aparece na planilha do Sul/Trade (PR).
-    regra: /ret\w*no do full|retirada (do |estoque )?full/,
+    regra: /ret\w*no (do )?full|retirada (do |estoque )?full/,
   },
   {
     id: 'cancelamento', nome: 'Cancelamento da venda', categoria: 'cliente',
@@ -42,32 +42,32 @@ export const GRUPOS = [
   {
     id: 'entrega', nome: 'Falha na entrega', categoria: 'logistica',
     descricao: 'Não foi entregue, entrega recusada, endereço errado ou etiqueta errada.',
-    regra: /n[ãa]o foi poss[ií]vel entreg|n[ãa]o entregue|n[ãa]o foi entregue|entrega foi recusada|n[ãa]o encontraram ningu[ée]m|endere[çc]o do comprador estava incorreto|etiqueta errada|irregularidades na opera/,
+    regra: /n[ãa]o foi poss[ií]vel entreg|n[ãa]o entregue|n[ãa]o foi entregue|entrega foi recusada|n[ãa]o encontraram ningu[ée]m|endere[çc]o do comprador estava incorreto|etiqueta errada|irregularidades na opera|realizar a entrega|n[ãa]o recebi o pacote|entrega do pacote foi interrompida/,
   },
   {
     id: 'avaria', nome: 'Avaria / dano físico', categoria: 'produto',
     descricao: 'Chegou quebrado, arranhado, rasgado, amassado ou estourado.',
-    regra: /quebrad|danificad|arranh|rasgad|avariad|amassad|estourad|desgaste|marca vis[ií]vel|danos f[ií]sicos vis[ií]veis que/,
+    regra: /quebrad|danificad|arranh|rasgad|avariad|amassad|estourad|desgaste|marca vis[ií]vel|danos f[ií]sicos vis[ií]veis que|tipos de dano|pontos de quebra/,
   },
   {
     id: 'incompatibilidade', nome: 'Incompatibilidade', categoria: 'anuncio',
     descricao: 'Não serve, não encaixa ou não é compatível com o equipamento do cliente.',
-    regra: /incompat|n[ãa]o serve|n[ãa]o servi|n[ãa]o encaixa|maior do que|furos de montagem|comprou errado|n[ãa]o era compat/,
+    regra: /incompat|n[ãa]o serve|n[ãa]o servi|n[ãa]o encaixa|maior do que|furos de montagem|comprou errado|n[ãa]o era compat|n[ãa]o foi compat|[ée] menor/,
   },
   {
     id: 'divergente', nome: 'Produto divergente do anúncio', categoria: 'anuncio',
     descricao: 'Diferente do anúncio ou do escolhido: modelo, cor, tamanho, marca, peças faltando.',
-    regra: /n[ãa]o [ée] igual|diferente|n[ãa]o est[áa] de acordo|n[ãa]o [ée] da cor|n[ãa]o [ée] do modelo|outro tipo|conector incorreto|marca origin|faltam partes|n[ãa]o tinha armazenamento/,
+    regra: /n[ãa]o [ée] igual|diferente|n[ãa]o est[áa] de acordo|n[ãa]o [ée] da cor|n[ãa]o [ée] do modelo|outro tipo|conector incorreto|marca origin|faltam partes|n[ãa]o tinha armazenamento|produto errado|modelo errado|itens faltando|n[ãa]o corresponde|ter recebido uma .* errad|recebeu (branco|preto)|erro no envio|diferen[çc]as/,
   },
   {
     id: 'defeito', nome: 'Defeito / não funciona', categoria: 'produto',
     descricao: 'Não liga, não funciona, teclas falhando, parou de funcionar.',
-    regra: /n[ãa]o funcion|n[ãa]o liga|parou|pararam|teclas|defeito|falha|problema de alerta|n[ãa]o est[áa] reconhecendo|n[ãa]o est[áa] carregando|n[ãa]o est[áa] funcionando|som estava|erros de v[ií]deo|n[ãa]o durou|picos de luz|n[ãa]o obteve resultado|desligando/,
+    regra: /n[ãa]o funcion|n[ãa]o liga|parou|pararam|teclas|defei|falha|n[ãa]o ligou|sendo reconhecid|n[ãa]o gera v[ií]deo|travamento|n[ãa]o carrega|apresentando problema|problema de alerta|n[ãa]o est[áa] reconhecendo|n[ãa]o est[áa] carregando|n[ãa]o est[áa] funcionando|som estava|erros de v[ií]deo|n[ãa]o durou|picos de luz|n[ãa]o obteve resultado|desligando/,
   },
   {
     id: 'arrependimento', nome: 'Arrependimento', categoria: 'cliente',
     descricao: 'Chegou em boas condições, mas o cliente não quer mais.',
-    regra: /arrepend|n[ãa]o quer mais|n[ãa]o o quer mais|desistiu|reembolso|retorno de todas/,
+    regra: /arrepend|n[ãa]o quer mais|n[ãa]o o quer mais|desistiu|reembolso|retorno de todas|mudei de ideia|solicitou uma devolu|n[ãa]o a quero mais|inadequado/,
   },
   {
     id: 'nao_especificado', nome: 'Problema não especificado', categoria: 'sem_detalhe',
