@@ -567,11 +567,11 @@
   }
 
   // Reparte as linhas em folhas pelo peso (texto longo ocupa mais de uma linha).
-  function paginar(itens, pesoDe) {
+  function paginar(itens, pesoDe, maximo) {
     var paginas = [], atual = [], peso = 0;
     itens.forEach(function (it) {
       var p = pesoDe(it);
-      if (atual.length && peso + p > PESO_PAGINA) { paginas.push(atual); atual = []; peso = 0; }
+      if (atual.length && peso + p > (maximo || PESO_PAGINA)) { paginas.push(atual); atual = []; peso = 0; }
       atual.push(it); peso += p;
     });
     if (atual.length) paginas.push(atual);
@@ -664,21 +664,34 @@
     });
     if (!lim.length) paginasDef.push({ titulo: 'Limpezas realizadas', sub: 'Nenhuma limpeza no período', corpo: pdfBloco('Registro de limpezas', '<div style="color:' + PDF.fraco + ';font-size:12px;">Nenhuma limpeza registrada no período.</div>') });
 
-    var colCk = [{ titulo: 'Data' }, { titulo: 'Motorista' }, { titulo: 'Km', num: true }, { titulo: 'Itens com problema', quebra: true, larg: '55%' }];
-    var textoProb = function (r) {
-      return r.itens.filter(function (i) { return i.status === 'problema'; }).map(function (i) { return nomes[i.id] || i.id; }).join(', ');
+    // Checklist: uma linha por dia, uma coluna por item (OK em verde, Problema em vermelho).
+    var colunasIt = (ck && ck.itens.length ? ck.itens : (cks[0] ? cks[0].itens.map(function (i) { return { id: i.id, nome: nomes[i.id] || i.id }; }) : []));
+    var legenda = '<div style="font-size:11px;color:' + PDF.fraco + ';margin:-2px 0 8px;"><b style="color:#34d399;">OK</b> item verificado, sem problema · <b style="color:#f87171;">Problema</b> item com problema (foto registrada no sistema)</div>';
+    var celula = function (it) {
+      return it && it.status === 'problema'
+        ? '<span style="display:inline-block;background:rgba(248,113,113,.18);color:#f87171;font-weight:800;border-radius:4px;padding:1px 5px;font-size:9.5px;">Problema</span>'
+        : it ? '<span style="color:#34d399;font-weight:800;">OK</span>' : '<span style="color:#475569;">–</span>';
     };
-    var pgsCk = paginar(comProb, function (r) { return 1 + Math.floor(textoProb(r).length / 55); });
+    var thIt = function (t) { return '<th style="text-align:center;font-size:9px;font-weight:700;color:' + PDF.fraco + ';text-transform:uppercase;letter-spacing:.03em;padding:5px 3px;border-bottom:1px solid ' + PDF.linha + ';line-height:1.2;vertical-align:bottom;white-space:normal;">' + L.esc(t) + '</th>'; };
+    var thFix = function (t, dir, w) { return '<th style="width:' + w + 'px;text-align:' + dir + ';font-size:9px;font-weight:700;color:' + PDF.fraco + ';text-transform:uppercase;letter-spacing:.05em;padding:5px 6px;border-bottom:1px solid ' + PDF.linha + ';vertical-align:bottom;white-space:nowrap;">' + t + '</th>'; };
+    var pgsCk = paginar(cks, function () { return 1; }, 21);
     pgsCk.forEach(function (grupo, i) {
-      var semProb = cks.length - comProb.length;
-      var nota = i === pgsCk.length - 1 ? '<div style="padding:10px 8px 0;font-size:11.5px;color:' + PDF.fraco + ';">Nos outros ' + fmtN(semProb) + (semProb === 1 ? ' dia' : ' dias') + ' com checklist enviado, todos os itens estavam OK.</div>' : '';
+      var linhas = grupo.map(function (r) {
+        var porId = {}; r.itens.forEach(function (it) { porId[it.id] = it; });
+        var prob = r.itens.some(function (it) { return it.status === 'problema'; });
+        var td = function (v, ali) { return '<td style="text-align:' + ali + ';padding:4px 6px;border-bottom:1px solid #111a2e;font-size:11px;color:' + PDF.texto + ';white-space:nowrap;">' + v + '</td>'; };
+        return '<tr style="' + (prob ? 'background:rgba(248,113,113,.06);' : '') + '">' + td(L.fmtCurto(r.data), 'left') + td(L.esc(r.motorista), 'left') + td(fmtN(r.km), 'right') +
+          colunasIt.map(function (c) { return td(celula(porId[c.id]), 'center'); }).join('') + '</tr>';
+      }).join('');
+      var tabela = '<table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>' + thFix('Data', 'left', 72) + thFix('Motorista', 'left', 84) + thFix('Km', 'right', 64) +
+        colunasIt.map(function (c) { return thIt(c.nome); }).join('') + '</tr></thead><tbody>' + linhas + '</tbody></table>';
       paginasDef.push({
-        titulo: 'Checklist com problema', sub: fmtN(comProb.length) + (comProb.length === 1 ? ' dia' : ' dias') + ' com problema em ' + fmtN(cks.length) + ' checklists' + (pgsCk.length > 1 ? ' · parte ' + (i + 1) + ' de ' + pgsCk.length : ''),
-        corpo: pdfBloco('Dias com item em problema', pdfTabela(colCk, grupo.map(function (r) {
-          return [L.fmtCurto(r.data), L.esc(r.motorista), fmtN(r.km), '<span style="color:#fca5a5;">' + L.esc(textoProb(r)) + '</span>'];
-        }), nota))
+        titulo: 'Checklist de início do dia',
+        sub: fmtN(cks.length) + (cks.length === 1 ? ' checklist' : ' checklists') + ' no período · ' + fmtN(comProb.length) + (comProb.length === 1 ? ' dia' : ' dias') + ' com problema' + (pgsCk.length > 1 ? ' · parte ' + (i + 1) + ' de ' + pgsCk.length : ''),
+        corpo: pdfBloco('Itens verificados por dia', legenda + tabela)
       });
     });
+    if (!cks.length) paginasDef.push({ titulo: 'Checklist de início do dia', sub: 'Nenhum checklist no período', corpo: pdfBloco('Itens verificados por dia', '<div style="color:' + PDF.fraco + ';font-size:12px;">Nenhum checklist enviado no período.</div>') });
 
     return paginasDef.map(function (p, i) { return pdfPagina(p.titulo, p.sub, p.corpo, i + 1, paginasDef.length, ctx); }).join('');
   }
