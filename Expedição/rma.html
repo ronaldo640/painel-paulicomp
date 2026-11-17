@@ -264,7 +264,7 @@
   // carga, a Taxa de Devolução fica desligada até ser liberada aqui.
   const FILIAIS_RMA = {
     SP: { nome: 'PAULICOMP SP', curto: 'SP', vendas: true },
-    SUL: { nome: 'PAULICOMP SUL', curto: 'Sul', vendas: false },
+    SUL: { nome: 'PAULICOMP SUL', curto: 'Sul', vendas: true },
     TRADE: { nome: 'COMP TRADE', curto: 'Trade', vendas: true, fullNoMl: true },
   };
   let filial = (() => { try { const v = new URLSearchParams(location.search).get('filial'); return FILIAIS_RMA[String(v).toUpperCase()] ? String(v).toUpperCase() : 'SP'; } catch { return 'SP'; } })();
