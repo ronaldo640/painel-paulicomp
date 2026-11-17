@@ -7,6 +7,8 @@
 <title>Limpeza da Fiorino | Gestão</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="/limpeza.css">
+<!-- html2pdf.js: mesmo usado nos relatórios do painel -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -121,6 +123,38 @@
     </div>
     <button type="button" class="btn sec" id="mais" hidden>Mostrar mais</button>
     <input type="file" id="add-fotos" accept="image/*" multiple hidden>
+  </section>
+
+  <section class="card" id="rel-sec">
+    <div class="top">
+      <div>
+        <h2>Relatório</h2>
+        <p class="muted" style="margin:4px 0 0;font-size:.88rem">PDF com o resumo do período, as limpezas, o gasto e os problemas encontrados nos checklists.</p>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+        <div class="field">
+          <label for="rel-per">Período</label>
+          <select id="rel-per">
+            <option value="30">Últimos 30 dias</option>
+            <option value="90" selected>Últimos 90 dias</option>
+            <option value="180">Últimos 6 meses</option>
+            <option value="365">Últimos 12 meses</option>
+            <option value="tudo">Todo o histórico</option>
+            <option value="int">Escolher datas</option>
+          </select>
+        </div>
+        <div class="field" id="rel-de-w" hidden>
+          <label for="rel-de">De</label>
+          <input type="date" id="rel-de">
+        </div>
+        <div class="field" id="rel-ate-w" hidden>
+          <label for="rel-ate">Até</label>
+          <input type="date" id="rel-ate">
+        </div>
+        <button type="button" class="btn" id="b-relatorio" style="background:#dc2626" title="Shift + clique abre a prévia na tela, sem baixar">Relatório PDF</button>
+      </div>
+    </div>
+    <p class="msg" id="msg-rel" role="status"></p>
   </section>
 
   <section class="card" id="ck-sec" hidden>
@@ -473,6 +507,259 @@
   });
 
   $('ck-mais').addEventListener('click', function () { ckLimite += PASSO_HIST; ckRender(); });
+
+  // ---------- relatório em PDF ----------
+  // A4 paisagem (1123 x 794 px por folha), mesmo visual dos relatórios do painel.
+  // Folha 1: resumo do período. Depois: limpezas feitas e, por último, os dias de
+  // checklist com problema (os dias sem problema entram só na contagem).
+  var PDF = { fundo: '#070b14', linha: '#1e293b', texto: '#e2e8f0', fraco: '#94a3b8' };
+  var MES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  var PESO_PAGINA = 19; // "linhas" por folha de tabela; linha com texto longo pesa mais
+
+  function somaDias(iso, n) {
+    var d = new Date(iso + 'T12:00:00Z');
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  }
+  function fmtN(n) { return Number(n).toLocaleString('pt-BR'); }
+
+  function pdfPagina(titulo, subtitulo, conteudo, numero, total, ctx) {
+    var selo = function (rotulo, valor, fundo, borda, cor) {
+      return '<div style="background:' + fundo + ';border:1px solid ' + borda + ';border-radius:6px;padding:5px 12px;text-align:right;min-width:92px;">' +
+        '<span style="font-size:9px;font-weight:700;color:' + cor + ';text-transform:uppercase;display:block;letter-spacing:.04em;">' + rotulo + '</span>' +
+        '<span style="font-size:14px;font-weight:800;color:#fff;white-space:nowrap;">' + L.esc(valor) + '</span></div>';
+    };
+    return '<div style="width:1123px;height:794px;box-sizing:border-box;padding:26px 34px 22px;background:' + PDF.fundo + ';color:#f1f5f9;font-family:Inter,Arial,sans-serif;position:relative;overflow:hidden;">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1.5px solid ' + PDF.linha + ';padding-bottom:12px;margin-bottom:16px;">' +
+        '<div style="display:flex;align-items:center;gap:14px;">' +
+          '<div style="height:46px;padding:4px 12px;border:1px solid rgba(51,65,85,.7);border-radius:12px;display:flex;align-items:center;"><img src="/logo-empresa.png" alt="Paulicomp" style="height:34px;width:auto;display:block;"></div>' +
+          '<div style="border-left:1.5px solid ' + PDF.linha + ';padding-left:14px;">' +
+            '<div style="font-size:17px;font-weight:800;color:#fff;text-transform:uppercase;line-height:1.15;">' + L.esc(titulo) + '</div>' +
+            '<div style="font-size:11px;font-weight:600;color:#94a3b8;margin-top:3px;">' + L.esc(subtitulo) + '</div>' +
+          '</div></div>' +
+        '<div style="display:flex;gap:8px;">' +
+          selo('Referência', ctx.referencia, 'rgba(30,58,138,.4)', '#3b82f6', '#93c5fd') +
+          selo('Veículo', ctx.veiculo, 'rgba(14,116,144,.35)', '#06b6d4', '#67e8f9') +
+        '</div></div>' +
+      '<div style="height:calc(100% - 110px);">' + conteudo + '</div>' +
+      '<div style="position:absolute;left:34px;right:34px;bottom:12px;display:flex;justify-content:space-between;font-size:9.5px;color:#475569;">' +
+        '<span>Paulicomp · Unidade Bariri — Frota · Gerado em ' + L.esc(ctx.geradoEm) + '</span><span>Página ' + numero + ' de ' + total + '</span></div>' +
+      '</div>';
+  }
+
+  function pdfBloco(titulo, corpo, extra) {
+    return '<div style="background:#0f172a;border:1px solid ' + PDF.linha + ';border-radius:10px;padding:14px 16px;box-sizing:border-box;' + (extra || '') + '">' +
+      '<div style="font-size:11px;font-weight:800;color:#e2e8f0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">' + titulo + '</div>' + corpo + '</div>';
+  }
+
+  function pdfTile(rotulo, valor, detalhe, cor) {
+    return '<div style="background:#0f172a;border:1px solid ' + PDF.linha + ';border-radius:10px;padding:14px 16px;">' +
+      '<div style="font-size:10px;font-weight:700;color:' + PDF.fraco + ';text-transform:uppercase;letter-spacing:.06em;">' + rotulo + '</div>' +
+      '<div style="font-size:26px;font-weight:800;color:' + (cor || '#fff') + ';margin-top:4px;line-height:1.1;">' + valor + '</div>' +
+      '<div style="font-size:11px;color:' + PDF.fraco + ';margin-top:4px;min-height:14px;">' + (detalhe || '') + '</div></div>';
+  }
+
+  function pdfBarras(pares, formato, cor) {
+    var max = Math.max.apply(null, [1].concat(pares.map(function (p) { return p[1]; })));
+    return pares.map(function (p) {
+      return '<div style="display:flex;align-items:center;gap:10px;margin:6px 0;">' +
+        '<span style="width:130px;font-size:11.5px;color:' + PDF.texto + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + L.esc(p[0]) + '</span>' +
+        '<span style="flex:1;height:12px;background:#151f34;border-radius:6px;overflow:hidden;"><span style="display:block;height:100%;width:' + (p[1] / max * 100) + '%;background:' + cor + ';border-radius:6px;"></span></span>' +
+        '<span style="width:92px;text-align:right;font-size:11.5px;font-weight:700;color:#fff;">' + formato(p[1]) + '</span></div>';
+    }).join('');
+  }
+
+  // colunas: [{ titulo, num, quebra }]; linhas: listas de HTML já pronto, na ordem das colunas.
+  function pdfTabela(colunas, linhas, rodape) {
+    var th = colunas.map(function (c) {
+      return '<th style="text-align:' + (c.num ? 'right' : 'left') + ';font-size:9.5px;font-weight:700;color:' + PDF.fraco + ';text-transform:uppercase;letter-spacing:.05em;padding:6px 8px;border-bottom:1px solid ' + PDF.linha + ';white-space:nowrap;' + (c.larg ? 'width:' + c.larg + ';' : '') + '">' + c.titulo + '</th>';
+    }).join('');
+    var tr = linhas.map(function (l) {
+      return '<tr>' + l.map(function (v, i) {
+        return '<td style="text-align:' + (colunas[i].num ? 'right' : 'left') + ';padding:6px 8px;border-bottom:1px solid #111a2e;font-size:11.5px;color:' + PDF.texto + ';' + (colunas[i].quebra ? '' : 'white-space:nowrap;') + 'vertical-align:top;">' + v + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+    return '<table style="width:100%;border-collapse:collapse;table-layout:auto;"><thead><tr>' + th + '</tr></thead><tbody>' + tr + '</tbody></table>' + (rodape || '');
+  }
+
+  // Reparte as linhas em folhas pelo peso (texto longo ocupa mais de uma linha).
+  function paginar(itens, pesoDe) {
+    var paginas = [], atual = [], peso = 0;
+    itens.forEach(function (it) {
+      var p = pesoDe(it);
+      if (atual.length && peso + p > PESO_PAGINA) { paginas.push(atual); atual = []; peso = 0; }
+      atual.push(it); peso += p;
+    });
+    if (atual.length) paginas.push(atual);
+    return paginas;
+  }
+
+  function periodoEscolhido() {
+    var v = $('rel-per').value, hoje = L.hojeTexto();
+    if (v === 'int') {
+      var de = $('rel-de').value, ate = $('rel-ate').value;
+      if (!de || !ate) return { erro: 'Escolha as duas datas do período.' };
+      if (de > ate) return { erro: 'A data inicial é depois da final.' };
+      return { ini: de, fim: ate, rotulo: L.fmtCurto(de) + ' a ' + L.fmtCurto(ate) };
+    }
+    if (v === 'tudo') return { ini: '0000-01-01', fim: '9999-12-31', rotulo: 'Todo o histórico', tudo: true };
+    var n = parseInt(v, 10);
+    return { ini: somaDias(hoje, -(n - 1)), fim: hoje, rotulo: L.fmtCurto(somaDias(hoje, -(n - 1))) + ' a ' + L.fmtCurto(hoje) };
+  }
+
+  function montarRelatorio(per, limpezas, checklists, ctx) {
+    var dentro = function (r) { return r.data >= per.ini && r.data <= per.fim; };
+    var lim = limpezas.filter(dentro).sort(function (a, b) { return a.data < b.data ? 1 : a.data > b.data ? -1 : b.id - a.id; });
+    var cks = checklists.filter(dentro).sort(function (a, b) { return a.data < b.data ? 1 : -1; });
+    var nomes = {};
+    (ck ? ck.itens : []).forEach(function (it) { nomes[it.id] = it.nome; });
+
+    var total = lim.reduce(function (t, r) { return t + (Number(r.custo) || 0); }, 0);
+    var comValor = lim.filter(function (r) { return Number(r.custo) > 0; }).length;
+    var completas = lim.filter(function (r) { return r.tipo === 'completa'; }).length;
+    var comProb = cks.filter(function (r) { return r.itens.some(function (i) { return i.status === 'problema'; }); });
+    var kms = cks.map(function (r) { return Number(r.km); });
+    var rodados = kms.length > 1 ? Math.max.apply(null, kms) - Math.min.apply(null, kms) : null;
+
+    // Primeira e última data com dado, para o rótulo do "Todo o histórico".
+    if (per.tudo) {
+      var datas = lim.concat(cks).map(function (r) { return r.data; }).sort();
+      if (datas.length) ctx.referencia = L.fmtCurto(datas[0]) + ' a ' + L.fmtCurto(datas[datas.length - 1]);
+    }
+
+    // ----- folha 1: resumo -----
+    var ultima = limpezas.length ? limpezas.slice().sort(function (a, b) { return a.data < b.data ? 1 : -1; })[0] : null;
+    var prox = dados.agenda && dados.agenda[0];
+    var sitProx = prox ? L.situacao(prox.data) : null;
+    var tiles = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">' +
+      pdfTile('Limpezas realizadas', fmtN(lim.length), fmtN(completas) + (completas === 1 ? ' completa' : ' completas') + ' · ' + fmtN(lim.length - completas) + (lim.length - completas === 1 ? ' simples' : ' simples')) +
+      pdfTile('Gasto total', L.brl(total), comValor < lim.length ? fmtN(lim.length - comValor) + ' sem valor informado' : 'Soma dos valores pagos') +
+      pdfTile('Média por limpeza', L.brl(comValor ? total / comValor : 0), comValor ? 'Considera as ' + fmtN(comValor) + ' com valor' : '–') +
+      pdfTile('Última limpeza', ultima ? L.fmtCurto(ultima.data) : '–', ultima ? L.tipoNome(ultima.tipo) : 'Nenhuma registrada') +
+      pdfTile('Próxima prevista', prox ? L.fmtCurto(prox.data) : '–', sitProx ? sitProx.texto : '', sitProx && sitProx.cls === 'bad' ? '#f87171' : '#fff') +
+      pdfTile('Km rodados no período', rodados == null ? '–' : fmtN(rodados) + ' km', cks.length > 1 ? 'Do 1º ao último checklist (' + fmtN(Math.min.apply(null, kms)) + ' a ' + fmtN(Math.max.apply(null, kms)) + ')' : 'Precisa de 2 checklists ou mais') +
+      '</div>';
+
+    // gasto por mês (só aparece quando o período cobre mais de um mês com limpeza)
+    var porMes = {};
+    lim.forEach(function (r) { var m = r.data.slice(0, 7); porMes[m] = (porMes[m] || 0) + (Number(r.custo) || 0); });
+    var meses = Object.keys(porMes).sort();
+    var blocoMes = pdfBloco('Gasto por mês',
+      meses.length ? pdfBarras(meses.map(function (m) { return [MES_CURTO[Number(m.slice(5)) - 1] + '/' + m.slice(2, 4), porMes[m]]; }), L.brl, '#3b82f6')
+        : '<div style="color:' + PDF.fraco + ';font-size:12px;">Nenhuma limpeza no período.</div>', 'flex:1;');
+
+    // itens do checklist que mais deram problema
+    var contagem = {};
+    cks.forEach(function (r) { r.itens.forEach(function (i) { if (i.status === 'problema') contagem[i.id] = (contagem[i.id] || 0) + 1; }); });
+    var ranking = Object.keys(contagem).map(function (id) { return [nomes[id] || id, contagem[id]]; }).sort(function (a, b) { return b[1] - a[1]; });
+    var ckTexto = cks.length
+      ? fmtN(cks.length) + (cks.length === 1 ? ' checklist enviado' : ' checklists enviados') + ' · ' + (comProb.length
+        ? '<b style="color:#f87171;">' + fmtN(comProb.length) + (comProb.length === 1 ? ' dia com problema' : ' dias com problema') + '</b>'
+        : '<b style="color:#34d399;">nenhum dia com problema</b>')
+      : 'Nenhum checklist no período.';
+    var blocoProb = pdfBloco('Checklist: itens com problema',
+      '<div style="font-size:11.5px;color:' + PDF.fraco + ';margin-bottom:6px;">' + ckTexto + '</div>' +
+      (ranking.length ? pdfBarras(ranking.slice(0, 7), function (n) { return fmtN(n) + (n === 1 ? ' vez' : ' vezes'); }, '#f87171') : ''), 'flex:1;');
+
+    var resumo = tiles + '<div style="display:flex;gap:12px;margin-top:12px;">' + blocoMes + blocoProb + '</div>';
+
+    // ----- folhas de tabela -----
+    var paginasDef = [{ titulo: 'Resumo da Fiorino', sub: 'Limpeza e checklist de início do dia', corpo: resumo }];
+
+    var colLim = [{ titulo: 'Data' }, { titulo: 'Serviço' }, { titulo: 'Quem levou' }, { titulo: 'Observação', quebra: true, larg: '42%' }, { titulo: 'Fotos', num: true }, { titulo: 'Valor', num: true }];
+    var pgsLim = paginar(lim, function (r) { return 1 + Math.floor((r.obs || '').length / 60); });
+    pgsLim.forEach(function (grupo, i) {
+      var ultimaPg = i === pgsLim.length - 1;
+      var rodape = ultimaPg ? '<div style="display:flex;justify-content:flex-end;gap:24px;padding:10px 8px 0;font-size:12px;font-weight:800;color:#fff;border-top:1px solid ' + PDF.linha + ';margin-top:4px;"><span style="color:' + PDF.fraco + ';font-weight:700;">Total no período (' + fmtN(lim.length) + ')</span><span>' + L.brl(total) + '</span></div>' : '';
+      paginasDef.push({
+        titulo: 'Limpezas realizadas', sub: fmtN(lim.length) + (lim.length === 1 ? ' limpeza' : ' limpezas') + ' no período' + (pgsLim.length > 1 ? ' · parte ' + (i + 1) + ' de ' + pgsLim.length : ''),
+        corpo: pdfBloco('Registro de limpezas', pdfTabela(colLim, grupo.map(function (r) {
+          return [L.fmtCurto(r.data), L.tipoNome(r.tipo), L.esc(r.responsavel || '–'), L.esc(r.obs || '–'), fmtN((r.fotos || []).length), Number(r.custo) ? L.brl(r.custo) : '–'];
+        }), rodape))
+      });
+    });
+    if (!lim.length) paginasDef.push({ titulo: 'Limpezas realizadas', sub: 'Nenhuma limpeza no período', corpo: pdfBloco('Registro de limpezas', '<div style="color:' + PDF.fraco + ';font-size:12px;">Nenhuma limpeza registrada no período.</div>') });
+
+    var colCk = [{ titulo: 'Data' }, { titulo: 'Motorista' }, { titulo: 'Km', num: true }, { titulo: 'Itens com problema', quebra: true, larg: '55%' }];
+    var textoProb = function (r) {
+      return r.itens.filter(function (i) { return i.status === 'problema'; }).map(function (i) { return nomes[i.id] || i.id; }).join(', ');
+    };
+    var pgsCk = paginar(comProb, function (r) { return 1 + Math.floor(textoProb(r).length / 55); });
+    pgsCk.forEach(function (grupo, i) {
+      var semProb = cks.length - comProb.length;
+      var nota = i === pgsCk.length - 1 ? '<div style="padding:10px 8px 0;font-size:11.5px;color:' + PDF.fraco + ';">Nos outros ' + fmtN(semProb) + (semProb === 1 ? ' dia' : ' dias') + ' com checklist enviado, todos os itens estavam OK.</div>' : '';
+      paginasDef.push({
+        titulo: 'Checklist com problema', sub: fmtN(comProb.length) + (comProb.length === 1 ? ' dia' : ' dias') + ' com problema em ' + fmtN(cks.length) + ' checklists' + (pgsCk.length > 1 ? ' · parte ' + (i + 1) + ' de ' + pgsCk.length : ''),
+        corpo: pdfBloco('Dias com item em problema', pdfTabela(colCk, grupo.map(function (r) {
+          return [L.fmtCurto(r.data), L.esc(r.motorista), fmtN(r.km), '<span style="color:#fca5a5;">' + L.esc(textoProb(r)) + '</span>'];
+        }), nota))
+      });
+    });
+
+    return paginasDef.map(function (p, i) { return pdfPagina(p.titulo, p.sub, p.corpo, i + 1, paginasDef.length, ctx); }).join('');
+  }
+
+  $('rel-per').addEventListener('change', function () {
+    var int = $('rel-per').value === 'int';
+    $('rel-de-w').hidden = !int; $('rel-ate-w').hidden = !int;
+    if (int && !$('rel-ate').value) { $('rel-ate').value = L.hojeTexto(); $('rel-de').value = somaDias(L.hojeTexto(), -29); }
+  });
+
+  $('b-relatorio').addEventListener('click', async function (ev) {
+    var btn = $('b-relatorio');
+    var per = periodoEscolhido();
+    if (per.erro) return dizer('msg-rel', per.erro, false);
+    if (!dados) return;
+    var preview = ev.shiftKey;
+    if (!preview && !window.html2pdf) return dizer('msg-rel', 'O gerador de PDF ainda não carregou. Tente de novo em alguns segundos.', false);
+    btn.disabled = true; btn.textContent = 'Gerando…';
+    dizer('msg-rel', 'Buscando os dados…', true);
+    try {
+      // Os checklists da tela são só os 60 mais recentes; o relatório busca até 400.
+      var todosCk = (await L.api('/api/limpeza?acao=checklist&limite=400')).registros;
+      var agora = new Date();
+      var ctx = {
+        referencia: per.rotulo,
+        veiculo: dados.config.placa || 'Fiorino',
+        geradoEm: agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      };
+      var raiz = document.createElement('div');
+      raiz.style.cssText = 'width:1123px;';
+      raiz.innerHTML = montarRelatorio(per, dados.registros, todosCk, ctx);
+
+      if (preview) {
+        var cob = document.createElement('div');
+        cob.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#020617;overflow:auto;padding:16px;';
+        cob.innerHTML = '<button type="button" class="btn" style="position:fixed;top:12px;right:20px;z-index:10000;">Fechar prévia</button>';
+        raiz.style.margin = '0 auto';
+        cob.appendChild(raiz);
+        document.body.appendChild(cob);
+        cob.querySelector('button').addEventListener('click', function () { cob.remove(); });
+        dizer('msg-rel', '', true);
+        return;
+      }
+      var area = document.createElement('div');
+      area.style.cssText = 'position:fixed;left:-20000px;top:0;';
+      area.appendChild(raiz);
+      document.body.appendChild(area);
+      try {
+        await html2pdf().set({
+          margin: 0,
+          filename: 'Limpeza_Fiorino' + (dados.config.placa ? '_' + dados.config.placa : '') + '_' + agora.toISOString().slice(0, 10) + '.pdf',
+          image: { type: 'jpeg', quality: 0.96 },
+          html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: PDF.fundo, scrollX: 0, scrollY: 0 },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+          pagebreak: { mode: [] }
+        }).from(raiz).save();
+        dizer('msg-rel', 'Relatório gerado.', true);
+      } finally { area.remove(); }
+    } catch (e) {
+      console.error('Erro no relatório da Fiorino:', e);
+      dizer('msg-rel', 'Não foi possível gerar o relatório: ' + (e.message || e), false);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Relatório PDF';
+    }
+  });
 
   async function carregar() {
     try {

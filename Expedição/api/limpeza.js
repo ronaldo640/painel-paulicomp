@@ -16,7 +16,8 @@
 //
 // Checklist de início do dia (migração 023, itens em lib/limpeza-checklist.js):
 //   GET    ?acao=checklist       lista de itens e últimos checklists (motorista: 5, sem fotos;
-//                                gestão: 60, com fotos) e a data de hoje.
+//                                gestão: 60, com fotos; &limite=N até 400, usado no relatório)
+//                                e a data de hoje.
 //   POST   ?acao=checklist       o motorista envia o dia: nome, km e os 10 itens; problema
 //                                exige foto. Um por dia (409 se já enviado) e, com problema,
 //                                sai e-mail para a gestão.
@@ -118,11 +119,14 @@ export default async function handler(req, res) {
 
     if (acao === 'checklist') {
       if (req.method === 'GET') {
+        // A gestão pode pedir mais que os 60 de sempre (o relatório usa até 400).
+        const pedido = parseInt(req.query.limite, 10);
+        const limite = quem === 'gestao' ? (Number.isInteger(pedido) ? Math.min(Math.max(pedido, 1), 400) : 60) : 5;
         const lista = await sql`
           SELECT id, TO_CHAR(data, 'YYYY-MM-DD') AS data, motorista, km, itens
           FROM limpeza_checklists
           ORDER BY data DESC
-          LIMIT ${quem === 'gestao' ? 60 : 5}`;
+          LIMIT ${limite}`;
         // O motorista só precisa saber quais itens deram problema, sem as fotos.
         const registros = quem === 'gestao'
           ? lista
