@@ -649,7 +649,7 @@
     return { ini: somaDias(hoje, -(n - 1)), fim: hoje, rotulo: L.fmtCurto(somaDias(hoje, -(n - 1))) + ' a ' + L.fmtCurto(hoje) };
   }
 
-  function montarRelatorio(per, limpezas, checklists, ctx) {
+  function montarRelatorio(per, limpezas, checklists, ctx, manut) {
     var dentro = function (r) { return r.data >= per.ini && r.data <= per.fim; };
     var lim = limpezas.filter(dentro).sort(function (a, b) { return a.data < b.data ? 1 : a.data > b.data ? -1 : b.id - a.id; });
     var cks = checklists.filter(dentro).sort(function (a, b) { return a.data < b.data ? 1 : -1; });
@@ -665,7 +665,7 @@
 
     // Primeira e última data com dado, para o rótulo do "Todo o histórico".
     if (per.tudo) {
-      var datas = lim.concat(cks).map(function (r) { return r.data; }).sort();
+      var datas = lim.concat(cks, manut ? manut.registros : []).map(function (r) { return r.data; }).sort();
       if (datas.length) ctx.referencia = L.fmtCurto(datas[0]) + ' a ' + L.fmtCurto(datas[datas.length - 1]);
     }
 
@@ -716,8 +716,35 @@
       return '<table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>' + thFix('Data', 'left', 72) + thFix('Motorista', 'left', 128) + thFix('Km', 'right', 62) +
         colunasIt.map(function (c) { return thIt(c.nome); }).join('') + '</tr></thead><tbody>' + linhas + '</tbody></table>';
     };
+    // Manutenção básica (óleo e filtros): quadro curto na folha 1 e folha própria no fim.
+    var pillMan = function (sit) {
+      var m = { vencida: ['rgba(248,113,113,.18)', '#f87171', 'Vencida'], chegando: ['rgba(251,191,36,.18)', '#fbbf24', 'Chegando'],
+        ok: ['rgba(52,211,153,.16)', '#34d399', 'Em dia'], sem_troca: ['rgba(148,163,184,.16)', '#94a3b8', 'Sem troca'] }[sit];
+      return '<span style="display:inline-block;background:' + m[0] + ';color:' + m[1] + ';font-weight:800;border-radius:999px;padding:1px 8px;font-size:9.5px;white-space:nowrap;">' + m[2] + '</span>';
+    };
+    var estMan = manut ? manut.estimativa : null;
+    var comTroca = estMan ? estMan.itens.filter(function (i) { return i.situacao !== 'sem_troca'; }) : [];
+    var semTroca = estMan ? estMan.itens.filter(function (i) { return i.situacao === 'sem_troca'; }) : [];
+    var gruposMan = [];
+    comTroca.slice().sort(function (a, b) {
+      var o = { vencida: 0, chegando: 1, ok: 2 };
+      return o[a.situacao] - o[b.situacao] || (a.restante_km == null ? 1e12 : a.restante_km) - (b.restante_km == null ? 1e12 : b.restante_km);
+    }).forEach(function (i) {
+      var g = gruposMan.filter(function (x) { return x.i.situacao === i.situacao && x.i.ultima.data === i.ultima.data && x.i.ultima.km === i.ultima.km && x.i.alvo_km === i.alvo_km; })[0];
+      if (g) g.nomes.push(i.nome); else gruposMan.push({ nomes: [i.nome], i: i });
+    });
+    var nomesJuntos = function (n) { var m = n.map(function (s, k) { return k ? s.charAt(0).toLowerCase() + s.slice(1) : s; }); return m.length > 1 ? m.slice(0, -1).join(', ') + ' e ' + m[m.length - 1] : m[0]; };
+    var textoProxima = function (i) {
+      return 'próxima aos ' + fmtN(i.alvo_km) + ' km' + (i.proxima_data ? ', cerca de ' + L.fmtCurto(i.proxima_data) + (i.proxima_motivo === 'tempo' ? ' (prazo)' : '') : '') +
+        (i.restante_km == null ? '' : i.restante_km > 0 ? ' · faltam ' + fmtN(i.restante_km) + ' km' : ' · passou ' + fmtN(-i.restante_km) + ' km');
+    };
+    var blocoMan1 = gruposMan.length ? pdfBloco('Manutenção básica',
+      gruposMan.map(function (g) {
+        return '<div style="font-size:11.5px;margin:4px 0;color:' + PDF.texto + ';"><b>' + L.esc(nomesJuntos(g.nomes)) + '</b> · última troca ' + L.fmtCurto(g.i.ultima.data) + ' (' + fmtN(g.i.ultima.km) + ' km) · ' + textoProxima(g.i) + ' ' + pillMan(g.i.situacao) + '</div>';
+      }).join('') +
+      (semTroca.length ? '<div style="font-size:11px;margin-top:4px;color:' + PDF.fraco + ';">Sem troca registrada: ' + L.esc(nomesJuntos(semTroca.map(function (i) { return i.nome.toLowerCase(); }))) + '.</div>' : ''), 'margin-top:12px;') : '';
     // Folha 1 comporta menos linhas (divide o espaço com os quadros do resumo).
-    var LINHAS_FOLHA1 = 11, LINHAS_FOLHA = 21;
+    var LINHAS_FOLHA1 = 11 - (gruposMan.length ? Math.ceil((60 + 20 * gruposMan.length + (semTroca.length ? 16 : 0)) / 24) : 0), LINHAS_FOLHA = 21;
     var primeiras = cks.slice(0, LINHAS_FOLHA1);
     var restantes = cks.slice(LINHAS_FOLHA1);
     var pgsCk = paginar(restantes, function () { return 1; }, LINHAS_FOLHA);
@@ -725,7 +752,7 @@
     var blocoCk1 = pdfBloco('Checklist: itens verificados por dia',
       '<div style="font-size:11.5px;color:' + PDF.fraco + ';margin-bottom:6px;">' + ckTexto + '</div>' + legenda +
       (cks.length ? tabelaCk(primeiras) : ''), 'margin-top:12px;');
-    var resumo = tiles + blocoCk1;
+    var resumo = tiles + blocoMan1 + blocoCk1;
 
     // ----- folhas -----
     var paginasDef = [{ titulo: 'Resumo da Fiorino', sub: 'Limpeza e checklist de início do dia', corpo: resumo }];
@@ -759,6 +786,36 @@
     });
     if (!lim.length) paginasDef.push({ titulo: 'Limpezas realizadas', sub: 'Nenhuma limpeza no período', corpo: pdfBloco('Registro de limpezas', '<div style="color:' + PDF.fraco + ';font-size:12px;">Nenhuma limpeza registrada no período.</div>') });
 
+    // Folha da manutenção: situação de cada item hoje e as trocas feitas no período.
+    if (estMan) {
+      var visitas = manut.registros.filter(dentro).sort(function (a, b) { return a.data < b.data ? 1 : a.data > b.data ? -1 : b.id - a.id; });
+      var custoMan = visitas.reduce(function (t, r) { return t + (Number(r.custo) || 0); }, 0);
+      var nomeMan = {}; manut.itens.forEach(function (i) { nomeMan[i.id] = i.nome; });
+      var tabEst = pdfTabela([{ titulo: 'Item' }, { titulo: 'Última troca' }, { titulo: 'Próxima troca' }, { titulo: 'Faltam', num: true }, { titulo: 'Situação', num: true }],
+        estMan.itens.map(function (i) {
+          if (i.situacao === 'sem_troca') return [L.esc(i.nome), '–', 'A cada ' + fmtN(i.intervalo_km) + ' km ou ' + i.intervalo_meses + ' meses', '–', pillMan('sem_troca')];
+          return [L.esc(i.nome), L.fmtCurto(i.ultima.data) + ' · ' + fmtN(i.ultima.km) + ' km', fmtN(i.alvo_km) + ' km · ' + L.fmtCurto(i.proxima_data) + (i.proxima_motivo === 'tempo' ? ' (prazo)' : ''),
+            i.restante_km == null ? '–' : i.restante_km > 0 ? fmtN(i.restante_km) + ' km' : 'passou ' + fmtN(-i.restante_km) + ' km', pillMan(i.situacao)];
+        })) +
+        '<div style="padding:8px 8px 0;font-size:11px;color:' + PDF.fraco + ';">Km atual ' + (estMan.km_atual ? fmtN(estMan.km_atual) : '–') + (estMan.media_km_dia ? ' · média de ' + fmtN(estMan.media_km_dia) + ' km por dia (checklists dos últimos ' + estMan.janela_dias + ' dias)' : '') +
+        ' · cada item vence pelo que vier primeiro: o km ou o prazo em meses.</div>';
+      var colMan = [{ titulo: 'Data' }, { titulo: 'Km', num: true }, { titulo: 'Itens trocados', quebra: true }, { titulo: 'Observação', quebra: true, larg: '36%' }, { titulo: 'Valor', num: true }];
+      var pgsMan = paginar([{ tab: true }].concat(visitas), function (r) { return r.tab ? 9 : 1 + Math.floor((r.obs || '').length / 50); });
+      pgsMan.forEach(function (grupo, i) {
+        var reais = grupo.filter(function (r) { return !r.tab; });
+        var ultimaPg = i === pgsMan.length - 1;
+        var rodape = ultimaPg && custoMan ? '<div style="display:flex;justify-content:flex-end;gap:24px;padding:10px 8px 0;font-size:12px;font-weight:800;color:#fff;border-top:1px solid ' + PDF.linha + ';margin-top:4px;"><span style="color:' + PDF.fraco + ';font-weight:700;">Total no período (' + fmtN(visitas.length) + ')</span><span>' + L.brl(custoMan) + '</span></div>' : '';
+        var corpo = (grupo[0].tab ? pdfBloco('Situação dos itens', tabEst) : '');
+        if (reais.length) {
+          corpo += pdfBloco('Trocas e anotações no período', pdfTabela(colMan, reais.map(function (r) {
+            return [L.fmtCurto(r.data), fmtN(r.km), r.itens.length ? L.esc(r.itens.map(function (id) { return nomeMan[id] || id; }).join(', ')) : '<span style="color:' + PDF.fraco + ';">Anotação</span>', L.esc(r.obs || '–'), Number(r.custo) ? L.brl(r.custo) : '–'];
+          }), rodape), grupo[0].tab ? 'margin-top:12px;' : '');
+        } else if (!visitas.length) {
+          corpo += pdfBloco('Trocas e anotações no período', '<div style="color:' + PDF.fraco + ';font-size:12px;">Nenhuma troca registrada no período.</div>', 'margin-top:12px;');
+        }
+        paginasDef.push({ titulo: 'Manutenção básica', sub: 'Óleo e filtros' + (pgsMan.length > 1 ? ' · parte ' + (i + 1) + ' de ' + pgsMan.length : ''), corpo: corpo });
+      });
+    }
 
     return paginasDef.map(function (p, i) { return pdfPagina(p.titulo, p.sub, p.corpo, i + 1, paginasDef.length, ctx); }).join('');
   }
@@ -781,6 +838,9 @@
     try {
       // Os checklists da tela são só os 60 mais recentes; o relatório busca até 400.
       var todosCk = (await L.api('/api/limpeza?acao=checklist&limite=400')).registros;
+      // Manutenção é opcional: se a migração 026 não rodou, o relatório sai sem ela.
+      var manut = null;
+      try { manut = await L.api('/api/limpeza?acao=manutencao'); } catch (e) { manut = null; }
       var agora = new Date();
       var ctx = {
         referencia: per.rotulo,
@@ -789,7 +849,7 @@
       };
       var raiz = document.createElement('div');
       raiz.style.cssText = 'width:1123px;';
-      raiz.innerHTML = montarRelatorio(per, dados.registros, todosCk, ctx);
+      raiz.innerHTML = montarRelatorio(per, dados.registros, todosCk, ctx, manut);
 
       if (preview) {
         var cob = document.createElement('div');
