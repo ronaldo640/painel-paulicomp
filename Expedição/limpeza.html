@@ -735,7 +735,7 @@
     });
     var nomesJuntos = function (n) { var m = n.map(function (s, k) { return k ? s.charAt(0).toLowerCase() + s.slice(1) : s; }); return m.length > 1 ? m.slice(0, -1).join(', ') + ' e ' + m[m.length - 1] : m[0]; };
     var textoProxima = function (i) {
-      return 'próxima aos ' + fmtN(i.alvo_km) + ' km' + (i.proxima_data ? ', cerca de ' + L.fmtCurto(i.proxima_data) + (i.proxima_motivo === 'tempo' ? ' (prazo)' : '') : '') +
+      return 'próxima aos ' + fmtN(i.alvo_km) + ' km' + (i.proxima_data ? ' · previsão em ' + L.fmtCurto(i.proxima_data) + (i.proxima_motivo === 'tempo' ? ' (prazo)' : '') : '') +
         (i.restante_km == null ? '' : i.restante_km > 0 ? ' · faltam ' + fmtN(i.restante_km) + ' km' : ' · passou ' + fmtN(-i.restante_km) + ' km');
     };
     var blocoMan1 = gruposMan.length ? pdfBloco('Manutenção básica',
