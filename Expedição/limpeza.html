@@ -817,6 +817,26 @@
       });
     }
 
+    // Junta folhas seguidas quando o conteúdo das duas cabe em uma só (a folha 1 fica como está).
+    // Mede cada conteúdo fora da tela, na mesma largura da folha.
+    var medidor = document.createElement('div');
+    medidor.style.cssText = 'position:absolute;left:-20000px;top:0;width:1055px;display:flow-root;font-family:Inter,Arial,sans-serif;';
+    document.body.appendChild(medidor);
+    paginasDef.forEach(function (p) { medidor.innerHTML = p.corpo; p.alt = medidor.offsetHeight; });
+    medidor.remove();
+    var LIMITE_ALTURA = 630, FOLGA = 12;
+    var juntas = [paginasDef[0]];
+    paginasDef.slice(1).forEach(function (p) {
+      var ult = juntas[juntas.length - 1];
+      if (juntas.length > 1 && ult.alt + FOLGA + p.alt <= LIMITE_ALTURA) {
+        ult.titulo = ult.titulo === p.titulo ? ult.titulo : ult.titulo + ' e ' + p.titulo.charAt(0).toLowerCase() + p.titulo.slice(1);
+        ult.sub = ult.sub + ' · ' + p.sub;
+        ult.corpo = '<div>' + ult.corpo + '<div style="margin-top:' + FOLGA + 'px;">' + p.corpo + '</div></div>';
+        ult.alt = ult.alt + FOLGA + p.alt;
+      } else juntas.push(p);
+    });
+    paginasDef = juntas;
+
     return paginasDef.map(function (p, i) { return pdfPagina(p.titulo, p.sub, p.corpo, i + 1, paginasDef.length, ctx); }).join('');
   }
 
