@@ -632,20 +632,30 @@
       meses.length ? pdfBarras(meses.map(function (m) { return [MES_CURTO[Number(m.slice(5)) - 1] + '/' + m.slice(2, 4), porMes[m]]; }), L.brl, '#3b82f6')
         : '<div style="color:' + PDF.fraco + ';font-size:12px;">Nenhuma limpeza no período.</div>', 'flex:1;');
 
-    // itens do checklist que mais deram problema
-    var contagem = {};
-    cks.forEach(function (r) { r.itens.forEach(function (i) { if (i.status === 'problema') contagem[i.id] = (contagem[i.id] || 0) + 1; }); });
-    var ranking = Object.keys(contagem).map(function (id) { return [nomes[id] || id, contagem[id]]; }).sort(function (a, b) { return b[1] - a[1]; });
+    // Itens do checklist: quantos dias cada um foi verificado, quantos OK e quantos com problema.
+    var colunasIt = (ck && ck.itens.length ? ck.itens : (cks[0] ? cks[0].itens.map(function (i) { return { id: i.id, nome: nomes[i.id] || i.id }; }) : []));
     var ckTexto = cks.length
-      ? fmtN(cks.length) + (cks.length === 1 ? ' checklist enviado' : ' checklists enviados') + ' · ' + (comProb.length
+      ? fmtN(cks.length) + (cks.length === 1 ? ' checklist enviado' : ' checklists enviados') + ' (' + L.fmtCurto(cks[cks.length - 1].data) + ' a ' + L.fmtCurto(cks[0].data) + ') · ' + (comProb.length
         ? '<b style="color:#f87171;">' + fmtN(comProb.length) + (comProb.length === 1 ? ' dia com problema' : ' dias com problema') + '</b>'
         : '<b style="color:#34d399;">nenhum dia com problema</b>')
       : 'Nenhum checklist no período.';
-    var blocoProb = pdfBloco('Checklist: itens com problema',
+    var linhasIt = colunasIt.map(function (c) {
+      var ok = 0, prob = 0, ultimoProb = '';
+      cks.forEach(function (r) {
+        r.itens.forEach(function (i) {
+          if (i.id !== c.id) return;
+          if (i.status === 'problema') { prob++; if (!ultimoProb) ultimoProb = r.data; } else ok++;
+        });
+      });
+      return [L.esc(c.nome), fmtN(ok + prob), '<b style="color:#34d399;">' + fmtN(ok) + '</b>',
+        prob ? '<b style="color:#f87171;">' + fmtN(prob) + '</b>' : '<span style="color:#475569;">0</span>',
+        ultimoProb ? L.fmtCurto(ultimoProb) : '<span style="color:#475569;">–</span>'];
+    });
+    var blocoProb = pdfBloco('Checklist: itens verificados',
       '<div style="font-size:11.5px;color:' + PDF.fraco + ';margin-bottom:6px;">' + ckTexto + '</div>' +
-      (ranking.length ? pdfBarras(ranking.slice(0, 7), function (n) { return fmtN(n) + (n === 1 ? ' vez' : ' vezes'); }, '#f87171') : ''), 'flex:1;');
+      (cks.length ? pdfTabela([{ titulo: 'Item' }, { titulo: 'Dias verificados', num: true }, { titulo: 'OK', num: true }, { titulo: 'Problema', num: true }, { titulo: 'Último problema', num: true }], linhasIt) : ''), 'flex:2;');
 
-    var resumo = tiles + '<div style="display:flex;gap:12px;margin-top:12px;">' + blocoMes + blocoProb + '</div>';
+    var resumo = tiles + '<div style="display:flex;gap:12px;margin-top:12px;align-items:flex-start;">' + blocoMes + blocoProb + '</div>';
 
     // ----- folhas de tabela -----
     var paginasDef = [{ titulo: 'Resumo da Fiorino', sub: 'Limpeza e checklist de início do dia', corpo: resumo }];
@@ -665,7 +675,6 @@
     if (!lim.length) paginasDef.push({ titulo: 'Limpezas realizadas', sub: 'Nenhuma limpeza no período', corpo: pdfBloco('Registro de limpezas', '<div style="color:' + PDF.fraco + ';font-size:12px;">Nenhuma limpeza registrada no período.</div>') });
 
     // Checklist: uma linha por dia, uma coluna por item (OK em verde, Problema em vermelho).
-    var colunasIt = (ck && ck.itens.length ? ck.itens : (cks[0] ? cks[0].itens.map(function (i) { return { id: i.id, nome: nomes[i.id] || i.id }; }) : []));
     var legenda = '<div style="font-size:11px;color:' + PDF.fraco + ';margin:-2px 0 8px;"><b style="color:#34d399;">OK</b> item verificado, sem problema · <b style="color:#f87171;">Problema</b> item com problema (foto registrada no sistema)</div>';
     var celula = function (it) {
       return it && it.status === 'problema'
