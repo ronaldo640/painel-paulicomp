@@ -12,7 +12,23 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="marca"><img src="/logo-empresa.png" alt="Paulicomp"><span>Unidade Bariri</span></div>
+  <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 28px">
+    <div class="marca"><img src="/logo-empresa.png" alt="Paulicomp"><span>Unidade Bariri</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+      <select id="rel-per" aria-label="Período do relatório" style="width:auto">
+        <option value="30">Últimos 30 dias</option>
+        <option value="90" selected>Últimos 90 dias</option>
+        <option value="180">Últimos 6 meses</option>
+        <option value="365">Últimos 12 meses</option>
+        <option value="tudo">Todo o histórico</option>
+        <option value="int">Escolher datas</option>
+      </select>
+      <input type="date" id="rel-de" aria-label="Relatório: data inicial" style="width:auto" hidden>
+      <input type="date" id="rel-ate" aria-label="Relatório: data final" style="width:auto" hidden>
+      <button type="button" class="btn" id="b-relatorio" style="background:#dc2626;padding:10px 16px" title="Relatório em PDF (Shift + clique abre a prévia na tela, sem baixar)">Relatório PDF</button>
+    </div>
+  </div>
+  <p class="msg" id="msg-rel" role="status" style="margin-top:-8px"></p>
   <header class="top">
     <div>
       <div class="kicker">Frota · Entregas e transferência entre depósitos</div>
@@ -123,38 +139,6 @@
     </div>
     <button type="button" class="btn sec" id="mais" hidden>Mostrar mais</button>
     <input type="file" id="add-fotos" accept="image/*" multiple hidden>
-  </section>
-
-  <section class="card" id="rel-sec">
-    <div class="top">
-      <div>
-        <h2>Relatório</h2>
-        <p class="muted" style="margin:4px 0 0;font-size:.88rem">PDF com o resumo do período, as limpezas, o gasto e os problemas encontrados nos checklists.</p>
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
-        <div class="field">
-          <label for="rel-per">Período</label>
-          <select id="rel-per">
-            <option value="30">Últimos 30 dias</option>
-            <option value="90" selected>Últimos 90 dias</option>
-            <option value="180">Últimos 6 meses</option>
-            <option value="365">Últimos 12 meses</option>
-            <option value="tudo">Todo o histórico</option>
-            <option value="int">Escolher datas</option>
-          </select>
-        </div>
-        <div class="field" id="rel-de-w" hidden>
-          <label for="rel-de">De</label>
-          <input type="date" id="rel-de">
-        </div>
-        <div class="field" id="rel-ate-w" hidden>
-          <label for="rel-ate">Até</label>
-          <input type="date" id="rel-ate">
-        </div>
-        <button type="button" class="btn" id="b-relatorio" style="background:#dc2626" title="Shift + clique abre a prévia na tela, sem baixar">Relatório PDF</button>
-      </div>
-    </div>
-    <p class="msg" id="msg-rel" role="status"></p>
   </section>
 
   <section class="card" id="ck-sec" hidden>
@@ -701,7 +685,7 @@
 
   $('rel-per').addEventListener('change', function () {
     var int = $('rel-per').value === 'int';
-    $('rel-de-w').hidden = !int; $('rel-ate-w').hidden = !int;
+    $('rel-de').hidden = !int; $('rel-ate').hidden = !int;
     if (int && !$('rel-ate').value) { $('rel-ate').value = L.hojeTexto(); $('rel-de').value = somaDias(L.hojeTexto(), -29); }
   });
 
