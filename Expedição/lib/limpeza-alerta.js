@@ -22,6 +22,7 @@
 import { enviarEmail, destinos } from './caixa-alerta.js';
 import { montarAgenda } from './limpeza-agenda.js';
 import { nomeDoItem } from './limpeza-checklist.js';
+import { carregarManutencao, configDe, estimar } from './limpeza-manutencao.js';
 
 const REPETE_A_CADA_DIAS = 7;
 const URL_TELA = 'https://painel-paulicomp.vercel.app/limpeza';
@@ -144,4 +145,61 @@ export async function avisarLimpezaAtrasada(sql, { simular = false, teste = fals
   if (!resultado.ativo) return { ...resultado, atrasada: true, enviado: false };
   const envio = await enviarEmail(assunto, html, texto);
   return { ...resultado, atrasada: true, enviado: true, id_resend: envio.id, assunto };
+}
+
+// Manutenção básica (migração 026): roda todo dia junto com os outros avisos. Um
+// e-mail só, listando os itens que estão 'chegando' ou 'vencidos'. Avisa quando algum
+// item muda de situação e repete a cada 7 dias enquanto houver pendência (o estado
+// fica em limpeza_config: manut_aviso_estado / manut_aviso_em). Item trocado sai da
+// lista sozinho. Sem troca registrada não avisa. `simular` mostra o que seria
+// enviado, sem enviar nem gravar.
+export async function avisarManutencao(sql, { simular = false, hoje: hojeSimulado } = {}) {
+  const { cfg, registros, checklists } = await carregarManutencao(sql);
+  if (!cfg) return { avisar: false, motivo: 'Sem configuração (rode a migração 020).' };
+  const hoje = simular && /^\d{4}-\d{2}-\d{2}$/.test(hojeSimulado || '') ? hojeSimulado : hojeBrasilia();
+  const est = estimar({ cfg: configDe(cfg), registros, checklists, hoje });
+  const pendentes = est.itens.filter((i) => i.situacao === 'chegando' || i.situacao === 'vencida');
+  const resultado = {
+    ativo: alertaLimpezaAtivo(), hoje, km_atual: est.km_atual, media_km_dia: est.media_km_dia,
+    pendentes: pendentes.map((i) => ({ id: i.id, situacao: i.situacao, restante_km: i.restante_km, proxima: i.proxima_data })),
+  };
+  const estado = cfg.manut_aviso_estado || {};
+
+  if (!pendentes.length) {
+    if (!simular && Object.keys(estado).length) {
+      await sql`UPDATE limpeza_config SET manut_aviso_estado = '{}'::jsonb, manut_aviso_em = NULL WHERE id = 1`;
+    }
+    return { ...resultado, avisar: false };
+  }
+  const mudou = pendentes.some((i) => estado[i.id] !== i.situacao);
+  const passou = cfg.manut_aviso_em ? diasEntre(cfg.manut_aviso_em, hoje) >= REPETE_A_CADA_DIAS : true;
+  if (!mudou && !passou) return { ...resultado, avisar: false, motivo: `Já avisado em ${fmt(cfg.manut_aviso_em)}; repete a cada ${REPETE_A_CADA_DIAS} dias.` };
+
+  const veiculo = cfg.placa ? `Fiorino ${cfg.placa}` : 'Fiorino';
+  const km = (n) => Number(n).toLocaleString('pt-BR');
+  const venc = pendentes.filter((i) => i.situacao === 'vencida').length;
+  const assunto = venc
+    ? `Manutenção da ${veiculo}: ${venc} ${venc === 1 ? 'item vencido' : 'itens vencidos'}`
+    : `Manutenção da ${veiculo} chegando: ${pendentes.map((i) => i.nome.toLowerCase()).join(', ')}`;
+  const linha = (i) => {
+    const faltam = i.restante_km == null ? '' : i.restante_km > 0 ? `faltam cerca de ${km(i.restante_km)} km` : `passou ${km(-i.restante_km)} km`;
+    const quando = i.situacao === 'vencida' ? 'vencido' : `previsto para cerca de ${fmt(i.proxima_data)}`;
+    return `${i.nome}: ${quando}${faltam ? ` (${faltam})` : ''}. Última troca em ${fmt(i.ultima.data)}, aos ${km(i.ultima.km)} km.`;
+  };
+  const itensHtml = pendentes.map((i) => `
+        <div style="margin:10px 0 0;padding:10px 12px;border:1px solid ${i.situacao === 'vencida' ? '#fecaca' : '#fde68a'};background:${i.situacao === 'vencida' ? '#fef2f2' : '#fffbeb'};border-radius:8px;">
+          <b>${esc(i.nome)}</b> — ${esc(linha(i).slice(i.nome.length + 2))}
+        </div>`).join('');
+  const html = cartao(assunto, `
+        <p>Estes itens da manutenção básica precisam de atenção. Km atual (último checklist): <b>${est.km_atual ? km(est.km_atual) : '–'}</b>${est.media_km_dia ? `; média recente de ${km(est.media_km_dia)} km por dia` : ''}.</p>${itensHtml}
+        <p style="margin-top:18px;"><a href="${URL_TELA}" style="color:#2563eb;">Abrir a tela da manutenção</a></p>`);
+  const texto = `${UNIDADE}. Manutenção da ${veiculo}: ${pendentes.map(linha).join(' ')} ${URL_TELA}`;
+  const plano = { assunto, destinos: destinos(), texto };
+
+  if (simular) return { ...resultado, avisar: true, simulacao: true, enviado: false, ...plano };
+  if (!resultado.ativo) return { ...resultado, avisar: true, enviado: false };
+  const envio = await enviarEmail(assunto, html, texto);
+  const novo = Object.fromEntries(pendentes.map((i) => [i.id, i.situacao]));
+  await sql`UPDATE limpeza_config SET manut_aviso_estado = ${JSON.stringify(novo)}::jsonb, manut_aviso_em = ${hoje} WHERE id = 1`;
+  return { ...resultado, avisar: true, enviado: true, id_resend: envio.id, assunto };
 }

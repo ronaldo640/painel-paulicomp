@@ -18,7 +18,7 @@
 import { neon } from '@neondatabase/serverless';
 import { verificarEAvisar, enviarTeste, enviarTesteInsumo, avisarFalhaBaixa } from '../lib/caixa-alerta.js';
 import testeDeConsumo from '../lib/caixa-auto-teste.js';
-import { avisarLimpezaAtrasada } from '../lib/limpeza-alerta.js';
+import { avisarLimpezaAtrasada, avisarManutencao } from '../lib/limpeza-alerta.js';
 import { canalDaNota, gravarVenda, cargaHistorico, cargaDiaria } from '../lib/vendas-itens.js';
 
 const TINY_BASE_URL = 'https://api.tiny.com.br/api2';
@@ -122,6 +122,7 @@ export default async function handler(req, res) {
       if (req.query.alerta === 'teste-insumo') return res.status(200).json(await enviarTesteInsumo(sqlAlerta, filial, req.query.para));
       if (req.query.alerta === 'limpeza-simular') return res.status(200).json(await avisarLimpezaAtrasada(sqlAlerta, { simular: true, hoje: req.query.hoje }));
       if (req.query.alerta === 'limpeza-teste') return res.status(200).json(await avisarLimpezaAtrasada(sqlAlerta, { teste: true }));
+      if (req.query.alerta === 'manutencao-simular') return res.status(200).json(await avisarManutencao(sqlAlerta, { simular: true, hoje: req.query.hoje }));
       return res.status(400).json({ error: 'Parâmetro "alerta" deve ser "simular" ou "teste".' });
     } catch (error) {
       console.error('Erro nos avisos por e-mail:', error);
@@ -386,8 +387,20 @@ export default async function handler(req, res) {
       }
     }
 
+    // Manutenção da Fiorino (óleo e filtros): mesmo dia, mesma rotina. Se a migração
+    // 026 ainda não rodou, o erro fica só no resultado e não derruba o resto.
+    let alertaManutencao = null;
+    if (ehCron && filial === 'SP') {
+      try {
+        alertaManutencao = await avisarManutencao(sql);
+      } catch (err) {
+        console.error('Falha no aviso de manutenção:', err);
+        alertaManutencao = { erro: err.message };
+      }
+    }
+
     return res.status(200).json({
-      filial, dataInicial: dataInicialBr, dataFinal: dataFinalBr, alerta, alerta_limpeza: alertaLimpeza,
+      filial, dataInicial: dataInicialBr, dataFinal: dataFinalBr, alerta, alerta_limpeza: alertaLimpeza, alerta_manutencao: alertaManutencao,
       notas_encontradas: notas.length,
       notas_novas_processadas: notasNovas,
       notas_ja_processadas_antes: notasJaProcessadas,

@@ -176,3 +176,12 @@ td.r, th.r { text-align: right; padding-right: 0; }
 
 @media (max-width: 480px) { .grid2 { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* Aviso da próxima manutenção no topo do checklist do motorista. */
+.man-aviso { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: .92rem; display: flex; flex-direction: column; gap: 6px; }
+.man-aviso p { margin: 0; }
+.man-aviso p + p { margin-top: 4px; }
+.man-aviso.chegando { background: var(--warn-bg); border-color: var(--warn); }
+.man-aviso.chegando .kicker { color: var(--warn); }
+.man-aviso.vencida { background: var(--bad-bg); border-color: var(--bad); }
+.man-aviso.vencida .kicker { color: var(--bad); }

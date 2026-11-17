@@ -12,6 +12,12 @@
 //                            ?acao=foto.
 //   POST ?acao=fotos&id=N    acrescenta fotos a uma limpeza já registrada (só gestão).
 //   PUT  ?acao=config        ritmo, primeira limpeza e placa (só gestão).
+//
+// Manutenção básica: óleo e filtros (migração 026, cálculo em lib/limpeza-manutencao.js; só gestão):
+//   GET    ?acao=manutencao            trocas registradas, intervalo e estimativa da próxima.
+//   POST   ?acao=manutencao            registra uma visita (data, km do painel, itens trocados, valor, obs).
+//   DELETE ?acao=manutencao&id=N       exclui a troca.
+//   PUT    ?acao=manutencao-config     intervalo de cada item (km e meses) e limites do aviso.
 //   DELETE ?id=N             exclui a limpeza e as fotos (só gestão).
 //
 // Checklist de início do dia (migração 023, itens em lib/limpeza-checklist.js):
@@ -36,6 +42,7 @@ import { papel } from '../lib/limpeza-auth.js';
 import { montarAgenda } from '../lib/limpeza-agenda.js';
 import { ITENS, MAX_FOTOS_ITEM, hojeBrasilia, validarChecklist } from '../lib/limpeza-checklist.js';
 import { avisarChecklistProblema } from '../lib/limpeza-alerta.js';
+import { IDS_ITENS, ITENS as ITENS_MANUT, carregarManutencao, configDe, estimar, resumoParaMotorista } from '../lib/limpeza-manutencao.js';
 
 export const config = { api: { bodyParser: false } };
 
@@ -116,6 +123,77 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST' || req.method === 'PUT') req.body = await lerJson(req);
+
+    // Aviso curto da próxima manutenção, para a tela do motorista (e da gestão): só o
+    // que falta e quando, sem valores.
+    if (acao === 'manutencao-aviso') {
+      if (req.method !== 'GET') return res.status(405).json({ error: 'Método não permitido.' });
+      const { cfg, registros, checklists } = await carregarManutencao(sql);
+      const est = estimar({ cfg: configDe(cfg), registros, checklists, hoje: hojeBrasilia() });
+      return res.status(200).json(resumoParaMotorista(est));
+    }
+
+    // Manutenção básica (óleo e filtros): só a gestão vê e altera.
+    if (acao === 'manutencao' || acao === 'manutencao-config') {
+      if (quem !== 'gestao') return res.status(403).json({ error: 'Sem permissão.' });
+
+      if (acao === 'manutencao-config') {
+        if (req.method !== 'PUT') return res.status(405).json({ error: 'Método não permitido.' });
+        const b = req.body || {};
+        const campo = (v, min, max) => { const n = Number(v); return Number.isInteger(n) && n >= min && n <= max ? n : null; };
+        const avisoKm = campo(b.avisoKm, 0, 50000), avisoDias = campo(b.avisoDias, 0, 365);
+        const intervalos = {};
+        for (const id of IDS_ITENS) {
+          const i = (b.intervalos || {})[id] || {};
+          const km = campo(i.km, 500, 200000), meses = campo(i.meses, 1, 120);
+          if (km == null || meses == null) return res.status(400).json({ error: 'Confira o intervalo de cada item.' });
+          intervalos[id] = { km, meses };
+        }
+        if (avisoKm == null || avisoDias == null) return res.status(400).json({ error: 'Confira os limites do aviso.' });
+        await sql`
+          UPDATE limpeza_config SET manut_intervalos = ${JSON.stringify(intervalos)}::jsonb,
+            manut_aviso_km = ${avisoKm}, manut_aviso_dias = ${avisoDias}
+          WHERE id = 1`;
+        return res.status(200).json({ ok: true });
+      }
+
+      if (req.method === 'GET') {
+        const { cfg, registros, checklists } = await carregarManutencao(sql);
+        const config = configDe(cfg);
+        const hoje = hojeBrasilia();
+        return res.status(200).json({
+          hoje, config, itens: ITENS_MANUT.map(({ id, nome }) => ({ id, nome })), registros,
+          estimativa: estimar({ cfg: config, registros, checklists, hoje }),
+        });
+      }
+
+      if (req.method === 'POST') {
+        const b = req.body || {};
+        const data = String(b.data || '');
+        const km = Number(b.km);
+        const custo = Math.round((Number(b.custo) || 0) * 100) / 100;
+        const obs = String(b.obs || '').trim().slice(0, 200);
+        const itens = IDS_ITENS.filter((id) => Array.isArray(b.itens) && b.itens.includes(id));
+        if (!dataValida(data)) return res.status(400).json({ error: 'Data inválida.' });
+        if (!Number.isInteger(km) || km <= 0 || km > 2000000) return res.status(400).json({ error: 'Km do painel inválido.' });
+        if (custo < 0 || custo > 100000) return res.status(400).json({ error: 'Valor inválido.' });
+        // Sem item marcado vale como anotação descritiva (ex.: correia dentada), mas precisa de observação.
+        if (!itens.length && !obs) return res.status(400).json({ error: 'Marque o que foi trocado ou descreva a manutenção na observação.' });
+        const [nova] = await sql`
+          INSERT INTO limpeza_manutencoes (data, km, itens, custo, obs)
+          VALUES (${data}, ${km}, ${JSON.stringify(itens)}::jsonb, ${custo}, ${obs}) RETURNING id`;
+        return res.status(201).json({ id: nova.id });
+      }
+
+      if (req.method === 'DELETE') {
+        const id = parseInt(req.query.id, 10);
+        if (!Number.isInteger(id)) return res.status(400).json({ error: 'Identificador inválido.' });
+        await sql`DELETE FROM limpeza_manutencoes WHERE id = ${id}`;
+        return res.status(200).json({ ok: true });
+      }
+
+      return res.status(405).json({ error: 'Método não permitido.' });
+    }
 
     if (acao === 'checklist') {
       if (req.method === 'GET') {
@@ -264,7 +342,7 @@ export default async function handler(req, res) {
   } catch (error) {
     if (error.status) return res.status(error.status).json({ error: error.message });
     console.error('Erro em /api/limpeza:', error);
-    const migracao = acao === 'checklist' ? '023' : '020';
+    const migracao = acao === 'checklist' ? '023' : acao.startsWith('manutencao') ? '026' : '020';
     return res.status(500).json({ error: `Falha ao acessar o banco. Confira se a migração ${migracao} foi executada.` });
   }
 }

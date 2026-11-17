@@ -164,6 +164,64 @@
     <button type="button" class="btn sec" id="ck-mais" hidden>Mostrar mais</button>
   </section>
 
+  <section class="card" id="man-sec" hidden>
+    <div class="top">
+      <div>
+        <h2>Manutenção básica</h2>
+        <span class="pill neutral" id="man-pill" style="margin-top:6px">–</span>
+      </div>
+      <div class="resumo">
+        <div><b class="num" id="man-km">–</b><span>km atual</span></div>
+        <div><b class="num" id="man-media">–</b><span>km por dia (média)</span></div>
+      </div>
+    </div>
+    <p class="msg" id="msg-man" role="status"></p>
+    <div class="rolagem">
+      <table>
+        <thead><tr><th>Item</th><th>Última troca</th><th>Próxima troca</th><th class="r">Faltam</th><th class="r">Situação</th></tr></thead>
+        <tbody id="man-itens"></tbody>
+      </table>
+    </div>
+    <p class="nota" id="man-nota"></p>
+
+    <form id="man-form" autocomplete="off" style="display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--line);padding-top:14px">
+      <h3>Registrar troca</h3>
+      <div class="grid2">
+        <div class="field"><label for="m-data">Data</label><input type="date" id="m-data" required></div>
+        <div class="field"><label for="m-km">Km do painel na troca</label><input type="number" id="m-km" min="1" step="1" inputmode="numeric" required></div>
+        <div class="field"><label for="m-custo">Valor pago (R$)</label><input type="number" id="m-custo" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
+        <div class="field"><label for="m-obs">Observação</label><input type="text" id="m-obs" maxlength="200" placeholder="Ex.: oficina, tipo de óleo"></div>
+      </div>
+      <div class="field">
+        <span class="lbl">O que foi trocado (outras manutenções, como a correia dentada, só escreva na observação)</span>
+        <div id="m-itens" style="display:flex;flex-wrap:wrap;gap:8px 18px"></div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <button class="btn" type="submit" id="m-enviar">Salvar troca</button>
+      </div>
+    </form>
+
+    <div class="rolagem">
+      <table>
+        <thead><tr><th>Data</th><th class="r">Km</th><th style="padding-left:18px">Itens trocados</th><th>Observação</th><th class="r">Valor</th><th></th></tr></thead>
+        <tbody id="man-hist"></tbody>
+      </table>
+    </div>
+
+    <details id="man-cfg">
+      <summary style="cursor:pointer;font-weight:600">Intervalos e aviso</summary>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-top:12px">
+        <div id="c-intervalos" class="grid2"></div>
+        <div class="grid2">
+          <div class="field"><label for="c-avisokm">Avisar quando faltar (km)</label><input type="number" id="c-avisokm" min="0" step="100"></div>
+          <div class="field"><label for="c-avisodias">ou quando faltar (dias)</label><input type="number" id="c-avisodias" min="0" step="1"></div>
+        </div>
+        <div><button type="button" class="btn sec" id="c-salvar-man">Salvar intervalos</button></div>
+        <p class="nota">Cada item vence pelo que vier primeiro: o km ou o prazo em meses. A data estimada usa a média de km por dia dos checklists dos últimos 90 dias.</p>
+      </div>
+    </details>
+  </section>
+
   <section class="card">
     <h2>O que combinar com o lava-rápido</h2>
     <div class="listas">
@@ -767,6 +825,132 @@
     }
   });
 
+  // ---------- manutenção básica (óleo e filtros) ----------
+  var man = null;
+  var armadoMan = null;
+  var SIT_MAN = {
+    vencida: { cls: 'bad', texto: 'Vencida' },
+    chegando: { cls: 'warn', texto: 'Chegando' },
+    ok: { cls: 'ok', texto: 'Em dia' },
+    sem_troca: { cls: 'neutral', texto: 'Sem troca registrada' }
+  };
+  function kmTxt(n) { return Number(n).toLocaleString('pt-BR'); }
+  function nomeItemMan(id) {
+    var it = man.itens.filter(function (x) { return x.id === id; })[0];
+    return it ? it.nome : id;
+  }
+
+  function manRender() {
+    var est = man.estimativa;
+    var s = SIT_MAN[est.situacao];
+    $('man-pill').className = 'pill ' + s.cls;
+    $('man-pill').textContent = est.situacao === 'sem_troca' ? 'Sem troca registrada' : est.situacao === 'vencida' ? 'Há item vencido' : est.situacao === 'chegando' ? 'Há item chegando' : 'Tudo em dia';
+    $('man-km').textContent = est.km_atual ? kmTxt(est.km_atual) : '–';
+    $('man-media').textContent = est.media_km_dia ? kmTxt(est.media_km_dia) : '–';
+    $('man-itens').innerHTML = est.itens.map(function (i) {
+      var sit = SIT_MAN[i.situacao];
+      if (i.situacao === 'sem_troca') {
+        return '<tr><td>' + L.esc(i.nome) + '</td><td class="muted">–</td><td class="muted">A cada ' + kmTxt(i.intervalo_km) + ' km ou ' + i.intervalo_meses + ' meses</td><td class="r">–</td><td class="r"><span class="pill neutral">Sem troca</span></td></tr>';
+      }
+      var alvo = kmTxt(i.alvo_km) + ' km · ' + L.fmtCurto(i.proxima_data) + (i.proxima_motivo === 'tempo' ? ' (prazo)' : '');
+      var faltam = i.restante_km == null ? '–' : i.restante_km > 0 ? kmTxt(i.restante_km) + ' km' : 'passou ' + kmTxt(-i.restante_km) + ' km';
+      return '<tr><td>' + L.esc(i.nome) + '</td><td class="num">' + L.fmtCurto(i.ultima.data) + ' · ' + kmTxt(i.ultima.km) + ' km</td><td class="num">' + alvo +
+        '</td><td class="r num">' + faltam + '</td><td class="r"><span class="pill ' + sit.cls + '">' + sit.texto + '</span></td></tr>';
+    }).join('');
+    $('man-nota').textContent = est.media_km_dia
+      ? 'A data estimada usa a média de ' + kmTxt(est.media_km_dia) + ' km por dia (checklists dos últimos ' + est.janela_dias + ' dias, km de ' + L.fmtCurto(est.km_atual_data) + ').'
+      : 'Sem média de km ainda (precisa de checklists com pelo menos 7 dias de diferença): por enquanto a previsão vale só pelo prazo em meses.';
+
+    if (!$('m-itens').children.length) {
+      $('m-itens').innerHTML = man.itens.map(function (i) {
+        return '<label style="display:flex;align-items:center;gap:6px;font-size:.95rem;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"><input type="checkbox" value="' + L.esc(i.id) + '"> ' + L.esc(i.nome) + '</label>';
+      }).join('');
+    }
+    if (!$('m-data').value) $('m-data').value = L.hojeTexto();
+    if (!$('m-km').value && est.km_atual) $('m-km').value = est.km_atual;
+
+    $('man-hist').innerHTML = man.registros.length ? man.registros.map(function (r) {
+      return '<tr><td class="num">' + L.fmtCurto(r.data) + '</td><td class="r num">' + kmTxt(r.km) + '</td><td style="padding-left:18px">' + (r.itens.length ? r.itens.map(nomeItemMan).map(L.esc).join(', ') : '<span class="muted">Anotação</span>') +
+        '</td><td>' + L.esc(r.obs) + '</td><td class="r num">' + (Number(r.custo) ? L.brl(r.custo) : '–') +
+        '</td><td class="r"><button type="button" class="btn ghost" data-mandel="' + r.id + '">Excluir</button></td></tr>';
+    }).join('') : '<tr><td colspan="6" class="vazio">Nenhuma troca registrada. Use o formulário acima com a data e o km da última troca de cada item.</td></tr>';
+
+    if (!$('man-cfg').contains(document.activeElement)) {
+      $('c-intervalos').innerHTML = man.itens.map(function (i) {
+        var c = man.config.intervalos[i.id];
+        return '<div class="field"><label>' + L.esc(i.nome) + ' · km</label><input type="number" min="500" step="500" data-ik="' + i.id + '" value="' + c.km + '"></div>' +
+          '<div class="field"><label>' + L.esc(i.nome) + ' · meses</label><input type="number" min="1" step="1" data-im="' + i.id + '" value="' + c.meses + '"></div>';
+      }).join('');
+      $('c-avisokm').value = man.config.avisoKm;
+      $('c-avisodias').value = man.config.avisoDias;
+    }
+    $('man-sec').hidden = false;
+  }
+
+  // Se a migração 026 não rodou, a seção só avisa; o resto da tela segue funcionando.
+  async function carregarManutencao() {
+    try {
+      man = await L.api('/api/limpeza?acao=manutencao');
+      manRender();
+    } catch (e) {
+      if (e.status && e.status !== 401) {
+        $('man-sec').hidden = false;
+        $('man-itens').innerHTML = '<tr><td colspan="5" class="vazio">' + L.esc(e.message || 'Não foi possível carregar a manutenção.') + '</td></tr>';
+      }
+    }
+  }
+
+  $('man-form').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    var itens = Array.prototype.map.call($('m-itens').querySelectorAll('input:checked'), function (c) { return c.value; });
+    if (!itens.length && !$('m-obs').value.trim()) return dizer('msg-man', 'Marque o que foi trocado ou descreva a manutenção na observação.', false);
+    var custo = parseFloat($('m-custo').value);
+    $('m-enviar').disabled = true;
+    try {
+      await L.enviarJson('/api/limpeza?acao=manutencao', 'POST', {
+        data: $('m-data').value, km: parseInt($('m-km').value, 10), itens: itens,
+        custo: isNaN(custo) ? 0 : custo, obs: $('m-obs').value.trim()
+      });
+      $('m-custo').value = ''; $('m-obs').value = ''; $('m-km').value = '';
+      Array.prototype.forEach.call($('m-itens').querySelectorAll('input'), function (c) { c.checked = false; });
+      dizer('msg-man', 'Troca registrada.', true);
+      await carregarManutencao();
+    } catch (e) { dizer('msg-man', e.message || 'Não foi possível salvar.', false); }
+    finally { $('m-enviar').disabled = false; }
+  });
+
+  $('man-hist').addEventListener('click', async function (ev) {
+    var d = ev.target.closest('[data-mandel]');
+    if (!d) return;
+    var id = d.getAttribute('data-mandel');
+    if (armadoMan !== id) {
+      armadoMan = id;
+      d.textContent = 'Confirmar?'; d.classList.add('confirma');
+      setTimeout(function () { if (armadoMan === id) { armadoMan = null; d.textContent = 'Excluir'; d.classList.remove('confirma'); } }, 3500);
+      return;
+    }
+    armadoMan = null;
+    try { await L.api('/api/limpeza?acao=manutencao&id=' + encodeURIComponent(id), { method: 'DELETE' }); await carregarManutencao(); }
+    catch (e) { dizer('msg-man', e.message || 'Não foi possível excluir.', false); }
+  });
+
+  $('c-salvar-man').addEventListener('click', async function () {
+    var intervalos = {};
+    man.itens.forEach(function (i) {
+      intervalos[i.id] = {
+        km: parseInt($('c-intervalos').querySelector('[data-ik="' + i.id + '"]').value, 10),
+        meses: parseInt($('c-intervalos').querySelector('[data-im="' + i.id + '"]').value, 10)
+      };
+    });
+    try {
+      await L.enviarJson('/api/limpeza?acao=manutencao-config', 'PUT', {
+        intervalos: intervalos, avisoKm: parseInt($('c-avisokm').value, 10), avisoDias: parseInt($('c-avisodias').value, 10)
+      });
+      dizer('msg-man', 'Intervalos salvos.', true);
+      await carregarManutencao();
+    } catch (e) { dizer('msg-man', e.message || 'Não foi possível salvar.', false); }
+  });
+
   async function carregar() {
     try {
       dados = await L.api('/api/limpeza');
@@ -775,6 +959,7 @@
       L.fecharChave();
       render();
       carregarChecklist();
+      carregarManutencao();
     } catch (e) {
       $('s-pill').textContent = '–';
       if (e.status === 401) {

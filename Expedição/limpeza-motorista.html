@@ -35,6 +35,11 @@
   </nav>
 
   <div class="aba" id="aba-ck" role="tabpanel" aria-labelledby="t-ck">
+  <section class="man-aviso" id="man-aviso" hidden aria-live="polite">
+    <div class="kicker" id="man-titulo">Próxima manutenção</div>
+    <div id="man-linhas"></div>
+  </section>
+
   <div class="aviso ok" id="ck-sucesso" hidden role="status"></div>
 
   <form class="card" id="ck-form" autocomplete="off" novalidate hidden>
@@ -487,6 +492,35 @@
     }
   }
 
+  // ---------- aviso da próxima manutenção (óleo e filtros) ----------
+  // Fica em cima do checklist. Se a migração 026 não rodou ou ainda não há troca
+  // registrada, o aviso simplesmente não aparece.
+  function nomesJuntos(nomes) {
+    var n = nomes.map(function (s) { return s.charAt(0).toLowerCase() + s.slice(1); });
+    var txt = n.length > 1 ? n.slice(0, -1).join(', ') + ' e ' + n[n.length - 1] : n[0];
+    return txt.charAt(0).toUpperCase() + txt.slice(1);
+  }
+  async function carregarAvisoManutencao() {
+    try {
+      var r = await L.api('/api/limpeza?acao=manutencao-aviso');
+      if (!r.grupos || !r.grupos.length) { $('man-aviso').hidden = true; return; }
+      var km = function (n) { return Number(n).toLocaleString('pt-BR'); };
+      var sit = r.situacao;
+      $('man-aviso').className = 'man-aviso ' + sit;
+      $('man-titulo').textContent = sit === 'vencida' ? 'Manutenção vencida' : sit === 'chegando' ? 'Manutenção chegando' : 'Próxima manutenção';
+      $('man-linhas').innerHTML = r.grupos.map(function (g) {
+        var quando = g.situacao === 'vencida'
+          ? 'passou do combinado' + (g.restante_km != null && g.restante_km < 0 ? ' em ' + km(-g.restante_km) + ' km' : '') + '. Avise a gestão.'
+          : (g.restante_km != null ? 'faltam cerca de <b>' + km(g.restante_km) + ' km</b>' : '') +
+            (g.proxima_data ? (g.restante_km != null ? ' (' : '') + 'previsto para cerca de ' + L.fmtCurto(g.proxima_data) + (g.restante_km != null ? ')' : '') : '');
+        return '<p><b>' + L.esc(nomesJuntos(g.nomes)) + ':</b> ' + quando + '</p>';
+      }).join('');
+      $('man-aviso').hidden = false;
+    } catch (e) {
+      $('man-aviso').hidden = true;
+    }
+  }
+
   // ---------- abas: Checklist | Limpeza ----------
   function escolherAba(qual) {
     var ck = qual === 'ck';
@@ -506,6 +540,7 @@
       renderStatus();
       renderFotos();
       carregarChecklist();
+      carregarAvisoManutencao();
     } catch (e) {
       $('s-pill').textContent = '–';
       if (e.status === 401) {

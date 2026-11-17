@@ -114,3 +114,13 @@ os destinos do aviso de caixas (`ALERTA_EMAIL_DESTINOS`, padrão ronaldo@paulico
   Para ver o lembrete, acrescente `&hoje=AAAA-MM-DD` com o dia anterior à data prevista.
 - Mandar o lembrete agora, de verdade, com "[TESTE]" no assunto (serve para
   conferir o e-mail e o filtro dos motoristas): `/api/caixa-auto-executar?alerta=limpeza-teste`.
+
+## Manutenção básica (óleo e filtros)
+
+Seção "Manutenção básica" na tela da gestão (`/limpeza`), só para a gestão. Migração: `sql/026_limpeza_manutencao.sql` (rodar no Neon antes de usar).
+
+- **Itens:** óleo do motor, filtro de óleo, filtro de ar, filtro de combustível (10.000 km ou 12 meses) e filtro de cabine (20.000 km ou 24 meses). Os intervalos mudam na própria tela ("Intervalos e aviso").
+- **Registro:** cada visita à oficina é um registro (data, km do painel, itens trocados, valor, observação). A última troca de cada item é a visita mais recente que o inclui.
+- **Estimativa:** a próxima troca vale pelo que vier primeiro (km ou meses). A data estimada pelo km usa a média de km por dia dos checklists dos últimos 90 dias (precisa de 2 checklists com 7 dias de diferença). Cálculo em `lib/limpeza-manutencao.js`.
+- **Situação de cada item:** Em dia, Chegando (faltam até 1.000 km ou 15 dias, configurável) e Vencida.
+- **Aviso por e-mail:** `avisarManutencao` em `lib/limpeza-alerta.js`, na rotina diária de `api/caixa-auto-executar.js`. Um e-mail só, listando os itens pendentes; sai quando algum item muda de situação e repete a cada 7 dias. Simulação sem enviar: `/api/caixa-auto-executar?alerta=manutencao-simular` (aceita `&hoje=AAAA-MM-DD`).
