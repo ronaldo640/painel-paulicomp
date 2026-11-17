@@ -265,7 +265,7 @@
   const FILIAIS_RMA = {
     SP: { nome: 'PAULICOMP SP', curto: 'SP', vendas: true },
     SUL: { nome: 'PAULICOMP SUL', curto: 'Sul', vendas: false },
-    TRADE: { nome: 'COMP TRADE', curto: 'Trade', vendas: false, fullNoMl: true },
+    TRADE: { nome: 'COMP TRADE', curto: 'Trade', vendas: true, fullNoMl: true },
   };
   let filial = (() => { try { const v = new URLSearchParams(location.search).get('filial'); return FILIAIS_RMA[String(v).toUpperCase()] ? String(v).toUpperCase() : 'SP'; } catch { return 'SP'; } })();
   let geracao = 0; // muda a cada troca de filial; respostas antigas são descartadas
