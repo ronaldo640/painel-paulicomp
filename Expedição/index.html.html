@@ -4125,7 +4125,7 @@
                     <span style="font-size:14px;font-weight:800;color:#ffffff;white-space:nowrap;">${valor}</span>
                 </div>`;
             return `
-            <div class="cxp-pagina" style="width:1123px;height:793px;box-sizing:border-box;padding:26px 34px 22px;background:#070b14;color:#f1f5f9;font-family:Inter,Arial,sans-serif;position:relative;overflow:hidden;page-break-after:always;">
+            <div class="cxp-pagina" style="width:1123px;height:794px;box-sizing:border-box;padding:26px 34px 22px;background:#070b14;color:#f1f5f9;font-family:Inter,Arial,sans-serif;position:relative;overflow:hidden;page-break-after:always;">
                 <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1.5px solid #1e293b;padding-bottom:12px;margin-bottom:16px;">
                     <div style="display:flex;align-items:center;gap:14px;">
                         ${ctx.logo}
@@ -4280,7 +4280,9 @@
                     image: { type: 'jpeg', quality: 0.96 },
                     html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#070b14', scrollX: 0, scrollY: 0 },
                     jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
-                    pagebreak: { mode: ['css'] },
+                    // sem quebras CSS: cada folha tem 794 px (a altura de uma A4 paisagem com 1123 px de largura); as quebras
+                    // do html2pdf somavam um espaço a cada folha e geravam folhas escuras entre as informações
+                    pagebreak: { mode: [] },
                 }).from(raiz).save();
                 cxToast('Relatório gerado e baixado.', 'success');
             } catch (err) {
