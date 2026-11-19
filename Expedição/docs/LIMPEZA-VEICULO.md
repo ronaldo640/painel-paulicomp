@@ -80,6 +80,11 @@ Gestão vê o histórico na tela `/limpeza`, seção "Checklist de início do di
   (`lib/limpeza-alerta.js`, `avisarChecklistProblema`; segue `LIMPEZA_ALERTA_ATIVO`/`ALERTA_EMAIL_ATIVO`).
   Se o e-mail falhar o checklist já está gravado. O assunto é "Checklist da Fiorino ...", então o
   filtro do Gmail que reenvia o lembrete aos motoristas não pega este aviso.
+- **Dia útil:** só há checklist em dia de expediente (sem sábado, domingo e feriado). Nesses dias a
+  tela não cobra ("Sem expediente hoje") e a **média de km por dia útil** da gestão divide os km
+  rodados entre o primeiro e o último checklist dos últimos 30 dias pelos dias úteis entre eles.
+  Feriados em `limpeza-comum.js`: nacionais, 09/07 (SP), Carnaval, Sexta-feira Santa e Corpus
+  Christi; feriado só da cidade entra em `FERIADOS_LOCAIS`.
 - API (em `api/limpeza.js`, sem função nova): `GET/POST/DELETE ?acao=checklist`. O motorista recebe
   só os 5 últimos, sem fotos; a gestão os 60 últimos.
 - Fora por enquanto: checklists semanal e mensal, documentos do veículo.

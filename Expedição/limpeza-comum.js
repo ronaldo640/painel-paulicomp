@@ -91,6 +91,41 @@
     var h = paraData(hojeTexto());
     return Math.round((paraData(s) - h) / 864e5);
   }
+  // ---------- dias úteis (o checklist só é feito em dia de expediente) ----------
+  // Sábado, domingo e feriado não têm entrega. Feriados nacionais fixos, o estadual de
+  // SP (09/07) e os que mudam com a Páscoa (Carnaval, Sexta-feira Santa, Corpus Christi).
+  // Feriado só da cidade entra em FERIADOS_LOCAIS, como 'AAAA-MM-DD'.
+  var FERIADOS_FIXOS = ['01-01', '04-21', '05-01', '07-09', '09-07', '10-12', '11-02', '11-15', '11-20', '12-25'];
+  var FERIADOS_LOCAIS = [];
+  function pascoa(ano) {
+    var a = ano % 19, b = Math.floor(ano / 100), c = ano % 100, d = Math.floor(b / 4), e = b % 4;
+    var f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    var i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    var mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(ano, mes - 1, dia, 12);
+  }
+  function feriadosMoveis(ano) {
+    var p = pascoa(ano);
+    return [-48, -47, -2, 60].map(function (n) {
+      var d = new Date(p.getFullYear(), p.getMonth(), p.getDate() + n, 12);
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    });
+  }
+  function ehDiaUtil(s) {
+    var d = paraData(s), dow = d.getDay();
+    if (dow === 0 || dow === 6) return false;
+    if (FERIADOS_FIXOS.indexOf(s.slice(5)) >= 0 || FERIADOS_LOCAIS.indexOf(s) >= 0) return false;
+    return feriadosMoveis(d.getFullYear()).indexOf(s) < 0;
+  }
+  // Dias úteis depois de `de` até `ate` (inclusive), ou seja, os dias em que o km rodou.
+  function diasUteisEntre(de, ate) {
+    var n = 0, d = paraData(de);
+    var fim = paraData(ate);
+    for (d.setDate(d.getDate() + 1); d <= fim; d.setDate(d.getDate() + 1)) {
+      if (ehDiaUtil(d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()))) n++;
+    }
+    return n;
+  }
   function fmtLongo(s) {
     return paraData(s).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
   }
@@ -174,7 +209,7 @@
 
   window.Limpeza = {
     chave: chave, pedirChave: pedirChave, fecharChave: fecharChave, api: api, enviarJson: enviarJson,
-    hojeTexto: hojeTexto, diasAte: diasAte, fmtLongo: fmtLongo, fmtCurto: fmtCurto, brl: brl,
+    hojeTexto: hojeTexto, diasAte: diasAte, ehDiaUtil: ehDiaUtil, diasUteisEntre: diasUteisEntre, fmtLongo: fmtLongo, fmtCurto: fmtCurto, brl: brl,
     tipoNome: tipoNome, situacao: situacao, esc: esc,
     enviarFoto: enviarFoto, miniDe: miniDe, ligarAmpliacao: ligarAmpliacao,
   };

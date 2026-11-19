@@ -151,6 +151,7 @@
         <div><b class="num" id="ck-qtd">0</b><span>checklists (30 dias)</span></div>
         <div><b class="num" id="ck-prob">0</b><span>com problema</span></div>
         <div><b class="num" id="ck-km-ult">–</b><span>último km</span></div>
+        <div><b class="num" id="ck-km-dia">–</b><span>média km/dia útil (30 dias)</span></div>
       </div>
     </div>
     <p class="msg" id="msg3" role="status"></p>
@@ -489,14 +490,25 @@
   function ckRender() {
     var regs = ck.registros;
     var feitoHoje = regs[0] && regs[0].data === ck.hoje;
-    $('ck-hoje').className = 'pill ' + (feitoHoje ? 'ok' : 'warn');
-    $('ck-hoje').textContent = feitoHoje ? 'Hoje: enviado' : 'Hoje: ainda não enviado';
+    var semExpediente = !feitoHoje && !L.ehDiaUtil(ck.hoje);
+    $('ck-hoje').className = 'pill ' + (feitoHoje ? 'ok' : (semExpediente ? 'neutral' : 'warn'));
+    $('ck-hoje').textContent = feitoHoje ? 'Hoje: enviado' : (semExpediente ? 'Hoje: sem expediente' : 'Hoje: ainda não enviado');
     var recentes = regs.filter(function (r) { return L.diasAte(r.data) >= -29; });
     var comProb = recentes.filter(function (r) { return r.itens.some(function (i) { return i.status === 'problema'; }); }).length;
     $('ck-qtd').textContent = String(recentes.length);
     $('ck-prob').textContent = String(comProb);
     $('ck-prob').style.color = comProb ? 'var(--bad)' : '';
     $('ck-km-ult').textContent = regs[0] ? Number(regs[0].km).toLocaleString('pt-BR') : '–';
+    // Média de rodagem: km rodados entre o primeiro e o último checklist dos últimos 30 dias,
+    // divididos pelos dias úteis entre eles (sábado, domingo e feriado não entram na conta).
+    var mediaKm = '–';
+    if (recentes.length > 1) {
+      var ultimo = recentes[0], primeiro = recentes[recentes.length - 1];
+      var dias = L.diasUteisEntre(primeiro.data, ultimo.data);
+      var rodado = ultimo.km - primeiro.km;
+      if (dias > 0 && rodado >= 0) mediaKm = Math.round(rodado / dias).toLocaleString('pt-BR');
+    }
+    $('ck-km-dia').textContent = mediaKm;
     $('ck-corpo').innerHTML = regs.length ? ckLinhas()
       : '<tr><td colspan="5" class="vazio">Nenhum checklist enviado ainda. O motorista preenche pela tela dele.</td></tr>';
     var restam = regs.length - ckLimite;

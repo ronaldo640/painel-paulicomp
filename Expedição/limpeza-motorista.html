@@ -383,8 +383,9 @@
     $('ck-feito').hidden = !hoje;
     $('abas').hidden = false;
     $('t-ck').hidden = false;
-    $('t-ck-selo').className = 'pill ' + (hoje ? 'ok' : 'warn');
-    $('t-ck-selo').textContent = hoje ? 'Enviado hoje' : 'Falta fazer hoje';
+    var semExpediente = !hoje && !L.ehDiaUtil(ck.hoje);   // sábado, domingo ou feriado: não cobra
+    $('t-ck-selo').className = 'pill ' + (hoje ? 'ok' : (semExpediente ? 'neutral' : 'warn'));
+    $('t-ck-selo').textContent = hoje ? 'Enviado hoje' : (semExpediente ? 'Sem expediente hoje' : 'Falta fazer hoje');
     if (hoje) {
       var s = ckResumo(hoje);
       $('ck-feito-pill').className = 'pill ' + (s.n ? 'warn' : 'ok');
