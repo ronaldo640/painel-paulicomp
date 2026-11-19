@@ -674,6 +674,9 @@
     var comProb = cks.filter(function (r) { return r.itens.some(function (i) { return i.status === 'problema'; }); });
     var kms = cks.map(function (r) { return Number(r.km); });
     var rodados = kms.length > 1 ? Math.max.apply(null, kms) - Math.min.apply(null, kms) : null;
+    // Média por dia útil: os km rodados divididos pelos dias úteis entre o primeiro e o último checklist.
+    var diasUteis = cks.length > 1 ? L.diasUteisEntre(cks[cks.length - 1].data, cks[0].data) : 0;
+    var mediaDia = rodados != null && diasUteis > 0 ? fmtN(Math.round(rodados / diasUteis)) : null;
 
     // Primeira e última data com dado, para o rótulo do "Todo o histórico".
     if (per.tudo) {
@@ -691,7 +694,9 @@
       pdfTile('Média por limpeza', L.brl(comValor ? total / comValor : 0), comValor ? 'Considera as ' + fmtN(comValor) + ' com valor' : '–') +
       pdfTile('Última limpeza', ultima ? L.fmtCurto(ultima.data) : '–', ultima ? L.tipoNome(ultima.tipo) : 'Nenhuma registrada') +
       pdfTile('Próxima prevista', prox ? L.fmtCurto(prox.data) : '–', sitProx ? sitProx.texto : '', sitProx && sitProx.cls === 'bad' ? '#f87171' : '#fff') +
-      pdfTile('Km rodados no período', rodados == null ? '–' : fmtN(rodados) + ' km', cks.length > 1 ? 'Do 1º ao último checklist (' + fmtN(Math.min.apply(null, kms)) + ' a ' + fmtN(Math.max.apply(null, kms)) + ')' : 'Precisa de 2 checklists ou mais') +
+      pdfTile('Km rodados no período', rodados == null ? '–' : fmtN(rodados) + ' km', cks.length > 1
+        ? (mediaDia ? '<b style="color:#e2e8f0;">Média de ' + mediaDia + ' km por dia útil</b><br>' : '') + 'Do 1º ao último checklist (' + fmtN(Math.min.apply(null, kms)) + ' a ' + fmtN(Math.max.apply(null, kms)) + ')'
+        : 'Precisa de 2 checklists ou mais') +
       '</div>';
 
     // gasto por mês (vai para a folha das limpezas, depois da tabela)

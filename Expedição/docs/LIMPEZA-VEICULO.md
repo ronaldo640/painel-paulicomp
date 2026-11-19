@@ -83,6 +83,7 @@ Gestão vê o histórico na tela `/limpeza`, seção "Checklist de início do di
 - **Dia útil:** só há checklist em dia de expediente (sem sábado, domingo e feriado). Nesses dias a
   tela não cobra ("Sem expediente hoje") e a **média de km por dia útil** da gestão divide os km
   rodados entre o primeiro e o último checklist dos últimos 30 dias pelos dias úteis entre eles.
+  O quadro "Km rodados no período" do relatório PDF traz a mesma média, para o período escolhido.
   Feriados em `limpeza-comum.js`: nacionais, 09/07 (SP), Carnaval, Sexta-feira Santa e Corpus
   Christi; feriado só da cidade entra em `FERIADOS_LOCAIS`.
 - API (em `api/limpeza.js`, sem função nova): `GET/POST/DELETE ?acao=checklist`. O motorista recebe
