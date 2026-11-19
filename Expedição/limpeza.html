@@ -695,7 +695,7 @@
       pdfTile('Última limpeza', ultima ? L.fmtCurto(ultima.data) : '–', ultima ? L.tipoNome(ultima.tipo) : 'Nenhuma registrada') +
       pdfTile('Próxima prevista', prox ? L.fmtCurto(prox.data) : '–', sitProx ? sitProx.texto : '', sitProx && sitProx.cls === 'bad' ? '#f87171' : '#fff') +
       pdfTile('Km rodados no período', rodados == null ? '–' : fmtN(rodados) + ' km', cks.length > 1
-        ? (mediaDia ? '<b style="color:#e2e8f0;">Média de ' + mediaDia + ' km por dia útil</b><br>' : '') + 'Do 1º ao último checklist (' + fmtN(Math.min.apply(null, kms)) + ' a ' + fmtN(Math.max.apply(null, kms)) + ')'
+        ? (mediaDia ? '<b style="display:inline-block;font-size:14px;font-weight:800;color:#fbbf24;margin-bottom:2px;">Média de ' + mediaDia + ' km por dia útil</b><br>' : '') + 'Do 1º ao último checklist (' + fmtN(Math.min.apply(null, kms)) + ' a ' + fmtN(Math.max.apply(null, kms)) + ')'
         : 'Precisa de 2 checklists ou mais') +
       '</div>';
 
