@@ -26,6 +26,13 @@ import { chromium } from 'playwright';
 import nodemailer from 'nodemailer';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+// Assinatura do e-mail: imagem embutida no corpo (aparece sem o destinatário precisar clicar
+// em "mostrar imagens"). Fica ao lado do script; se o arquivo sumir, o e-mail sai sem ela.
+const ARQUIVO_ASSINATURA = fileURLToPath(new URL('./assinatura.jpg', import.meta.url));
+const TEM_ASSINATURA = existsSync(ARQUIVO_ASSINATURA);
 
 const URL_EXPEDICAO = (process.env.URL_EXPEDICAO || 'https://painel-paulicomp.vercel.app').replace(/\/$/, '');
 const URL_SEPARACAO = (process.env.URL_SEPARACAO || 'https://painel-separacao.vercel.app').replace(/\/$/, '');
@@ -225,6 +232,7 @@ async function enviarEmail(inicio, fim) {
       <p>Segue anexo relatório semanal do Almoxarifado.</p>
       ${faltaAnexo}
       ${avisos.length ? `<div style="border:1px solid #fecaca;background:#fef2f2;border-radius:8px;padding:10px 14px;"><b style="color:#b91c1c;">Atenção</b><ul>${avisos.map((a) => `<li>${a}</li>`).join('')}</ul></div>` : ''}
+      ${TEM_ASSINATURA ? '<p style="margin:20px 0 0;"><img src="cid:assinatura-paulicomp" width="600" alt="Ronaldo Caetano, Paulicomp" style="display:block;width:600px;max-width:100%;height:auto;border:0;"></p>' : ''}
       ${MODO_TESTE ? '<p style="color:#64748b;font-size:12px;">Este é um envio de teste.</p>' : ''}
     </div>`;
   const texto = `Prezados, boa tarde!\n\nSegue anexo relatório semanal do Almoxarifado.${anexos.length < 8 ? `\n\nAtenção: foram anexados ${anexos.length} de 8 relatórios.` : ''}${avisos.length ? '\n\nAtenção: ' + avisos.join(' ') : ''}${MODO_TESTE ? '\n\nEste é um envio de teste.' : ''}`;
@@ -254,7 +262,9 @@ async function enviarEmail(inicio, fim) {
     subject: assunto,
     text: texto,
     html,
-    attachments: anexos,
+    attachments: TEM_ASSINATURA
+      ? [...anexos, { filename: 'assinatura.jpg', path: ARQUIVO_ASSINATURA, cid: 'assinatura-paulicomp', contentDisposition: 'inline' }]
+      : anexos,
   });
   console.log('E-mail enviado:', info.messageId);
   console.log(`Aceitos pelo Gmail: ${mostrar(info.accepted)} | Recusados: ${mostrar(info.rejected)}`);
