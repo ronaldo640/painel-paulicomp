@@ -216,16 +216,18 @@ async function enviarEmail(inicio, fim) {
 
   const semana = `${br(inicio)} a ${br(fim)}`;
   const assunto = `${MODO_TESTE ? '[TESTE] ' : ''}Relatórios semanais Paulicomp: ${semana}`;
-  const lista = anexos.map((a) => `<li>${a.filename}</li>`).join('');
+  // Corpo curto, no texto pedido pelo usuário. O bloco "Atenção" só aparece se algo falhou
+  // (atualização do Tiny ou algum PDF) e a observação de teste só no envio de teste.
+  const faltaAnexo = anexos.length < 8 ? `<p><b>Atenção:</b> foram anexados ${anexos.length} de 8 relatórios.</p>` : '';
   const html = `
-    <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a;max-width:600px;">
-      <h2 style="margin:0 0 8px;">Relatórios semanais</h2>
-      <p>Seguem em anexo os relatórios dos <b>últimos 7 dias</b> (${semana}): Separação e Expedição (um relatório para cada filial: SP, SUL e Comp Trade) e Controle de Caixas e Insumos (SP e Comp Trade).</p>
-      ${anexos.length ? `<ul>${lista}</ul>` : '<p><b>Nenhum relatório pôde ser gerado.</b></p>'}
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a;font-size:14px;line-height:1.5;max-width:600px;">
+      <p>Prezados, boa tarde!</p>
+      <p>Segue anexo relatório semanal do Almoxarifado.</p>
+      ${faltaAnexo}
       ${avisos.length ? `<div style="border:1px solid #fecaca;background:#fef2f2;border-radius:8px;padding:10px 14px;"><b style="color:#b91c1c;">Atenção</b><ul>${avisos.map((a) => `<li>${a}</li>`).join('')}</ul></div>` : ''}
-      <p style="color:#64748b;font-size:12px;">E-mail automático, enviado toda sexta às 18h. Dados atualizados com o Tiny antes de gerar os relatórios.${MODO_TESTE ? ' Este é um envio de teste.' : ''}</p>
+      ${MODO_TESTE ? '<p style="color:#64748b;font-size:12px;">Este é um envio de teste.</p>' : ''}
     </div>`;
-  const texto = `Relatórios semanais (${semana}). Anexos: ${anexos.map((a) => a.filename).join(', ') || 'nenhum'}.${avisos.length ? ' Atenção: ' + avisos.join(' ') : ''}`;
+  const texto = `Prezados, boa tarde!\n\nSegue anexo relatório semanal do Almoxarifado.${anexos.length < 8 ? `\n\nAtenção: foram anexados ${anexos.length} de 8 relatórios.` : ''}${avisos.length ? '\n\nAtenção: ' + avisos.join(' ') : ''}${MODO_TESTE ? '\n\nEste é um envio de teste.' : ''}`;
 
   // Tira espaços e quebras de linha que sobram ao copiar e colar (o Google mostra a senha de
   // aplicativo em 4 grupos de 4 letras; ela vale sem os espaços e tem 16 caracteres).
