@@ -37,9 +37,9 @@ jobs:
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          RELATORIO_DESTINOS: ${{ vars.RELATORIO_DESTINOS }}
-          RELATORIO_COPIA: ${{ vars.RELATORIO_COPIA }}
-          RELATORIO_TESTE_DESTINO: ${{ vars.RELATORIO_TESTE_DESTINO }}
+          RELATORIO_DESTINOS: ${{ vars.RELATORIO_DESTINOS || secrets.RELATORIO_DESTINOS }}
+          RELATORIO_COPIA: ${{ vars.RELATORIO_COPIA || secrets.RELATORIO_COPIA }}
+          RELATORIO_TESTE_DESTINO: ${{ vars.RELATORIO_TESTE_DESTINO || secrets.RELATORIO_TESTE_DESTINO }}
           MODO_TESTE: ${{ github.event_name == 'workflow_dispatch' && inputs.teste || 'false' }}
 
       # Guarda os PDFs por 14 dias, mesmo se o envio falhar (dá para baixar e conferir).

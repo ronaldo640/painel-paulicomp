@@ -82,20 +82,38 @@ async function sincronizar() {
     await pausa(3000);
   }
 
-  // Separação: cada chamada processa até 100 pedidos por filial; repete enquanto houver mais.
-  try {
-    for (let rodada = 1; rodada <= 6; rodada++) {
-      const j = await chamar(URL_SEPARACAO, `/api/tiny-sync?${periodo}`);
-      const erros = (j.results || []).filter((r) => r.error);
-      if (j.warning) { avisos.push(`Separação: ${j.warning}`); break; }
-      if (erros.length) avisos.push(`Separação: falha ao atualizar ${erros.map((e) => `${e.filial} (${e.error})`).join('; ')}.`);
-      console.log(`Separação, rodada ${rodada}:`, JSON.stringify(j.results || j));
-      const maisPedidos = (j.results || []).some((r) => r.truncado) && (j.insertedTotal || 0) > 0;
-      if (!maisPedidos) break;
-      await pausa(5000);
+  // Separação: cada chamada lê só os pedidos MAIS RECENTES da janela (uns 47 por filial em 45 s) e
+  // sempre os mesmos, então repetir a mesma busca não avança e esgota a cota do Tiny ("API Bloqueada").
+  // Por isso é uma chamada por dia (hoje e ontem; o resto já veio das rotinas das 4h e das 8h),
+  // com pausa entre elas e uma nova tentativa depois de uma pausa maior se o Tiny bloquear.
+  for (const n of [0, 1]) {
+    const dia = somaDias(hoje, -n);
+    const janela = `dataInicial=${encodeURIComponent(br(dia))}&dataFinal=${encodeURIComponent(br(dia))}`;
+    let j = null;
+    for (let tentativa = 1; tentativa <= 2; tentativa++) {
+      try {
+        j = await chamar(URL_SEPARACAO, `/api/tiny-sync?${janela}`);
+      } catch (e) {
+        avisos.push(`Separação ${br(dia)}: não foi possível atualizar com o Tiny (${e.message}). Os dados podem estar desatualizados.`);
+        j = null;
+        break;
+      }
+      const bloqueou = (j.results || []).some((r) => /API Bloqueada/i.test(r.error || ''));
+      if (!bloqueou || tentativa === 2) break;
+      console.log('Tiny bloqueou a Separação; aguardando 2 minutos para tentar de novo.');
+      await pausa(120000);
     }
-  } catch (e) {
-    avisos.push(`Separação: não foi possível atualizar com o Tiny (${e.message}). Os dados podem estar desatualizados.`);
+    if (j) {
+      console.log(`Separação ${br(dia)}:`, JSON.stringify(j.results || j));
+      if (j.warning) avisos.push(`Separação: ${j.warning}`);
+      for (const r of j.results || []) {
+        if (r.error) avisos.push(`Separação ${br(dia)}: falha ao atualizar ${r.filial} (${r.error}).`);
+        else if (r.pedidosProcessados < r.pedidosEncontrados) {
+          avisos.push(`Separação ${br(dia)}: ${r.filial} leu ${r.pedidosProcessados} de ${r.pedidosEncontrados} pedidos (limite por execução).`);
+        }
+      }
+    }
+    if (n === 0) await pausa(75000);
   }
 }
 
@@ -219,7 +237,20 @@ async function enviarEmail(inicio, fim) {
 }
 
 // ---------- principal ----------
+// Confere os segredos e variáveis do GitHub antes de gastar minutos com o Tiny e os PDFs.
+function conferirConfiguracao() {
+  const faltam = [];
+  if (!process.env.GMAIL_USER) faltam.push('segredo GMAIL_USER');
+  if (!process.env.GMAIL_APP_PASSWORD) faltam.push('segredo GMAIL_APP_PASSWORD');
+  if (MODO_TESTE && !process.env.RELATORIO_TESTE_DESTINO) faltam.push('variável RELATORIO_TESTE_DESTINO');
+  if (!MODO_TESTE && !process.env.RELATORIO_DESTINOS) faltam.push('variável RELATORIO_DESTINOS');
+  if (faltam.length) {
+    throw new Error(`Faltam no GitHub (Settings > Secrets and variables > Actions): ${faltam.join(', ')}. Confira o nome (maiúsculas e sublinhado) e se estão em "Repository secrets" ou "Repository variables".`);
+  }
+}
+
 async function main() {
+  conferirConfiguracao();
   const hoje = hojeIso();
   const inicio = somaDias(hoje, -6);
   console.log(`Semana: ${inicio} a ${hoje}${MODO_TESTE ? ' (TESTE)' : ''}`);
