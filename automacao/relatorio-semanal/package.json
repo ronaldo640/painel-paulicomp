@@ -1,0 +1,11 @@
+{
+  "name": "relatorio-semanal",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Gera os relatórios dos painéis da Paulicomp e envia por e-mail toda semana (GitHub Actions).",
+  "dependencies": {
+    "nodemailer": "^6.9.16",
+    "playwright": "^1.49.0"
+  }
+}

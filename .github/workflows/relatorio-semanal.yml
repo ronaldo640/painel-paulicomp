@@ -1,0 +1,53 @@
+name: Relatório semanal por e-mail
+
+# Toda sexta às 18h de Brasília (UTC-3, sem horário de verão): 21h em UTC.
+# O GitHub pode atrasar execuções agendadas em alguns minutos nos horários de pico.
+on:
+  schedule:
+    - cron: '0 21 * * 5'
+  workflow_dispatch:
+    inputs:
+      teste:
+        description: 'Enviar só para o destinatário de teste (desmarque para enviar a todos)'
+        type: boolean
+        default: true
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: automacao/relatorio-semanal
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependências
+        run: npm install --no-audit --no-fund
+
+      - name: Instalar o navegador
+        run: npx playwright install --with-deps chromium
+
+      - name: Atualizar com o Tiny, gerar os relatórios e enviar o e-mail
+        run: node relatorio-semanal.mjs
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RELATORIO_DESTINOS: ${{ vars.RELATORIO_DESTINOS }}
+          RELATORIO_COPIA: ${{ vars.RELATORIO_COPIA }}
+          RELATORIO_TESTE_DESTINO: ${{ vars.RELATORIO_TESTE_DESTINO }}
+          MODO_TESTE: ${{ github.event_name == 'workflow_dispatch' && inputs.teste || 'false' }}
+
+      # Guarda os PDFs por 14 dias, mesmo se o envio falhar (dá para baixar e conferir).
+      - name: Guardar os PDFs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorios-pdf
+          path: automacao/relatorio-semanal/pdfs/*.pdf
+          retention-days: 14
+          if-no-files-found: ignore

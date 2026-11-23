@@ -2,7 +2,7 @@
 // num arquivo só pra não estourar o limite de funções serverless do
 // plano Hobby da Vercel — 12 por deploy):
 //
-//   ?modo=modelos&dias=30|60|90   -> média diária de TODOS os modelos
+//   ?modo=modelos&dias=7|30|60|90   -> média diária de TODOS os modelos
 //                                    nesse período (só consumo que conta
 //                                    pro estoque real). Alimenta "Consumo
 //                                    por modelo de caixa".
@@ -19,7 +19,7 @@
 import { neon } from '@neondatabase/serverless';
 
 async function responderModelos(sql, res, filial, req) {
-  const diasPermitidos = [30, 60, 90];
+  const diasPermitidos = [7, 30, 60, 90];
   const dias = diasPermitidos.includes(Number(req.query.dias)) ? Number(req.query.dias) : 30;
 
   // media_diaria = consumo real (baixa o estoque, sem transferências);
