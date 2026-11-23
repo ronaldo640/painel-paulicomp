@@ -227,20 +227,25 @@ async function enviarEmail(inicio, fim) {
     </div>`;
   const texto = `Relatórios semanais (${semana}). Anexos: ${anexos.map((a) => a.filename).join(', ') || 'nenhum'}.${avisos.length ? ' Atenção: ' + avisos.join(' ') : ''}`;
 
+  // Tira espaços e quebras de linha que sobram ao copiar e colar (o Google mostra a senha de
+  // aplicativo em 4 grupos de 4 letras; ela vale sem os espaços e tem 16 caracteres).
+  const usuario = GMAIL_USER.trim();
+  const senha = GMAIL_APP_PASSWORD.replace(/\s+/g, '');
+  console.log(`Login no Gmail como ${mascarar(usuario)} com senha de aplicativo de ${senha.length} caracteres (o normal são 16).`);
   const transporte = nodemailer.createTransport({
     host: 'smtp.gmail.com', port: 465, secure: true,
-    auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
+    auth: { user: usuario, pass: senha },
   });
   const para = lerLista(destinos);
   const copia = MODO_TESTE ? [] : lerLista(process.env.RELATORIO_COPIA);
-  console.log(`Envio ${MODO_TESTE ? 'de TESTE' : 'REAL'}: de ${mascarar(GMAIL_USER)} | Para (${para.length}): ${mostrar(para)} | Cópia (${copia.length}): ${mostrar(copia)}`);
+  console.log(`Envio ${MODO_TESTE ? 'de TESTE' : 'REAL'}: de ${mascarar(usuario)} | Para (${para.length}): ${mostrar(para)} | Cópia (${copia.length}): ${mostrar(copia)}`);
   if (MODO_TESTE) {
     const configurada = lerLista(process.env.RELATORIO_COPIA);
     console.log(`Em teste a cópia não é enviada. Cópia configurada para o envio real (${configurada.length}): ${mostrar(configurada)}`);
     console.log(`Destinatários configurados para o envio real (${lerLista(process.env.RELATORIO_DESTINOS).length}): ${mostrar(lerLista(process.env.RELATORIO_DESTINOS))}`);
   }
   const info = await transporte.sendMail({
-    from: `"Relatórios Paulicomp" <${GMAIL_USER}>`,
+    from: `"Relatórios Paulicomp" <${usuario}>`,
     to: para,
     // Em teste não vai cópia: só o destinatário de teste recebe.
     cc: copia.length ? copia : undefined,
@@ -267,8 +272,26 @@ function conferirConfiguracao() {
   }
 }
 
+// Testa o login do Gmail logo no começo (leva segundos), sem enviar nada, para não descobrir
+// só no fim, depois de 5 minutos de Tiny e PDFs, que a senha de aplicativo foi recusada.
+async function testarLoginGmail() {
+  const usuario = process.env.GMAIL_USER.trim();
+  const senha = process.env.GMAIL_APP_PASSWORD.replace(/\s+/g, '');
+  console.log(`Testando o login no Gmail como ${mascarar(usuario)} (senha de aplicativo com ${senha.length} caracteres; o normal são 16).`);
+  try {
+    await nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user: usuario, pass: senha } }).verify();
+    console.log('Login no Gmail: ok.');
+  } catch (e) {
+    if (e.code === 'EAUTH') {
+      throw new Error('O Gmail recusou o login (usuário ou senha de aplicativo). Confira o segredo GMAIL_USER (o endereço COMPLETO da conta em que a senha de aplicativo foi criada) e crie uma senha de aplicativo NOVA em myaccount.google.com/apppasswords para colocar em GMAIL_APP_PASSWORD (as 16 letras, sem espaços).');
+    }
+    throw e;
+  }
+}
+
 async function main() {
   conferirConfiguracao();
+  await testarLoginGmail();
   const hoje = hojeIso();
   const inicio = somaDias(hoje, -6);
   console.log(`Semana: ${inicio} a ${hoje}${MODO_TESTE ? ' (TESTE)' : ''}`);
