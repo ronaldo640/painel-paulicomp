@@ -11,6 +11,10 @@ on:
         description: 'Enviar só para o destinatário de teste (desmarque para enviar a todos)'
         type: boolean
         default: true
+      guardar_pdfs:
+        description: 'Guardar os PDFs na execução por 1 dia, só para conferir (o repositório é público: deixe desmarcado, salvo no teste)'
+        type: boolean
+        default: false
 
 jobs:
   enviar:
@@ -42,12 +46,14 @@ jobs:
           RELATORIO_TESTE_DESTINO: ${{ vars.RELATORIO_TESTE_DESTINO || secrets.RELATORIO_TESTE_DESTINO }}
           MODO_TESTE: ${{ github.event_name == 'workflow_dispatch' && inputs.teste || 'false' }}
 
-      # Guarda os PDFs por 14 dias, mesmo se o envio falhar (dá para baixar e conferir).
-      - name: Guardar os PDFs
-        if: always()
+      # Os PDFs têm dados da operação e este repositório é público: só são guardados se
+      # alguém marcar "guardar_pdfs" ao rodar à mão, e por apenas 1 dia. Nas execuções
+      # agendadas de sexta nada fica guardado.
+      - name: Guardar os PDFs (só se pedido)
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.guardar_pdfs
         uses: actions/upload-artifact@v4
         with:
           name: relatorios-pdf
           path: automacao/relatorio-semanal/pdfs/*.pdf
-          retention-days: 14
+          retention-days: 1
           if-no-files-found: ignore

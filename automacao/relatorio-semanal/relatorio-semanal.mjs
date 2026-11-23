@@ -200,6 +200,14 @@ async function relatoriosCaixas(browser) {
 // Aceita endereços separados por vírgula ou ponto e vírgula.
 const lerLista = (texto) => String(texto || '').split(/[;,]/).map((s) => s.trim()).filter(Boolean);
 
+// O repositório é público e o log também: mostra só o começo do endereço (ru***@dominio),
+// o bastante para conferir quem recebe sem expor o e-mail de ninguém.
+const mascarar = (email) => {
+  const [usuario, dominio] = String(email).split('@');
+  return dominio ? `${usuario.slice(0, 2)}***@${dominio}` : `${String(email).slice(0, 2)}***`;
+};
+const mostrar = (lista) => (lista && lista.length ? lista.map(mascarar).join(', ') : '(ninguém)');
+
 async function enviarEmail(inicio, fim) {
   const { GMAIL_USER, GMAIL_APP_PASSWORD } = process.env;
   const destinos = MODO_TESTE ? process.env.RELATORIO_TESTE_DESTINO : process.env.RELATORIO_DESTINOS;
@@ -223,17 +231,27 @@ async function enviarEmail(inicio, fim) {
     host: 'smtp.gmail.com', port: 465, secure: true,
     auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
   });
+  const para = lerLista(destinos);
+  const copia = MODO_TESTE ? [] : lerLista(process.env.RELATORIO_COPIA);
+  console.log(`Envio ${MODO_TESTE ? 'de TESTE' : 'REAL'}: de ${mascarar(GMAIL_USER)} | Para (${para.length}): ${mostrar(para)} | Cópia (${copia.length}): ${mostrar(copia)}`);
+  if (MODO_TESTE) {
+    const configurada = lerLista(process.env.RELATORIO_COPIA);
+    console.log(`Em teste a cópia não é enviada. Cópia configurada para o envio real (${configurada.length}): ${mostrar(configurada)}`);
+    console.log(`Destinatários configurados para o envio real (${lerLista(process.env.RELATORIO_DESTINOS).length}): ${mostrar(lerLista(process.env.RELATORIO_DESTINOS))}`);
+  }
   const info = await transporte.sendMail({
     from: `"Relatórios Paulicomp" <${GMAIL_USER}>`,
-    to: lerLista(destinos),
+    to: para,
     // Em teste não vai cópia: só o destinatário de teste recebe.
-    cc: MODO_TESTE ? undefined : lerLista(process.env.RELATORIO_COPIA),
+    cc: copia.length ? copia : undefined,
     subject: assunto,
     text: texto,
     html,
     attachments: anexos,
   });
-  console.log('E-mail enviado:', info.messageId, 'para', destinos);
+  console.log('E-mail enviado:', info.messageId);
+  console.log(`Aceitos pelo Gmail: ${mostrar(info.accepted)} | Recusados: ${mostrar(info.rejected)}`);
+  if (info.rejected && info.rejected.length) console.warn(`ATENÇÃO: o Gmail recusou ${info.rejected.length} endereço(s). Confira os destinatários.`);
 }
 
 // ---------- principal ----------

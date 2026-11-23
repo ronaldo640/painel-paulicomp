@@ -4,13 +4,13 @@ Toda **sexta às 18h (Brasília)** o GitHub roda `relatorio-semanal.mjs`, que:
 
 1. **Atualiza os dados com o Tiny**, um sistema de cada vez (todos usam o mesmo token do Tiny):
    notas da Expedição (últimos 14 dias, as 3 filiais), baixa automática das caixas da SP (hoje e 2 dias anteriores)
-   e pedidos da Separação (últimos 14 dias, repetindo até acabar).
+   e pedidos da Separação (hoje e ontem, uma chamada por dia, com pausa entre elas por causa do limite da API do Tiny).
 2. **Gera os PDFs** abrindo os painéis publicados num navegador sem tela, escolhendo "últimos 7 dias" e clicando nos
    mesmos botões "Relatório PDF" de sempre. Expedição e Separação saem **separadas por filial** (SP, SUL e Comp Trade, 6 PDFs) e Controle de Caixas e Insumos sai para SP e Comp Trade (2 PDFs): **8 PDFs no total**.
 3. **Envia um e-mail só** com os PDFs anexados, pela conta Gmail da empresa.
 
 Se uma atualização do Tiny falhar, os relatórios saem mesmo assim e o e-mail traz um bloco "Atenção" dizendo o que pode estar
-desatualizado. Os PDFs também ficam guardados por 14 dias na própria execução (aba Actions > execução > Artifacts).
+desatualizado. Os PDFs só ficam guardados (1 dia, aba Actions > execução > Artifacts) se você marcar "guardar_pdfs" ao rodar à mão; como o repositório é público, nas execuções de sexta nada fica guardado. O log mostra os destinatários com o endereço parcialmente escondido (ru***@dominio).
 
 ## Configuração (uma vez só, no GitHub: Settings > Secrets and variables > Actions)
 
