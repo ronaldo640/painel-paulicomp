@@ -228,14 +228,15 @@ async function enviarEmail(inicio, fim) {
   const faltaAnexo = anexos.length < 8 ? `<p><b>Atenção:</b> foram anexados ${anexos.length} de 8 relatórios.</p>` : '';
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a;font-size:14px;line-height:1.5;max-width:600px;">
-      <p>Prezados, boa tarde!</p>
-      <p>Segue anexo relatório semanal do Almoxarifado.</p>
+      <p style="margin:0;">Prezados, boa tarde!</p>
+      <p style="margin:14px 0 0;">Segue anexo relatório semanal do Almoxarifado.</p>
       ${faltaAnexo}
       ${avisos.length ? `<div style="border:1px solid #fecaca;background:#fef2f2;border-radius:8px;padding:10px 14px;"><b style="color:#b91c1c;">Atenção</b><ul>${avisos.map((a) => `<li>${a}</li>`).join('')}</ul></div>` : ''}
-      ${TEM_ASSINATURA ? '<p style="margin:20px 0 0;"><img src="cid:assinatura-paulicomp" width="600" alt="Ronaldo Caetano, Paulicomp" style="display:block;width:600px;max-width:100%;height:auto;border:0;"></p>' : ''}
+      <p style="margin:14px 0 0;">Atenciosamente,</p>
+      ${TEM_ASSINATURA ? '<p style="margin:42px 0 0;"><img src="cid:assinatura-paulicomp" width="600" alt="Ronaldo Caetano, Paulicomp" style="display:block;width:600px;max-width:100%;height:auto;border:0;"></p>' : ''}
       ${MODO_TESTE ? '<p style="color:#64748b;font-size:12px;">Este é um envio de teste.</p>' : ''}
     </div>`;
-  const texto = `Prezados, boa tarde!\n\nSegue anexo relatório semanal do Almoxarifado.${anexos.length < 8 ? `\n\nAtenção: foram anexados ${anexos.length} de 8 relatórios.` : ''}${avisos.length ? '\n\nAtenção: ' + avisos.join(' ') : ''}${MODO_TESTE ? '\n\nEste é um envio de teste.' : ''}`;
+  const texto = `Prezados, boa tarde!\n\nSegue anexo relatório semanal do Almoxarifado.${anexos.length < 8 ? `\n\nAtenção: foram anexados ${anexos.length} de 8 relatórios.` : ''}${avisos.length ? '\n\nAtenção: ' + avisos.join(' ') : ''}\n\nAtenciosamente,${MODO_TESTE ? '\n\n\nEste é um envio de teste.' : ''}`;
 
   // Tira espaços e quebras de linha que sobram ao copiar e colar (o Google mostra a senha de
   // aplicativo em 4 grupos de 4 letras; ela vale sem os espaços e tem 16 caracteres).
