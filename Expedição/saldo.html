@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Notas sem Saldo | Estoque</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/limpeza.css">
+<style>
+  /* Base (cores, cartões, tabelas) vem de limpeza.css, o mesmo tema escuro do painel. */
+  .wrap { max-width: 1240px; }
+  .filtros { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .filtros .field select, .filtros .field input[type="text"] { width: auto; min-width: 9rem; padding: 8px 10px; }
+  .filtros .seg button { padding: 8px 14px; font-size: .88rem; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 12px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+  .kpi b { font-size: 1.7rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .kpi b.neg { color: var(--bad); }
+  .kpi span { font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-weight: 600; }
+  .kpi small { font-size: .8rem; color: var(--muted); }
+  .cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  td.neg { color: var(--bad); font-weight: 700; }
+  td .sku { font-family: ui-monospace, Consolas, monospace; font-size: .85rem; }
+  td .prod { display: block; color: var(--muted); font-size: .82rem; max-width: 34rem; }
+  .nota { font-size: .85rem; color: var(--muted); margin: 0; line-height: 1.45; }
+  .progresso { font-size: .88rem; color: var(--muted); }
+  /* Filtro de período: mesmo do RMA (rma.html). */
+  .periodo { position: relative; }
+  .periodo-btn { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 12rem; padding: 8px 12px;
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; color: inherit; font: inherit; font-size: .92rem; cursor: pointer; }
+  .periodo-btn:hover, .periodo-btn[aria-expanded="true"] { border-color: var(--accent); }
+  .periodo-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; width: 430px; max-width: calc(100vw - 32px); box-sizing: border-box;
+    padding: 16px 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 18px 40px rgba(0, 0, 0, .45); }
+  .pp-tit { font-size: .85rem; color: var(--muted); margin-bottom: 8px; }
+  .pp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pp-chips button { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: inherit; font: inherit; font-size: .88rem; cursor: pointer; }
+  .pp-chips button:hover { border-color: var(--muted); }
+  .pp-chips button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: rgba(59, 130, 246, .1); }
+  .pp-nav { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; }
+  .pp-nav button { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: inherit; font-size: 1rem; cursor: pointer; }
+  .pp-nav button:disabled { opacity: .35; cursor: default; }
+  .pp-nav input, .pp-nav .pp-val { flex: 1; min-width: 0; padding: 6px 4px; background: transparent; border: 0; color: inherit; font: inherit; font-size: 1rem; color-scheme: dark; }
+  .pp-int { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .pp-int label { display: flex; flex-direction: column; gap: 4px; font-size: .8rem; color: var(--muted); }
+  .pp-int input { padding: 8px 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; color: inherit; font: inherit; color-scheme: dark; }
+  .pp-acoes { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
+  .pp-acoes .btn { border-radius: 999px; padding: 8px 20px; }
+  .pp-link { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 8px 4px; }
+  .pp-erro { margin-top: 8px; font-size: .82rem; color: var(--bad); }
+  .rodape { font-size: .78rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="marca"><img src="/logo-empresa.png" alt="Paulicomp"><span id="marca-filial">Estoque · Filial Sul</span></div>
+  <header class="top">
+    <div>
+      <div class="kicker">Controle de estoque</div>
+      <h1>Notas emitidas sem saldo</h1>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button type="button" class="btn sec" id="b-csv" disabled>Exportar CSV</button>
+      <button type="button" class="btn" id="b-atualizar">Atualizar saldos</button>
+    </div>
+  </header>
+
+  <section class="filtros" aria-label="Filtros">
+    <div class="field">
+      <span class="lbl">Filial</span>
+      <div class="seg" role="group" aria-label="Filial">
+        <button type="button" data-filial="SUL" aria-pressed="true">PAULICOMP SUL</button>
+        <button type="button" data-filial="TRADE" aria-pressed="false">COMP TRADE</button>
+      </div>
+    </div>
+    <div class="field periodo">
+      <span class="lbl">Período</span>
+      <button type="button" class="periodo-btn" id="b-periodo" aria-haspopup="dialog" aria-expanded="false" aria-controls="periodo-pop"><span id="periodo-rot">últimos 30 dias</span><span aria-hidden="true">▾</span></button>
+      <!-- Mesmo filtro de datas do RMA: atalhos + dia / mês / intervalo, aplicar ou cancelar. -->
+      <div class="periodo-pop" id="periodo-pop" role="dialog" aria-label="Escolher período" hidden>
+        <div class="pp-tit">Período</div>
+        <div class="pp-chips" id="pp-chips"></div>
+        <div id="pp-ctrl"></div>
+        <div class="pp-acoes">
+          <button type="button" class="btn" id="pp-aplicar">aplicar</button>
+          <button type="button" class="pp-link" id="pp-cancelar">cancelar</button>
+        </div>
+      </div>
+    </div>
+    <div class="field"><label for="f-busca">Nota, SKU ou produto</label><input type="text" id="f-busca" placeholder="Buscar…" autocomplete="off"></div>
+  </section>
+
+  <div class="aviso bad" id="erro" hidden></div>
+  <div class="aviso" id="aviso" hidden></div>
+  <p class="progresso" id="progresso" role="status"></p>
+
+  <section class="kpis" id="kpis" aria-live="polite"></section>
+
+  <section class="card">
+    <div class="cab"><h2>Notas sem saldo</h2><span class="muted" id="cont-notas" style="font-size:.85rem"></span></div>
+    <p class="nota">Notas de venda que saíram com o produto sem estoque no Tiny. <b>Vendida</b> é a quantidade do SKU na nota; <b>Sem saldo</b> é quanto dela ficou descoberto (o restante tinha estoque).</p>
+    <div class="rolagem">
+      <table>
+        <thead><tr><th>Data</th><th>Nota</th><th>Canal</th><th>Produto</th><th class="r">Vendida</th><th class="r">Sem saldo</th><th class="r">Saldo atual</th></tr></thead>
+        <tbody id="notas"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="cab"><h2>Produtos com saldo negativo</h2><span class="muted" id="cont-prod" style="font-size:.85rem"></span></div>
+    <div class="rolagem">
+      <table>
+        <thead><tr><th>Produto</th><th class="r">Saldo atual</th><th class="r">Notas</th><th class="r" title="Parte do negativo que vem de vendas anteriores ao período escolhido">Antes do período</th><th>Saldo lido em</th></tr></thead>
+        <tbody id="produtos"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Como as notas são apontadas</summary>
+      <p class="nota" style="margin-top:10px">O painel pega as vendas do período (as mesmas notas que a rotina das Caixas lê todo dia) e o saldo atual de cada SKU no Tiny. Quando o saldo está negativo, as notas mais recentes que somam esse negativo são as que saíram sem estoque. Exemplo: saldo −3, com venda de 2 un. ontem e 4 un. anteontem → a nota de ontem (2 un.) e 1 un. da nota de anteontem.</p>
+      <p class="nota" style="margin-top:8px">Quando entra mercadoria e o saldo volta a ficar positivo, o produto sai da lista sozinho. Os saldos são relidos no Tiny uma vez por dia (11h Sul, 11h30 Trade) e quando você clica em <b>Atualizar saldos</b> (saldos lidos há menos de 6 h não são buscados de novo). Nada é alterado no Tiny.</p>
+    </details>
+  </section>
+
+  <div class="rodape" id="rodape"></div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const NOMES = { SUL: 'PAULICOMP SUL', TRADE: 'COMP TRADE' };
+  const CURTO = { SUL: 'Sul', TRADE: 'Trade' };
+  let filial = (() => { try { const v = String(new URLSearchParams(location.search).get('filial') || '').toUpperCase(); return NOMES[v] ? v : 'SUL'; } catch { return 'SUL'; } })();
+  let dados = null, geracao = 0, ocupado = false;
+  const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const MAX_DIAS = 180; // até onde a API aceita voltar
+  // Período, como no RMA: tipo 'dN' (últimos N dias), 'dia', 'mes' (aaaa-mm) ou 'int'.
+  const per = { tipo: 'd30', ini: null, fim: null, mes: null };
+
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmt = n => Number(n || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
+  const dataBr = iso => (iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(2, 4) : '–');
+  const dataHoraBr = ts => (ts ? new Date(ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–');
+
+  const hojeIso = () => new Date().toLocaleDateString('sv');
+  const isoMais = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const mesMais = (m, n) => { const d = new Date(m + '-15T12:00:00Z'); d.setUTCMonth(d.getUTCMonth() + n); return d.toISOString().slice(0, 7); };
+  const rotMes = m => `${MESES[Number(m.slice(5, 7)) - 1]}/${m.slice(0, 4)}`;
+  const fimDoMes = m => isoMais(mesMais(m, 1) + '-01', -1);
+  const limiteIni = () => isoMais(hojeIso(), -(MAX_DIAS - 1));
+  // Datas de início e fim do período escolhido (fim nunca passa de hoje).
+  function intervalo() {
+    const hoje = hojeIso();
+    if (/^d\d+$/.test(per.tipo)) return { ini: isoMais(hoje, -(Number(per.tipo.slice(1)) - 1)), fim: hoje };
+    if (per.tipo === 'mes') { const f = fimDoMes(per.mes); return { ini: per.mes + '-01', fim: f > hoje ? hoje : f }; }
+    return { ini: per.ini, fim: per.fim };
+  }
+  function rotuloPeriodo(curto) {
+    if (/^d\d+$/.test(per.tipo)) { const { ini, fim } = intervalo(); return `últimos ${per.tipo.slice(1)} dias` + (curto ? '' : ` (${dataBr(ini)} a ${dataBr(fim)})`); }
+    if (per.tipo === 'mes') return rotMes(per.mes);
+    if (per.tipo === 'dia') return dataBr(per.ini);
+    return `${dataBr(per.ini)} a ${dataBr(per.fim)}`;
+  }
+
+  function marcarFilial() {
+    document.querySelectorAll('[data-filial]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.filial === filial)));
+    $('marca-filial').textContent = 'Estoque · Filial ' + CURTO[filial];
+    try { const u = new URL(location.href); u.searchParams.set('filial', filial); history.replaceState(null, '', u); } catch {}
+  }
+
+  // Chama a API; com atualizar, repete enquanto faltar saldo para ler (cada
+  // chamada lê o que cabe em ~40 s do Tiny).
+  async function carregar(atualizar) {
+    const g = ++geracao;
+    ocupado = true;
+    $('b-atualizar').disabled = true;
+    $('erro').hidden = true;
+    $('progresso').textContent = atualizar ? 'Lendo saldos no Tiny…' : 'Carregando…';
+    try {
+      // Primeiro mostra o que já está guardado, depois atualiza.
+      if (atualizar && !dados) await uma(g, false);
+      let voltas = 0;
+      while (true) {
+        const r = await uma(g, atualizar);
+        if (g !== geracao) return;
+        if (!atualizar || !r || r.faltam <= 0 || r.bloqueado || ++voltas >= 12) {
+          if (r?.bloqueado) mostrarAviso('O Tiny pediu uma pausa (limite de acessos). Os saldos que faltaram serão lidos na próxima atualização.');
+          else if (r?.faltam > 0) mostrarAviso(`Ainda faltam ${fmt(r.faltam)} SKUs para ler. Clique em Atualizar saldos de novo para continuar.`);
+          break;
+        }
+        $('progresso').textContent = `Lendo saldos no Tiny… faltam ${fmt(r.faltam)} SKUs`;
+      }
+      $('progresso').textContent = '';
+    } catch (e) {
+      if (g !== geracao) return;
+      $('progresso').textContent = '';
+      $('erro').textContent = 'Não foi possível carregar: ' + e.message;
+      $('erro').hidden = false;
+    } finally {
+      if (g === geracao) { ocupado = false; $('b-atualizar').disabled = false; }
+    }
+  }
+
+  async function uma(g, atualizar) {
+    const { ini, fim } = intervalo();
+    const params = new URLSearchParams({ filial, ini, fim });
+    if (!atualizar) params.set('atualizar', '0');
+    const resp = await fetch('/api/saldo-insuficiente?' + params);
+    const r = await resp.json();
+    if (g !== geracao) return null;
+    if (!r.ok) throw new Error(r.error || 'erro desconhecido');
+    dados = r;
+    desenhar();
+    return r;
+  }
+
+  function mostrarAviso(txt) { $('aviso').textContent = txt; $('aviso').hidden = false; }
+
+  function filtrar(lista) {
+    const q = $('f-busca').value.trim().toLowerCase();
+    if (!q) return lista;
+    return lista.filter(n => [n.numero, n.sku, n.produto, n.canal].some(v => String(v || '').toLowerCase().includes(q)));
+  }
+
+  function desenhar() {
+    if (!dados) return;
+    $('aviso').hidden = true;
+    const notas = filtrar(dados.notas), produtos = filtrar(dados.produtos);
+    const nNotas = new Set(dados.notas.map(n => n.numero + '/' + n.serie)).size;
+    const unid = dados.notas.reduce((s, n) => s + n.semSaldo, 0);
+    const semLeitura = dados.skusVendidos - dados.skusComSaldo;
+    $('kpis').innerHTML = `
+      <div class="kpi"><span>Notas sem saldo</span><b class="${nNotas ? 'neg' : ''}">${fmt(nNotas)}</b><small>${esc(rotuloPeriodo(true))}</small></div>
+      <div class="kpi"><span>Unidades sem saldo</span><b class="${unid ? 'neg' : ''}">${fmt(unid)}</b><small>vendidas sem estoque</small></div>
+      <div class="kpi"><span>Produtos negativos</span><b class="${dados.produtos.length ? 'neg' : ''}">${fmt(dados.produtos.length)}</b><small>saldo &lt; 0 no Tiny</small></div>
+      <div class="kpi"><span>SKUs conferidos</span><b>${fmt(dados.skusComSaldo)}</b><small>de ${fmt(dados.skusVendidos)} vendidos${semLeitura > 0 ? ` · ${fmt(semLeitura)} sem leitura` : ''}</small></div>`;
+
+    $('cont-notas').textContent = notas.length + (notas.length === 1 ? ' linha' : ' linhas');
+    $('notas').innerHTML = notas.length ? notas.map(n => `<tr>
+        <td class="num">${dataBr(n.data)}</td>
+        <td class="num">${esc(n.numero)}${n.serie ? `<span class="muted"> · s${esc(n.serie)}</span>` : ''}</td>
+        <td>${esc(n.canal)}</td>
+        <td><span class="sku">${esc(n.sku)}</span><span class="prod">${esc(n.produto)}</span></td>
+        <td class="r num">${fmt(n.quantidade)}</td>
+        <td class="r num neg">${fmt(n.semSaldo)}</td>
+        <td class="r num">${fmt(n.saldoAtual)}</td></tr>`).join('')
+      : `<tr><td colspan="7" class="vazio">${dados.skusComSaldo ? 'Nenhuma nota sem saldo no período. 👍' : 'Saldos ainda não lidos: clique em Atualizar saldos.'}</td></tr>`;
+
+    $('cont-prod').textContent = produtos.length + (produtos.length === 1 ? ' produto' : ' produtos');
+    $('produtos').innerHTML = produtos.length ? produtos.map(p => `<tr>
+        <td><span class="sku">${esc(p.sku)}</span><span class="prod">${esc(p.produto)}</span></td>
+        <td class="r num neg">${fmt(p.saldoAtual)}</td>
+        <td class="r num">${fmt(p.notas)}</td>
+        <td class="r num">${p.foraDoPeriodo ? fmt(p.foraDoPeriodo) : '–'}</td>
+        <td class="num muted">${dataHoraBr(p.atualizadoEm)}</td></tr>`).join('')
+      : `<tr><td colspan="5" class="vazio">Nenhum produto vendido no período está com saldo negativo.</td></tr>`;
+
+    $('b-csv').disabled = !dados.notas.length;
+    const partes = [`Vendas lidas até ${dataBr(dados.ultimaVenda)}`];
+    if (dados.naoEncontrados?.length) partes.push(`SKUs não encontrados no Tiny: ${dados.naoEncontrados.join(', ')}`);
+    $('rodape').textContent = partes.join(' · ');
+  }
+
+  function exportarCsv() {
+    if (!dados) return;
+    const cab = ['Filial', 'Data', 'Nota', 'Serie', 'Canal', 'SKU', 'Produto', 'Qtd vendida', 'Qtd sem saldo', 'Saldo atual'];
+    const num = n => String(n).replace('.', ',');
+    const linhas = filtrar(dados.notas).map(n => [NOMES[filial], dataBr(n.data), n.numero, n.serie, n.canal, n.sku, n.produto, num(n.quantidade), num(n.semSaldo), num(n.saldoAtual)]);
+    const csv = [cab, ...linhas].map(l => l.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = `notas-sem-saldo_${filial}_${new Date().toLocaleDateString('sv')}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  document.querySelectorAll('[data-filial]').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.filial === filial) return;
+    filial = b.dataset.filial; dados = null; marcarFilial(); carregar(false);
+  }));
+  // ---------------------------------------------------------------
+  // Filtro de período (mesmo modelo do RMA)
+  // ---------------------------------------------------------------
+  const ATALHOS = [['d7', 'últimos 7 dias'], ['d15', 'últimos 15 dias'], ['d30', 'últimos 30 dias'], ['d60', 'últimos 60 dias'], ['d90', 'últimos 90 dias'],
+    ['dia', 'do dia'], ['mes', 'do mês'], ['int', 'do intervalo']];
+  let rasc = null; // escolha ainda não aplicada
+  const pop = $('periodo-pop'), bPer = $('b-periodo');
+  const mesMin = () => limiteIni().slice(0, 7), mesMax = () => hojeIso().slice(0, 7);
+
+  function abrirPeriodo() {
+    const hoje = hojeIso();
+    rasc = {
+      tipo: per.tipo,
+      dia: per.tipo === 'dia' ? per.ini : hoje,
+      mes: per.tipo === 'mes' ? per.mes : mesMax(),
+      ini: per.tipo === 'int' ? per.ini : isoMais(hoje, -29),
+      fim: per.tipo === 'int' ? per.fim : hoje,
+    };
+    desenharPeriodo();
+    pop.hidden = false; bPer.setAttribute('aria-expanded', 'true');
+    pop.querySelector('[aria-pressed="true"]')?.focus();
+  }
+  function fecharPeriodo() { pop.hidden = true; bPer.setAttribute('aria-expanded', 'false'); }
+
+  function desenharPeriodo(erro) {
+    $('pp-chips').innerHTML = ATALHOS.map(([v, t]) => `<button type="button" data-pp="${v}" aria-pressed="${rasc.tipo === v}">${t}</button>`).join('');
+    const min = limiteIni(), max = hojeIso();
+    $('pp-ctrl').innerHTML = rasc.tipo === 'dia'
+      ? `<div class="pp-nav"><button type="button" data-ppnav="-1" aria-label="Dia anterior" ${rasc.dia <= min ? 'disabled' : ''}>‹</button><input type="date" id="pp-dia" value="${rasc.dia}" min="${min}" max="${max}" aria-label="Dia"><button type="button" data-ppnav="1" aria-label="Próximo dia" ${rasc.dia >= max ? 'disabled' : ''}>›</button></div>`
+      : rasc.tipo === 'mes'
+      ? `<div class="pp-nav"><button type="button" data-ppnav="-1" aria-label="Mês anterior" ${rasc.mes <= mesMin() ? 'disabled' : ''}>‹</button><span class="pp-val">${rotMes(rasc.mes)}</span><button type="button" data-ppnav="1" aria-label="Próximo mês" ${rasc.mes >= mesMax() ? 'disabled' : ''}>›</button></div>`
+      : rasc.tipo === 'int'
+      ? `<div class="pp-int"><label>de<input type="date" id="pp-ini" value="${rasc.ini}" min="${min}" max="${max}"></label><label>até<input type="date" id="pp-fim" value="${rasc.fim}" min="${min}" max="${max}"></label></div>`
+      : '';
+    if (erro) $('pp-ctrl').insertAdjacentHTML('beforeend', `<div class="pp-erro">${esc(erro)}</div>`);
+  }
+
+  function aplicarPeriodo() {
+    const ok = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '');
+    const min = limiteIni(), max = hojeIso();
+    const foraDoLimite = d => d < min || d > max;
+    const avisoLimite = `Escolha datas entre ${dataBr(min)} e hoje (até ${MAX_DIAS} dias atrás).`;
+    if (rasc.tipo === 'dia') {
+      if (!ok(rasc.dia)) return desenharPeriodo('Escolha o dia.');
+      if (foraDoLimite(rasc.dia)) return desenharPeriodo(avisoLimite);
+      Object.assign(per, { tipo: 'dia', ini: rasc.dia, fim: rasc.dia });
+    } else if (rasc.tipo === 'int') {
+      if (!ok(rasc.ini) || !ok(rasc.fim)) return desenharPeriodo('Preencha as duas datas.');
+      const [a, b] = rasc.ini <= rasc.fim ? [rasc.ini, rasc.fim] : [rasc.fim, rasc.ini];
+      if (foraDoLimite(a) || foraDoLimite(b)) return desenharPeriodo(avisoLimite);
+      Object.assign(per, { tipo: 'int', ini: a, fim: b });
+    } else if (rasc.tipo === 'mes') {
+      Object.assign(per, { tipo: 'mes', mes: rasc.mes });
+    } else {
+      per.tipo = rasc.tipo;
+    }
+    $('periodo-rot').textContent = rotuloPeriodo(true);
+    bPer.title = rotuloPeriodo(false);
+    fecharPeriodo();
+    carregar(false);
+  }
+
+  bPer.addEventListener('click', () => (pop.hidden ? abrirPeriodo() : fecharPeriodo()));
+  $('pp-cancelar').addEventListener('click', () => { fecharPeriodo(); bPer.focus(); });
+  $('pp-aplicar').addEventListener('click', aplicarPeriodo);
+  pop.addEventListener('click', e => {
+    const c = e.target.closest('[data-pp]');
+    if (c) { rasc.tipo = c.dataset.pp; return desenharPeriodo(); }
+    const n = e.target.closest('[data-ppnav]');
+    if (!n || n.disabled) return;
+    const passo = Number(n.dataset.ppnav);
+    if (rasc.tipo === 'dia') rasc.dia = isoMais(rasc.dia || hojeIso(), passo);
+    if (rasc.tipo === 'mes') rasc.mes = mesMais(rasc.mes, passo);
+    desenharPeriodo();
+  });
+  pop.addEventListener('input', e => {
+    if (e.target.id === 'pp-dia') rasc.dia = e.target.value;
+    if (e.target.id === 'pp-ini') rasc.ini = e.target.value;
+    if (e.target.id === 'pp-fim') rasc.fim = e.target.value;
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !pop.hidden) { fecharPeriodo(); bPer.focus(); } });
+  document.addEventListener('mousedown', e => { if (!pop.hidden && !e.target.closest('.periodo')) fecharPeriodo(); });
+  bPer.title = rotuloPeriodo(false);
+  $('f-busca').addEventListener('input', desenhar);
+  $('b-atualizar').addEventListener('click', () => carregar(true));
+  $('b-csv').addEventListener('click', exportarCsv);
+
+  marcarFilial();
+  carregar(false);
+})();
+</script>
+</body>
+</html>

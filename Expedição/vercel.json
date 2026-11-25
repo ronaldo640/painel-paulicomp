@@ -16,12 +16,16 @@
     { "source": "/limpeza/app", "destination": "/limpeza-motorista.html" },
     { "source": "/api/caixa-auto-teste", "destination": "/api/caixa-auto-executar?modo=teste" },
     { "source": "/rma", "destination": "/rma.html" },
-    { "source": "/api/rma", "destination": "/api/tiny-sync?modulo=rma" }
+    { "source": "/api/rma", "destination": "/api/tiny-sync?modulo=rma" },
+    { "source": "/saldo", "destination": "/saldo.html" },
+    { "source": "/api/saldo-insuficiente", "destination": "/api/tiny-sync?modulo=saldo" }
   ],
   "crons": [
     { "path": "/api/tiny-sync", "schedule": "0 6 * * *" },
     { "path": "/api/caixa-auto-executar?filial=SP", "schedule": "0 8 * * *" },
     { "path": "/api/caixa-auto-executar?filial=SUL&vendas=diario", "schedule": "0 10 * * *" },
-    { "path": "/api/caixa-auto-executar?filial=TRADE&vendas=diario", "schedule": "30 10 * * *" }
+    { "path": "/api/caixa-auto-executar?filial=TRADE&vendas=diario", "schedule": "30 10 * * *" },
+    { "path": "/api/tiny-sync?modulo=saldo&filial=SUL", "schedule": "0 11 * * *" },
+    { "path": "/api/tiny-sync?modulo=saldo&filial=TRADE", "schedule": "30 11 * * *" }
   ]
 }
