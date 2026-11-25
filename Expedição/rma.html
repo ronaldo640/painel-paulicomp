@@ -35,6 +35,19 @@
   .pp-int input { padding: 8px 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; color: inherit; font: inherit; color-scheme: dark; }
   .pp-acoes { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
   .pp-acoes .btn { border-radius: 999px; padding: 8px 20px; }
+  /* Mesmo amarelo do aviso da taxa, em tamanho compacto. */
+  .aviso-busca:not([hidden]) { display: flex; gap: 10px; align-items: flex-start; }
+  .aviso-busca .ico { flex: none; width: 20px; height: 20px; border-radius: 50%; background: #fbbf24; color: #1f2937;
+    font-weight: 800; display: grid; place-items: center; font-size: .78rem; }
+  .aviso-busca .txt { min-width: 0; }
+  .aviso-busca { width: fit-content; max-width: 100%; box-sizing: border-box; margin: 0 0 12px; padding: 8px 12px;
+    border: 1px solid rgba(251, 191, 36, .45); border-left: 4px solid #fbbf24; border-radius: 10px; background: rgba(251, 191, 36, .1);
+    font-size: .82rem; line-height: 1.4; color: var(--text, #e5e7eb); }
+  .aviso-busca b { color: #fbbf24; }
+  .aviso-busca .tab { margin-top: 6px; overflow-x: auto; }
+  .aviso-busca table { width: auto; font-size: .78rem; }
+  .aviso-busca td, .aviso-busca th { padding: 2px 12px 2px 0; }
+  .aviso-busca .c { text-align: center; padding-left: 12px; }
   /* Botão do relatório em vermelho, como nos demais relatórios do painel. */
   #b-relatorio { background: #dc2626; color: #fff; }
   #b-relatorio:hover:not(:disabled) { background: #b91c1c; }
@@ -167,6 +180,7 @@
       <label class="chk"><input type="checkbox" id="f-full"> Incluir retornos do Full</label>
     </section>
     <div class="chips" id="chips" hidden></div>
+    <div class="aviso-busca" id="aviso-busca" hidden></div>
 
     <section class="kpis" id="kpis" aria-live="polite"></section>
 
@@ -351,6 +365,44 @@
     renderTiny(sel);
     renderDetalhe(sel);
     renderTaxas(f.sku ? comGrupo.filter(r => r.sku === f.sku) : comGrupo);
+    renderAvisoBusca(b);
+  }
+
+  // Busca sem nenhuma devolução: procura o SKU nas vendas do mesmo período e
+  // canal, para mostrar que o produto vendeu e não teve devolução (taxa 0%).
+  // As vendas só trazem o SKU (sem nome), então a busca por nome não acha venda.
+  function renderAvisoBusca(b) {
+    const caixa = $('aviso-busca');
+    const busca = f.busca.trim();
+    if (!busca || b.length) { caixa.hidden = true; return; }
+    caixa.hidden = false;
+    const mostrar = html => { caixa.innerHTML = `<span class="ico" aria-hidden="true">!</span><div class="txt">${html}</div>`; };
+    const termo = `<b>“${esc(busca)}”</b>`;
+    if (!vendas || vendas.estado === 'carregando') { mostrar(`Nenhuma devolução de ${termo} nesses filtros. Procurando nas vendas…`); return; }
+    if (vendas.estado !== 'ok') { mostrar(`Nenhuma devolução de ${termo} nesses filtros.`); return; }
+    // Mesmo período do filtro: N dias / intervalo, o mês escolhido ou tudo o que foi carregado.
+    let ini, fim;
+    if (ehDias()) ({ ini, fim } = periodoDias());
+    else if (f.mes !== 'todos') { const m = `${anoPlanilha()}-${String(f.mes).padStart(2, '0')}`; ini = m + '-01'; fim = fimDoMes(m); }
+    else { const meses = [...vendas.cobertos].sort(); ini = (meses[0] || '0000-00') + '-01'; fim = vendas.ultimoDia || hojeIso(); }
+    if (vendas.ultimoDia && vendas.ultimoDia < fim) fim = vendas.ultimoDia;
+    const alvo = busca.toLowerCase();
+    const achados = new Map(); // 'sku|canal' -> peças
+    for (const [k, dias] of vendas.porChave) {
+      const [sku, canal] = k.split('|');
+      if (!CANAIS_VENDA.has(canal) || !sku.toLowerCase().includes(alvo)) continue;
+      if (f.canal !== 'todos' && canal !== f.canal) continue;
+      const q = dias.reduce((s, [dia, qtd]) => (dia >= ini && dia <= fim ? s + qtd : s), 0);
+      if (q > 0) achados.set(k, q);
+    }
+    const periodo = `de ${diaBr(ini)} a ${diaBr(fim)}`;
+    if (!achados.size) { mostrar(`Nenhuma devolução e nenhuma venda de ${termo} ${periodo}${f.canal !== 'todos' ? ' no canal ' + esc(f.canal) : ''}.`); return; }
+    const linhas = [...achados].sort((a, b) => b[1] - a[1]);
+    const total = linhas.reduce((s, [, q]) => s + q, 0);
+    mostrar(`Nenhuma devolução de ${termo} ${periodo}, mas houve <b>${fmt(total)}</b> ${total === 1 ? 'peça vendida' : 'peças vendidas'}: taxa de devolução <b>0%</b>.`
+      + `<div class="tab"><table><thead><tr><th>SKU</th><th class="c">Canal</th><th class="c">Vendidas</th><th class="c">Devolvidas</th></tr></thead><tbody>`
+      + linhas.slice(0, 15).map(([k, q]) => { const [sku, canal] = k.split('|'); return `<tr><td class="sku">${esc(sku)}</td><td class="c peq">${esc(canal)}</td><td class="c num">${fmt(q)}</td><td class="c num">0</td></tr>`; }).join('')
+      + `</tbody></table></div>${linhas.length > 15 ? `<div class="muted" style="font-size:.8rem;margin-top:6px">e mais ${linhas.length - 15} SKUs</div>` : ''}`);
   }
 
   function renderChips() {
