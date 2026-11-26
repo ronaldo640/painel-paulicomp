@@ -363,6 +363,21 @@ export async function reservasHandler(req, res) {
 
     const avisos = [];
     let faltam = 0, bloqueado = false;
+    // Consulta pontual de um pedido pelo número (só leitura), para conferir situação e nota.
+    if (req.query.pedido) {
+      const token = process.env[FILIAIS[filial]];
+      const r = await tiny('pedidos.pesquisa.php', { token, numero: String(req.query.pedido) }).catch(e => ({ erro: e.message }));
+      const lista = (r.pedidos || []).map(x => x.pedido || x);
+      const det = [];
+      for (const p of lista.slice(0, 3)) {
+        await esperar(PAUSA_MS);
+        const d = await tiny('pedido.obter.php', { token, id: String(p.id) }).catch(e => ({ erro: e.message }));
+        const o = d.pedido || {};
+        det.push({ id: p.id, numero: p.numero, situacao: o.situacao || p.situacao, data: o.data_pedido, id_nota_fiscal: o.id_nota_fiscal,
+          ecommerce: o.ecommerce?.nomeEcommerce, itens: (o.itens || []).map(x => x.item || x).map(i => `${i.codigo} x${i.quantidade}`) });
+      }
+      return res.status(200).json({ ok: true, filial, erro: r.erro, pedidos: det });
+    }
     if (req.query.atualizar !== '0') {
       const token = process.env[FILIAIS[filial]];
       if (!token) return res.status(200).json({ ok: false, error: `${FILIAIS[filial]} não configurado na Vercel.` });
