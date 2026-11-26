@@ -99,7 +99,7 @@
     <details>
       <summary>Como a conta é feita</summary>
       <p class="nota" style="margin-top:10px">O painel lê no Tiny o saldo e o reservado de todos os produtos da filial e os itens de todos os pedidos em aberto (Em aberto, Aprovado, Preparando envio e Dados incompletos). Para cada produto, compara o reservado com a soma dos pedidos.</p>
-      <p class="nota" style="margin-top:8px"><b>Sem pedido:</b> tem reserva e nenhum pedido em aberto. <b>Parcial:</b> parte da reserva tem pedido, o resto não. <b>Pedido sem reserva:</b> há pedido em aberto, mas o produto não está reservado (por exemplo, pedido ainda em aberto que não reserva). <b>OK:</b> a reserva bate com os pedidos. Baixou uma reserva no Tiny? Clique no <b>↻</b> ao lado do reservado para reler aquele produto na hora; os produtos com reserva também são relidos a cada atualização. Pedido que continua aberto no Tiny mas <b>já tem nota fiscal</b> aparece riscado e não conta: a nota já baixou o estoque, então ele não explica reserva.</p>
+      <p class="nota" style="margin-top:8px"><b>Sem pedido:</b> tem reserva e nenhum pedido em aberto. <b>Parcial:</b> parte da reserva tem pedido, o resto não. <b>Pedido sem reserva:</b> há pedido em aberto, mas o produto não está reservado (por exemplo, pedido ainda em aberto que não reserva). <b>OK:</b> a reserva bate com os pedidos. Baixou uma reserva no Tiny? Clique no <b>↻</b> ao lado do reservado para reler aquele produto na hora; os produtos com reserva também são relidos a cada atualização. Pedido que continua aberto no Tiny mas <b>já tem nota fiscal</b> não conta e não aparece na linha (a nota já baixou o estoque); ele fica na aba "Pedidos em aberto" do Excel, com a coluna "Já tem nota", para você fechar no Tiny.</p>
       <p class="nota" style="margin-top:8px">A primeira leitura de cada filial lê o estoque produto a produto e pode levar de 30 min a 1 h (o Tiny só deixa ler aos poucos e só lista alterações dos últimos 30 dias); a página continua sozinha enquanto estiver aberta, e o que já foi lido fica guardado. Depois disso, as atualizações pegam só o que mudou. Depois disso, o que foi lido há menos de 6 h não é lido de novo. Nada é alterado no Tiny.</p>
     </details>
   </section>
@@ -244,9 +244,9 @@
       'Em pedidos': l.emPedidos,
       'Sem pedido': l.semPedido,
       'Situação': (SIT[l.situacao] || ['–'])[0],
-      'Pedidos': l.pedidos.map(p => p.numero + (p.comNota ? ' (já tem nota)' : '')).join(', '),
+      'Pedidos': l.pedidos.map(p => p.numero).join(', '),
     }));
-    const peds = linhas.flatMap(l => l.pedidos.map(p => ({
+    const peds = linhas.flatMap(l => [...l.pedidos, ...(l.pedidosComNota || [])].map(p => ({
       'Filial': NOMES[filial], 'Pedido': p.numero, 'Data': p.data, 'Situação do pedido': p.situacao,
       'Já tem nota': p.comNota ? 'Sim' : 'Não', 'SKU': l.sku, 'Produto': l.produto, 'Quantidade': p.qtd, 'Reservado no produto': l.reservado,
     })));

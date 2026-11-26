@@ -334,7 +334,7 @@ async function varrerEstoque(sql, filial, token, inicio, forcar, estado) {
 export function montarReservas(produtos, pedidos) {
   const porId = new Map(), porSku = new Map();
   const linha = p => ({ produtoId: p.produto_id != null ? Number(p.produto_id) : null, sku: p.sku || '', produto: p.nome || '',
-    saldo: p.saldo == null ? null : Number(p.saldo), reservado: Number(p.reservado || 0), emPedidos: 0, pedidos: [],
+    saldo: p.saldo == null ? null : Number(p.saldo), reservado: Number(p.reservado || 0), emPedidos: 0, pedidos: [], pedidosComNota: [],
     semEstoqueLido: p.lido === false });
   for (const p of produtos) {
     const l = linha(p);
@@ -352,7 +352,9 @@ export function montarReservas(produtos, pedidos) {
       }
       // Pedido que já tem nota: o estoque foi baixado pela nota, então não explica reserva.
       if (!ped.nota_id) l.emPedidos += Number(it.qtd || 0);
-      l.pedidos.push({ numero: ped.numero, data: ped.data, situacao: ped.situacao, qtd: Number(it.qtd || 0), comNota: !!ped.nota_id });
+      const item = { numero: ped.numero, data: ped.data, situacao: ped.situacao, qtd: Number(it.qtd || 0), comNota: !!ped.nota_id };
+      // Pedido com nota não aparece na linha (confunde); vai só para o Excel, para limpeza no Tiny.
+      (ped.nota_id ? l.pedidosComNota : l.pedidos).push(item);
     }
   }
   const vistas = new Set();
@@ -360,7 +362,7 @@ export function montarReservas(produtos, pedidos) {
   for (const l of [...porId.values(), ...porSku.values()]) {
     if (vistas.has(l)) continue;
     vistas.add(l);
-    if (!(l.reservado > 0) && !l.pedidos.some(p => !p.comNota)) continue;
+    if (!(l.reservado > 0) && !l.pedidos.length) continue;
     l.semPedido = Math.max(l.reservado - l.emPedidos, 0);
     l.situacao = l.reservado > 0 && !l.emPedidos ? 'sem_pedido'
       : l.reservado > l.emPedidos ? 'parcial'
