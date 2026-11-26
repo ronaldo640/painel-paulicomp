@@ -29,6 +29,8 @@
   .peds { display: flex; flex-direction: column; gap: 2px; font-size: .82rem; }
   .peds span { white-space: nowrap; }
   .peds small { color: var(--muted); }
+  .peds .com-nota { text-decoration: line-through; opacity: .7; }
+  .peds .com-nota b { color: var(--warn, #b45309); text-decoration: none; display: inline-block; }
   .nota { font-size: .85rem; color: var(--muted); margin: 0; line-height: 1.45; }
   .progresso { font-size: .88rem; color: var(--muted); margin: 0; }
   .rodape { font-size: .78rem; color: var(--muted); }
@@ -93,7 +95,7 @@
     <details>
       <summary>Como a conta é feita</summary>
       <p class="nota" style="margin-top:10px">O painel lê no Tiny o saldo e o reservado de todos os produtos da filial e os itens de todos os pedidos em aberto (Em aberto, Aprovado e Preparando envio). Para cada produto, compara o reservado com a soma dos pedidos.</p>
-      <p class="nota" style="margin-top:8px"><b>Sem pedido:</b> tem reserva e nenhum pedido em aberto. <b>Parcial:</b> parte da reserva tem pedido, o resto não. <b>Pedido sem reserva:</b> há pedido em aberto, mas o produto não está reservado (por exemplo, pedido ainda em aberto que não reserva). <b>OK:</b> a reserva bate com os pedidos.</p>
+      <p class="nota" style="margin-top:8px"><b>Sem pedido:</b> tem reserva e nenhum pedido em aberto. <b>Parcial:</b> parte da reserva tem pedido, o resto não. <b>Pedido sem reserva:</b> há pedido em aberto, mas o produto não está reservado (por exemplo, pedido ainda em aberto que não reserva). <b>OK:</b> a reserva bate com os pedidos. Pedido que continua aberto no Tiny mas <b>já tem nota fiscal</b> aparece riscado e não conta: a nota já baixou o estoque, então ele não explica reserva.</p>
       <p class="nota" style="margin-top:8px">A primeira leitura de cada filial lê o estoque produto a produto e pode levar de 30 min a 1 h (o Tiny só deixa ler aos poucos e só lista alterações dos últimos 30 dias); a página continua sozinha enquanto estiver aberta, e o que já foi lido fica guardado. Depois disso, as atualizações pegam só o que mudou. Depois disso, o que foi lido há menos de 6 h não é lido de novo. Nada é alterado no Tiny.</p>
     </details>
   </section>
@@ -202,14 +204,14 @@
     $('kpis').innerHTML = `
       <div class="kpi"><span>Produtos reservados</span><b>${fmt(comReserva.length)}</b><small>${fmt(soma(comReserva, 'reservado'))} un. reservadas</small></div>
       <div class="kpi"><span>Reserva sem pedido</span><b class="${sem.length ? 'neg' : ''}">${fmt(sem.length)}</b><small>${fmt(soma(sem, 'semPedido'))} un. para conferir</small></div>
-      <div class="kpi"><span>Pedidos em aberto</span><b>${fmt(dados.leitura.pedidosAbertos)}</b><small>Em aberto, Aprovado, Preparando envio</small></div>
+      <div class="kpi"><span>Pedidos em aberto</span><b>${fmt(dados.leitura.pedidosAbertos)}</b><small>${dados.leitura.pedidosComNota ? `+ ${fmt(dados.leitura.pedidosComNota)} ainda abertos mas já com nota` : 'Em aberto, Aprovado, Preparando envio'}</small></div>
       <div class="kpi"><span>Produtos lidos</span><b>${fmt(dados.leitura.produtosLidos)}</b><small>${dados.leitura.varreduraEmAndamento ? `de ${fmt(dados.leitura.produtosTotal)}${dados.leitura.catalogoCompleto ? "" : "+"} · leitura em andamento` : "estoque lido em " + dataHoraBr(dados.leitura.estoqueEm)}</small></div>`;
 
     const linhas = filtradas();
     $('cont').textContent = linhas.length + (linhas.length === 1 ? ' produto' : ' produtos');
     $('linhas').innerHTML = linhas.length ? linhas.map(l => {
       const [rot, cor] = SIT[l.situacao] || ['–', 'neutral'];
-      const peds = l.pedidos.map(p => `<span>${esc(p.numero)} <small>· ${esc(p.situacao)} · ${esc(p.data)} · ${fmt(p.qtd)} un.</small></span>`).join('');
+      const peds = l.pedidos.map(p => `<span${p.comNota ? ' class="com-nota" title="Pedido já tem nota fiscal: o estoque foi baixado pela nota e ele não conta como explicação da reserva"' : ''}>${esc(p.numero)} <small>· ${esc(p.situacao)}${p.comNota ? ' · <b>já tem nota</b>' : ''} · ${esc(p.data)} · ${fmt(p.qtd)} un.</small></span>`).join('');
       return `<tr>
         <td><span class="sku">${esc(l.sku || '(sem código)')}</span><span class="prod">${esc(l.produto)}</span></td>
         <td class="r num">${l.semEstoqueLido ? "<small class=\"muted\">lendo…</small>" : fmt(l.saldo)}</td>
@@ -238,11 +240,11 @@
       'Em pedidos': l.emPedidos,
       'Sem pedido': l.semPedido,
       'Situação': (SIT[l.situacao] || ['–'])[0],
-      'Pedidos': l.pedidos.map(p => p.numero).join(', '),
+      'Pedidos': l.pedidos.map(p => p.numero + (p.comNota ? ' (já tem nota)' : '')).join(', '),
     }));
     const peds = linhas.flatMap(l => l.pedidos.map(p => ({
       'Filial': NOMES[filial], 'Pedido': p.numero, 'Data': p.data, 'Situação do pedido': p.situacao,
-      'SKU': l.sku, 'Produto': l.produto, 'Quantidade': p.qtd, 'Reservado no produto': l.reservado,
+      'Já tem nota': p.comNota ? 'Sim' : 'Não', 'SKU': l.sku, 'Produto': l.produto, 'Quantidade': p.qtd, 'Reservado no produto': l.reservado,
     })));
     const wb = XLSX.utils.book_new();
     const ws1 = XLSX.utils.json_to_sheet(prod.length ? prod : [{ 'Filial': NOMES[filial], 'SKU': '(nenhum produto neste filtro)' }]);

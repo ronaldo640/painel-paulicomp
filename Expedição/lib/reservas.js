@@ -64,6 +64,8 @@ async function garantirTabelas(sql) {
   await sql`ALTER TABLE reserva_produtos ADD COLUMN IF NOT EXISTS lido_em TIMESTAMPTZ`;
   await sql`ALTER TABLE reserva_varredura ADD COLUMN IF NOT EXISTS catalogo_em TIMESTAMPTZ`;
   await sql`ALTER TABLE reserva_varredura ADD COLUMN IF NOT EXISTS incremental_em TIMESTAMPTZ`;
+  await sql`ALTER TABLE reserva_pedidos ADD COLUMN IF NOT EXISTS nota_id TEXT`;
+  await sql`ALTER TABLE reserva_pedidos ADD COLUMN IF NOT EXISTS nota_lida BOOLEAN NOT NULL DEFAULT false`;
   tabelasProntas = true;
 }
 
@@ -76,7 +78,7 @@ async function lerPedidos(sql, filial, token, inicio, forcar, estado) {
   const avisos = [];
   let faltam = 0, bloqueado = false;
   if (fresco && !forcar) {
-    const [r] = await sql`SELECT COUNT(*)::int AS n FROM reserva_pedidos WHERE filial = ${filial} AND itens IS NULL`;
+    const [r] = await sql`SELECT COUNT(*)::int AS n FROM reserva_pedidos WHERE filial = ${filial} AND (itens IS NULL OR NOT nota_lida)`;
     if (!r.n) return { faltam: 0, bloqueado, avisos };
   }
 
@@ -117,7 +119,7 @@ async function lerPedidos(sql, filial, token, inicio, forcar, estado) {
   if (cortada && !abertos.size) return { faltam: 1, bloqueado, avisos };
 
   // Grava/atualiza o cabeçalho; itens zerados quando a situação mudou.
-  const guardados = await sql`SELECT pedido_id, situacao, itens IS NOT NULL AS lido FROM reserva_pedidos WHERE filial = ${filial}`;
+  const guardados = await sql`SELECT pedido_id, situacao, (itens IS NOT NULL AND nota_lida) AS lido FROM reserva_pedidos WHERE filial = ${filial}`;
   const antes = new Map(guardados.map(g => [String(g.pedido_id), g]));
   for (const p of abertos.values()) {
     const g = antes.get(String(p.id));
@@ -126,7 +128,7 @@ async function lerPedidos(sql, filial, token, inicio, forcar, estado) {
       INSERT INTO reserva_pedidos (filial, pedido_id, numero, data, situacao, itens, visto_em)
       VALUES (${filial}, ${p.id}, ${p.numero}, ${p.data}, ${p.situacao}, NULL, now())
       ON CONFLICT (filial, pedido_id) DO UPDATE SET numero = EXCLUDED.numero, data = EXCLUDED.data,
-        situacao = EXCLUDED.situacao, itens = NULL, visto_em = now()`;
+        situacao = EXCLUDED.situacao, itens = NULL, nota_id = NULL, nota_lida = false, visto_em = now()`;
   }
   // Só apaga os que sumiram quando a lista veio inteira.
   if (listaCompleta) {
@@ -135,7 +137,7 @@ async function lerPedidos(sql, filial, token, inicio, forcar, estado) {
   }
 
   // Itens dos pedidos ainda sem itens.
-  const pendentes = await sql`SELECT pedido_id FROM reserva_pedidos WHERE filial = ${filial} AND itens IS NULL ORDER BY pedido_id`;
+  const pendentes = await sql`SELECT pedido_id FROM reserva_pedidos WHERE filial = ${filial} AND (itens IS NULL OR NOT nota_lida) ORDER BY pedido_id`;
   let i = 0;
   for (; i < pendentes.length; i++) {
     if (Date.now() - inicio > LIMITE_MS) break;
@@ -147,11 +149,13 @@ async function lerPedidos(sql, filial, token, inicio, forcar, estado) {
         descricao: it.descricao || '',
         qtd: num(it.quantidade) || 0,
       })).filter(it => it.qtd > 0);
-      await sql`UPDATE reserva_pedidos SET itens = ${JSON.stringify(itens)}::jsonb WHERE filial = ${filial} AND pedido_id = ${pendentes[i].pedido_id}`;
+      const nf = String((r.pedido || {}).id_nota_fiscal || '').trim();
+      const notaId = nf && nf !== '0' ? nf : null;
+      await sql`UPDATE reserva_pedidos SET itens = ${JSON.stringify(itens)}::jsonb, nota_id = ${notaId}, nota_lida = true WHERE filial = ${filial} AND pedido_id = ${pendentes[i].pedido_id}`;
     } catch (e) {
       if (bloqueio(e)) { bloqueado = true; break; }
       avisos.push(`Pedido ${pendentes[i].pedido_id}: ${e.message}`);
-      await sql`UPDATE reserva_pedidos SET itens = '[]'::jsonb WHERE filial = ${filial} AND pedido_id = ${pendentes[i].pedido_id}`;
+      await sql`UPDATE reserva_pedidos SET itens = '[]'::jsonb, nota_lida = true WHERE filial = ${filial} AND pedido_id = ${pendentes[i].pedido_id}`;
     }
     await esperar(PAUSA_MS);
   }
@@ -324,8 +328,9 @@ export function montarReservas(produtos, pedidos) {
         if (it.produto_id) porId.set(String(it.produto_id), l);
         if (it.sku) porSku.set(it.sku, l);
       }
-      l.emPedidos += Number(it.qtd || 0);
-      l.pedidos.push({ numero: ped.numero, data: ped.data, situacao: ped.situacao, qtd: Number(it.qtd || 0) });
+      // Pedido que já tem nota: o estoque foi baixado pela nota, então não explica reserva.
+      if (!ped.nota_id) l.emPedidos += Number(it.qtd || 0);
+      l.pedidos.push({ numero: ped.numero, data: ped.data, situacao: ped.situacao, qtd: Number(it.qtd || 0), comNota: !!ped.nota_id });
     }
   }
   const vistas = new Set();
@@ -333,7 +338,7 @@ export function montarReservas(produtos, pedidos) {
   for (const l of [...porId.values(), ...porSku.values()]) {
     if (vistas.has(l)) continue;
     vistas.add(l);
-    if (!(l.reservado > 0) && !l.pedidos.length) continue;
+    if (!(l.reservado > 0) && !l.pedidos.some(p => !p.comNota)) continue;
     l.semPedido = Math.max(l.reservado - l.emPedidos, 0);
     l.situacao = l.reservado > 0 && !l.emPedidos ? 'sem_pedido'
       : l.reservado > l.emPedidos ? 'parcial'
@@ -382,7 +387,7 @@ export async function reservasHandler(req, res) {
     const [est] = await sql`SELECT * FROM reserva_varredura WHERE filial = ${filial}`;
     const produtos = await sql`SELECT produto_id, sku, nome, saldo::float AS saldo, reservado::float AS reservado, lido_em IS NOT NULL AS lido
       FROM reserva_produtos WHERE filial = ${filial} AND reservado > 0`;
-    const pedidos = await sql`SELECT numero, data, situacao, itens FROM reserva_pedidos WHERE filial = ${filial} AND itens IS NOT NULL`;
+    const pedidos = await sql`SELECT numero, data, situacao, itens, nota_id FROM reserva_pedidos WHERE filial = ${filial} AND itens IS NOT NULL`;
     // Produtos dos pedidos que não têm reserva: busca o saldo deles para mostrar.
     const idsPedidos = [...new Set(pedidos.flatMap(p => (p.itens || []).map(i => i.produto_id).filter(Boolean)))];
     const extra = idsPedidos.length ? await sql`SELECT produto_id, sku, nome, saldo::float AS saldo, reservado::float AS reservado, lido_em IS NOT NULL AS lido
@@ -401,7 +406,8 @@ export async function reservasHandler(req, res) {
         varreduraEmAndamento: !est?.catalogo_em || cont.lidos < cont.total,
         campoReservado: est?.campo_reservado,
         pedidosEm: est?.pedidos_em || null,
-        pedidosAbertos: pedidos.length,
+        pedidosAbertos: pedidos.filter(p => !p.nota_id).length,
+        pedidosComNota: pedidos.filter(p => p.nota_id).length,
       },
       linhas,
     });
