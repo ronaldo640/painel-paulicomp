@@ -27,7 +27,6 @@ const SITUACOES = { aberto: 'Em aberto', aprovado: 'Aprovado', preparando_envio:
 const LIMITE_MS = 40000;
 const PAUSA_MS = 1100;
 const VALIDADE_HORAS = 6;   // pedidos e estoque lidos há menos que isso não são relidos
-const DATA_ANTIGA = '01/01/2015 00:00:00'; // "desde sempre" na lista de estoque
 
 let tabelasProntas = false;
 async function garantirTabelas(sql) {
@@ -61,6 +60,10 @@ async function garantirTabelas(sql) {
     campo_reservado BOOLEAN,
     pedidos_em TIMESTAMPTZ
   )`;
+  // Leitura produto a produto (o Tiny só lista alterações dos últimos 30 dias).
+  await sql`ALTER TABLE reserva_produtos ADD COLUMN IF NOT EXISTS lido_em TIMESTAMPTZ`;
+  await sql`ALTER TABLE reserva_varredura ADD COLUMN IF NOT EXISTS catalogo_em TIMESTAMPTZ`;
+  await sql`ALTER TABLE reserva_varredura ADD COLUMN IF NOT EXISTS incremental_em TIMESTAMPTZ`;
   tabelasProntas = true;
 }
 
@@ -157,59 +160,156 @@ async function lerPedidos(sql, filial, token, inicio, forcar, estado) {
   return { faltam, bloqueado, avisos };
 }
 
-async function gravarProduto(sql, filial, p) {
-  await sql`
-    INSERT INTO reserva_produtos (filial, produto_id, sku, nome, saldo, reservado, atualizado_em)
-    VALUES (${filial}, ${p.id}, ${p.sku}, ${p.nome}, ${p.saldo}, ${p.reservado}, now())
-    ON CONFLICT (filial, produto_id) DO UPDATE SET sku = EXCLUDED.sku, nome = EXCLUDED.nome,
-      saldo = EXCLUDED.saldo, reservado = EXCLUDED.reservado, atualizado_em = now()`;
+// Grava saldo e reservado lidos do Tiny (lido_em marca que o estoque já foi lido).
+async function gravarEstoque(sql, filial, id, saldo, reservado) {
+  await sql`UPDATE reserva_produtos SET saldo = ${saldo}, reservado = ${reservado}, lido_em = now(), atualizado_em = now()
+    WHERE filial = ${filial} AND produto_id = ${id}`;
 }
 
-// 2) Estoque de todos os produtos (saldo e reservado), 100 por página, pela
-//    lista de atualizações de estoque desde uma data antiga. Continua de onde
-//    parou na chamada anterior.
+// 2) Estoque (saldo e reservado) de todos os produtos.
+//
+// O Tiny só lista as alterações de estoque dos últimos 30 dias, então a
+// primeira leitura é produto a produto:
+//   a) lista de produtos do catálogo (produtos.pesquisa, 100 por página);
+//   b) estoque de cada produto (produto.obter.estoque), primeiro os que estão
+//      nos pedidos em aberto, depois o resto.
+// Lido tudo uma vez, as próximas leituras pegam só o que mudou, pela lista de
+// alterações de estoque desde a última leitura (se passar de 29 dias, relê tudo).
+// Tudo continua de onde parou na chamada anterior.
 async function varrerEstoque(sql, filial, token, inicio, forcar, estado) {
-  const fresca = estado.concluida_em && Date.now() - new Date(estado.concluida_em).getTime() < VALIDADE_HORAS * 3600e3;
-  if (fresca && !forcar && !estado.iniciada_em_aberta) return { faltam: 0, bloqueado: false, aviso: null };
-  let pagina = estado.proxima_pagina || 1;
-  if (pagina === 1) await sql`UPDATE reserva_varredura SET iniciada_em = now() WHERE filial = ${filial}`;
-  let campoReservado = estado.campo_reservado, contados = estado.produtos || 0;
-  while (Date.now() - inicio < LIMITE_MS) {
-    let r;
-    try {
-      r = await tiny('lista.atualizacoes.estoque.php', { token, dataAlteracao: DATA_ANTIGA, pagina: String(pagina) });
-    } catch (e) {
-      if (e.semRegistros) { r = { produtos: [] }; }
-      else if (bloqueio(e)) return { faltam: 1, bloqueado: true, aviso: null };
-      else return { faltam: 0, bloqueado: false, aviso: `Lista de estoque do Tiny indisponível: ${e.message}` };
+  const tempo = () => Date.now() - inicio < LIMITE_MS;
+  let campoReservado = estado.campo_reservado;
+  let bloqueado = false, aviso = null;
+
+  // Produtos dos pedidos em aberto entram na fila mesmo antes do catálogo.
+  await sql`
+    INSERT INTO reserva_produtos (filial, produto_id, sku, nome)
+    SELECT DISTINCT ON ((i->>'produto_id')::bigint) ${filial}, (i->>'produto_id')::bigint, i->>'sku', i->>'descricao'
+    FROM reserva_pedidos p, jsonb_array_elements(p.itens) i
+    WHERE p.filial = ${filial} AND (i->>'produto_id') IS NOT NULL AND (i->>'produto_id') <> 'null'
+    ON CONFLICT (filial, produto_id) DO NOTHING`;
+
+  async function lerPendentes(soDosPedidos) {
+    const pend = soDosPedidos
+      ? await sql`SELECT DISTINCT r.produto_id FROM reserva_produtos r
+          JOIN reserva_pedidos p ON p.filial = r.filial
+          JOIN LATERAL jsonb_array_elements(p.itens) i ON (i->>'produto_id') = r.produto_id::text
+          WHERE r.filial = ${filial} AND r.lido_em IS NULL LIMIT 60`
+      : await sql`SELECT produto_id FROM reserva_produtos WHERE filial = ${filial} AND lido_em IS NULL ORDER BY produto_id LIMIT 60`;
+    for (const { produto_id } of pend) {
+      if (!tempo()) return;
+      try {
+        const r = await tiny('produto.obter.estoque.php', { token, id: String(produto_id) });
+        const p = r.produto || {};
+        if ('saldoReservado' in p) campoReservado = true;
+        else if (campoReservado == null) campoReservado = false;
+        await gravarEstoque(sql, filial, produto_id, num(p.saldo), num(p.saldoReservado) ?? 0);
+      } catch (e) {
+        if (bloqueio(e)) { bloqueado = true; return; }
+        // Produto excluído/inexistente no Tiny: sai da lista.
+        await sql`DELETE FROM reserva_produtos WHERE filial = ${filial} AND produto_id = ${produto_id}`;
+      }
+      await esperar(PAUSA_MS);
     }
-    const produtos = (r.produtos || []).map(x => x.produto || x);
-    for (const p of produtos) {
-      if (!p.id || p.tipo_variacao === 'P') continue; // produto pai não tem estoque próprio
-      if ('saldoReservado' in p) campoReservado = true;
-      await gravarProduto(sql, filial, { id: Number(p.id), sku: String(p.codigo || '').trim(), nome: p.nome || '', saldo: num(p.saldo), reservado: num(p.saldoReservado) ?? 0 });
-      contados++;
-    }
-    const total = Number(r.numero_paginas || 0);
-    const fim = !produtos.length || (total ? pagina >= total : produtos.length < 100);
-    if (fim) {
-      // Produtos que não apareceram nesta volta completa: apagados ou inativos.
-      await sql`DELETE FROM reserva_produtos WHERE filial = ${filial} AND atualizado_em < (SELECT iniciada_em FROM reserva_varredura WHERE filial = ${filial})`;
-      await sql`UPDATE reserva_varredura SET proxima_pagina = 1, concluida_em = now(), produtos = ${contados}, campo_reservado = ${campoReservado ?? false} WHERE filial = ${filial}`;
-      return { faltam: 0, bloqueado: false, aviso: null };
-    }
-    pagina++;
-    await sql`UPDATE reserva_varredura SET proxima_pagina = ${pagina}, produtos = ${contados}, campo_reservado = ${campoReservado ?? null} WHERE filial = ${filial}`;
-    await esperar(PAUSA_MS);
   }
-  return { faltam: 1, bloqueado: false, aviso: null };
+
+  // b1) estoque dos produtos dos pedidos em aberto (o que mais interessa).
+  await lerPendentes(true);
+
+  // a) catálogo
+  let catalogoOk = !!estado.catalogo_em && !forcar;
+  if (!catalogoOk && !bloqueado) {
+    let pagina = estado.proxima_pagina || 1;
+    if (pagina === 1) await sql`UPDATE reserva_varredura SET iniciada_em = now() WHERE filial = ${filial}`;
+    while (tempo()) {
+      let r;
+      try {
+        r = await tiny('produtos.pesquisa.php', { token, pesquisa: '', pagina: String(pagina) });
+      } catch (e) {
+        if (e.semRegistros) r = { produtos: [] };
+        else if (bloqueio(e)) { bloqueado = true; break; }
+        else { aviso = `Lista de produtos do Tiny: ${e.message}`; break; }
+      }
+      const produtos = (r.produtos || []).map(x => x.produto || x);
+      for (const p of produtos) {
+        if (!p.id || p.tipoVariacao === 'P' || p.tipo_variacao === 'P') continue; // produto pai não tem estoque próprio
+        await sql`INSERT INTO reserva_produtos (filial, produto_id, sku, nome) VALUES (${filial}, ${Number(p.id)}, ${String(p.codigo || '').trim()}, ${p.nome || ''})
+          ON CONFLICT (filial, produto_id) DO UPDATE SET sku = EXCLUDED.sku, nome = EXCLUDED.nome`;
+      }
+      const total = Number(r.numero_paginas || 0);
+      if (!produtos.length || (total ? pagina >= total : produtos.length < 100)) {
+        await sql`UPDATE reserva_varredura SET proxima_pagina = 1, catalogo_em = now() WHERE filial = ${filial}`;
+        catalogoOk = true;
+        break;
+      }
+      pagina++;
+      await sql`UPDATE reserva_varredura SET proxima_pagina = ${pagina} WHERE filial = ${filial}`;
+      await esperar(PAUSA_MS);
+    }
+  }
+
+  // b2) estoque do resto do catálogo.
+  if (!bloqueado && tempo()) await lerPendentes(false);
+
+  const [{ n: pendentes }] = await sql`SELECT COUNT(*)::int AS n FROM reserva_produtos WHERE filial = ${filial} AND lido_em IS NULL`;
+  let incrementalPendente = false;
+
+  if (catalogoOk && !pendentes && !bloqueado) {
+    const [v] = await sql`SELECT concluida_em, incremental_em, iniciada_em FROM reserva_varredura WHERE filial = ${filial}`;
+    if (!v.concluida_em || (v.iniciada_em && new Date(v.iniciada_em) > new Date(v.concluida_em))) {
+      // Primeira leitura completa: as alterações feitas durante ela vêm na próxima atualização.
+      await sql`UPDATE reserva_varredura SET concluida_em = now(), incremental_em = COALESCE(iniciada_em, now()) WHERE filial = ${filial}`;
+    } else if (Date.now() - new Date(v.incremental_em || v.concluida_em).getTime() > VALIDADE_HORAS * 3600e3) {
+      const desde = new Date(new Date(v.incremental_em || v.concluida_em).getTime() - 3600e3);
+      if (Date.now() - desde.getTime() > 29 * 86400e3) {
+        // Muito tempo sem ler: a lista do Tiny não alcança, relê tudo.
+        await sql`UPDATE reserva_produtos SET lido_em = NULL WHERE filial = ${filial}`;
+        await sql`UPDATE reserva_varredura SET iniciada_em = now(), catalogo_em = NULL WHERE filial = ${filial}`;
+        incrementalPendente = true;
+      } else {
+        const inicioInc = new Date();
+        const br = new Date(desde.getTime() - 3 * 3600e3).toISOString(); // horário de Brasília
+        const dataAlteracao = `${br.slice(8, 10)}/${br.slice(5, 7)}/${br.slice(0, 4)} ${br.slice(11, 19)}`;
+        let pagina = 1, completo = false;
+        while (tempo()) {
+          let r;
+          try {
+            r = await tiny('lista.atualizacoes.estoque.php', { token, dataAlteracao, pagina: String(pagina) });
+          } catch (e) {
+            if (e.semRegistros) { completo = true; break; }
+            if (bloqueio(e)) { bloqueado = true; break; }
+            aviso = `Atualizações de estoque do Tiny: ${e.message}`; break;
+          }
+          const produtos = (r.produtos || []).map(x => x.produto || x);
+          for (const p of produtos) {
+            if (!p.id || p.tipo_variacao === 'P') continue;
+            if ('saldoReservado' in p) campoReservado = true;
+            await sql`INSERT INTO reserva_produtos (filial, produto_id, sku, nome, saldo, reservado, lido_em, atualizado_em)
+              VALUES (${filial}, ${Number(p.id)}, ${String(p.codigo || '').trim()}, ${p.nome || ''}, ${num(p.saldo)}, ${num(p.saldoReservado) ?? 0}, now(), now())
+              ON CONFLICT (filial, produto_id) DO UPDATE SET sku = EXCLUDED.sku, nome = EXCLUDED.nome, saldo = EXCLUDED.saldo,
+                reservado = EXCLUDED.reservado, lido_em = now(), atualizado_em = now()`;
+          }
+          const total = Number(r.numero_paginas || 0);
+          if (!produtos.length || (total ? pagina >= total : produtos.length < 100)) { completo = true; break; }
+          pagina++;
+          await esperar(PAUSA_MS);
+        }
+        if (completo) await sql`UPDATE reserva_varredura SET incremental_em = ${inicioInc.toISOString()} WHERE filial = ${filial}`;
+        else if (!aviso) incrementalPendente = true;
+      }
+    }
+  }
+  await sql`UPDATE reserva_varredura SET campo_reservado = ${campoReservado ?? null} WHERE filial = ${filial}`;
+  const faltam = pendentes + (catalogoOk ? 0 : 1) + (incrementalPendente ? 1 : 0);
+  return { faltam: aviso && !catalogoOk ? pendentes : faltam, bloqueado, aviso };
 }
 
 // Junta produtos e pedidos: uma linha por produto com reserva ou com pedido em aberto.
 export function montarReservas(produtos, pedidos) {
   const porId = new Map(), porSku = new Map();
   const linha = p => ({ produtoId: p.produto_id != null ? Number(p.produto_id) : null, sku: p.sku || '', produto: p.nome || '',
-    saldo: p.saldo == null ? null : Number(p.saldo), reservado: Number(p.reservado || 0), emPedidos: 0, pedidos: [] });
+    saldo: p.saldo == null ? null : Number(p.saldo), reservado: Number(p.reservado || 0), emPedidos: 0, pedidos: [],
+    semEstoqueLido: p.lido === false });
   for (const p of produtos) {
     const l = linha(p);
     porId.set(String(p.produto_id), l);
@@ -262,7 +362,10 @@ export async function reservasHandler(req, res) {
       const token = process.env[FILIAIS[filial]];
       if (!token) return res.status(200).json({ ok: false, error: `${FILIAIS[filial]} não configurado na Vercel.` });
       const forcar = req.query.forcar === '1';
-      if (forcar) await sql`UPDATE reserva_varredura SET proxima_pagina = 1, concluida_em = NULL, pedidos_em = NULL WHERE filial = ${filial}`;
+      if (forcar) {
+        await sql`UPDATE reserva_varredura SET proxima_pagina = 1, concluida_em = NULL, catalogo_em = NULL, pedidos_em = NULL WHERE filial = ${filial}`;
+        await sql`UPDATE reserva_produtos SET lido_em = NULL WHERE filial = ${filial}`;
+      }
       const inicio = Date.now();
       const p = await lerPedidos(sql, filial, token, inicio, forcar, forcar ? { ...estado, pedidos_em: null } : estado);
       avisos.push(...p.avisos);
@@ -277,22 +380,25 @@ export async function reservasHandler(req, res) {
     }
 
     const [est] = await sql`SELECT * FROM reserva_varredura WHERE filial = ${filial}`;
-    const produtos = await sql`SELECT produto_id, sku, nome, saldo::float AS saldo, reservado::float AS reservado
+    const produtos = await sql`SELECT produto_id, sku, nome, saldo::float AS saldo, reservado::float AS reservado, lido_em IS NOT NULL AS lido
       FROM reserva_produtos WHERE filial = ${filial} AND reservado > 0`;
     const pedidos = await sql`SELECT numero, data, situacao, itens FROM reserva_pedidos WHERE filial = ${filial} AND itens IS NOT NULL`;
     // Produtos dos pedidos que não têm reserva: busca o saldo deles para mostrar.
     const idsPedidos = [...new Set(pedidos.flatMap(p => (p.itens || []).map(i => i.produto_id).filter(Boolean)))];
-    const extra = idsPedidos.length ? await sql`SELECT produto_id, sku, nome, saldo::float AS saldo, reservado::float AS reservado
-      FROM reserva_produtos WHERE filial = ${filial} AND produto_id = ANY(${idsPedidos}) AND NOT (reservado > 0)` : [];
+    const extra = idsPedidos.length ? await sql`SELECT produto_id, sku, nome, saldo::float AS saldo, reservado::float AS reservado, lido_em IS NOT NULL AS lido
+      FROM reserva_produtos WHERE filial = ${filial} AND produto_id = ANY(${idsPedidos}) AND COALESCE(reservado, 0) <= 0` : [];
     const linhas = montarReservas([...produtos, ...extra], pedidos);
+    const [cont] = await sql`SELECT COUNT(*)::int AS total, COUNT(lido_em)::int AS lidos FROM reserva_produtos WHERE filial = ${filial}`;
 
     return res.status(200).json({
       ok: true, filial,
       faltam, bloqueado, avisos,
       leitura: {
-        estoqueEm: est?.concluida_em || null,
-        produtosLidos: est?.produtos || 0,
-        varreduraEmAndamento: !!(est?.iniciada_em && (!est.concluida_em || new Date(est.iniciada_em) > new Date(est.concluida_em))),
+        estoqueEm: est?.incremental_em && est?.concluida_em && new Date(est.incremental_em) > new Date(est.concluida_em) ? est.incremental_em : est?.concluida_em || null,
+        produtosLidos: cont.lidos,
+        produtosTotal: cont.total,
+        catalogoCompleto: !!est?.catalogo_em,
+        varreduraEmAndamento: !est?.catalogo_em || cont.lidos < cont.total,
         campoReservado: est?.campo_reservado,
         pedidosEm: est?.pedidos_em || null,
         pedidosAbertos: pedidos.length,

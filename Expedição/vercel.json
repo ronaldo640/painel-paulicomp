@@ -28,6 +28,8 @@
     { "path": "/api/caixa-auto-executar?filial=SUL&vendas=diario", "schedule": "0 10 * * *" },
     { "path": "/api/caixa-auto-executar?filial=TRADE&vendas=diario", "schedule": "30 10 * * *" },
     { "path": "/api/tiny-sync?modulo=saldo&filial=SUL", "schedule": "0 11 * * *" },
-    { "path": "/api/tiny-sync?modulo=saldo&filial=TRADE", "schedule": "30 11 * * *" }
+    { "path": "/api/tiny-sync?modulo=saldo&filial=TRADE", "schedule": "30 11 * * *" },
+    { "path": "/api/tiny-sync?modulo=reservas&filial=SUL", "schedule": "0 12 * * *" },
+    { "path": "/api/tiny-sync?modulo=reservas&filial=TRADE", "schedule": "30 12 * * *" }
   ]
 }
