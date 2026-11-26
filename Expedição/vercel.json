@@ -18,7 +18,9 @@
     { "source": "/rma", "destination": "/rma.html" },
     { "source": "/api/rma", "destination": "/api/tiny-sync?modulo=rma" },
     { "source": "/saldo", "destination": "/saldo.html" },
-    { "source": "/api/saldo-insuficiente", "destination": "/api/tiny-sync?modulo=saldo" }
+    { "source": "/api/saldo-insuficiente", "destination": "/api/tiny-sync?modulo=saldo" },
+    { "source": "/reservas", "destination": "/reservas.html" },
+    { "source": "/api/reservas", "destination": "/api/tiny-sync?modulo=reservas" }
   ],
   "crons": [
     { "path": "/api/tiny-sync", "schedule": "0 6 * * *" },

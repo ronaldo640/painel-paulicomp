@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Reservas de Estoque | Estoque</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/limpeza.css">
+<!-- SheetJS: mesmo usado no painel (index.html.html) para planilhas -->
+<script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  /* Base (cores, cartões, tabelas) vem de limpeza.css, o mesmo tema escuro do painel. */
+  .wrap { max-width: 1240px; }
+  .filtros { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .filtros .field input[type="text"] { width: auto; min-width: 12rem; padding: 8px 10px; }
+  .filtros .seg button { padding: 8px 14px; font-size: .88rem; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 12px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+  .kpi b { font-size: 1.7rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .kpi b.neg { color: var(--bad); }
+  .kpi span { font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-weight: 600; }
+  .kpi small { font-size: .8rem; color: var(--muted); }
+  .cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  td .sku { font-family: ui-monospace, Consolas, monospace; font-size: .85rem; }
+  td .prod { display: block; color: var(--muted); font-size: .82rem; max-width: 30rem; }
+  td.forte { font-weight: 700; }
+  td.neg { color: var(--bad); font-weight: 700; }
+  .peds { display: flex; flex-direction: column; gap: 2px; font-size: .82rem; }
+  .peds span { white-space: nowrap; }
+  .peds small { color: var(--muted); }
+  .nota { font-size: .85rem; color: var(--muted); margin: 0; line-height: 1.45; }
+  .progresso { font-size: .88rem; color: var(--muted); margin: 0; }
+  .rodape { font-size: .78rem; color: var(--muted); }
+  #b-excel { background: #15803d; color: #fff; }
+  #b-excel:hover:not(:disabled) { background: #166534; }
+  a.voltar { color: var(--muted); font-size: .85rem; text-decoration: none; }
+  a.voltar:hover { color: inherit; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="marca"><img src="/logo-empresa.png" alt="Paulicomp"><span id="marca-filial">Estoque · Filial Sul</span></div>
+  <header class="top">
+    <div>
+      <a class="voltar" href="/">← voltar ao painel</a>
+      <div class="kicker" style="margin-top:6px">Controle de estoque</div>
+      <h1>Reservas de estoque</h1>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button type="button" class="btn" id="b-excel" disabled>Exportar Excel</button>
+      <button type="button" class="btn sec" id="b-atualizar">Atualizar do Tiny</button>
+    </div>
+  </header>
+
+  <section class="filtros" aria-label="Filtros">
+    <div class="field">
+      <span class="lbl">Filial</span>
+      <div class="seg" role="group" aria-label="Filial">
+        <button type="button" data-filial="SUL" aria-pressed="true">PAULICOMP SUL</button>
+        <button type="button" data-filial="TRADE" aria-pressed="false">COMP TRADE</button>
+      </div>
+    </div>
+    <div class="field">
+      <span class="lbl">Mostrar</span>
+      <div class="seg" role="group" aria-label="Mostrar">
+        <button type="button" data-ver="todos" aria-pressed="true">Todos</button>
+        <button type="button" data-ver="sem" aria-pressed="false">Reserva sem pedido</button>
+        <button type="button" data-ver="ped" aria-pressed="false">Explicados por pedido</button>
+      </div>
+    </div>
+    <div class="field"><label for="f-busca">SKU, produto ou pedido</label><input type="text" id="f-busca" placeholder="Buscar…" autocomplete="off"></div>
+  </section>
+
+  <div class="aviso bad" id="erro" hidden></div>
+  <div class="aviso" id="aviso" hidden></div>
+  <p class="progresso" id="progresso" role="status"></p>
+
+  <section class="kpis" id="kpis" aria-live="polite"></section>
+
+  <section class="card">
+    <div class="cab"><h2>Produtos com reserva</h2><span class="muted" id="cont" style="font-size:.85rem"></span></div>
+    <p class="nota"><b>Reservado</b> é o saldo reservado do produto no Tiny. <b>Em pedidos</b> é quanto os pedidos de venda ainda não faturados (Em aberto, Aprovado, Preparando envio) pedem desse produto. <b>Sem pedido</b> é a diferença: reserva que nenhum pedido em aberto explica, provavelmente manual ou esquecida.</p>
+    <div class="rolagem">
+      <table>
+        <thead><tr><th>Produto</th><th class="r">Saldo</th><th class="r">Reservado</th><th class="r">Em pedidos</th><th class="r">Sem pedido</th><th>Situação</th><th>Pedidos em aberto</th></tr></thead>
+        <tbody id="linhas"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Como a conta é feita</summary>
+      <p class="nota" style="margin-top:10px">O painel lê no Tiny o saldo e o reservado de todos os produtos da filial e os itens de todos os pedidos em aberto (Em aberto, Aprovado e Preparando envio). Para cada produto, compara o reservado com a soma dos pedidos.</p>
+      <p class="nota" style="margin-top:8px"><b>Sem pedido:</b> tem reserva e nenhum pedido em aberto. <b>Parcial:</b> parte da reserva tem pedido, o resto não. <b>Pedido sem reserva:</b> há pedido em aberto, mas o produto não está reservado (por exemplo, pedido ainda em aberto que não reserva). <b>OK:</b> a reserva bate com os pedidos.</p>
+      <p class="nota" style="margin-top:8px">A primeira leitura de cada filial pode levar alguns minutos (o Tiny só deixa ler aos poucos); a página continua sozinha até terminar. Depois disso, o que foi lido há menos de 6 h não é lido de novo. Nada é alterado no Tiny.</p>
+    </details>
+  </section>
+
+  <div class="rodape" id="rodape"></div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const NOMES = { SUL: 'PAULICOMP SUL', TRADE: 'COMP TRADE' };
+  const CURTO = { SUL: 'Sul', TRADE: 'Trade' };
+  const SIT = {
+    sem_pedido: ['Sem pedido', 'bad'],
+    parcial: ['Parcial', 'warn'],
+    pedido_sem_reserva: ['Pedido sem reserva', 'neutral'],
+    ok: ['OK', 'ok'],
+  };
+  let filial = (() => { try { const v = String(new URLSearchParams(location.search).get('filial') || '').toUpperCase(); return NOMES[v] ? v : 'SUL'; } catch { return 'SUL'; } })();
+  let ver = 'todos', dados = null, geracao = 0;
+
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmt = n => (n == null ? '–' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 3 }));
+  const dataHoraBr = ts => (ts ? new Date(ts).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–');
+
+  function marcar() {
+    document.querySelectorAll('[data-filial]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.filial === filial)));
+    document.querySelectorAll('[data-ver]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.ver === ver)));
+    $('marca-filial').textContent = 'Estoque · Filial ' + CURTO[filial];
+    try { const u = new URL(location.href); u.searchParams.set('filial', filial); history.replaceState(null, '', u); } catch {}
+  }
+
+  // Lê o guardado e, se atualizar, continua lendo o Tiny enquanto faltar algo.
+  async function carregar(atualizar, forcar) {
+    const g = ++geracao;
+    $('b-atualizar').disabled = true;
+    $('erro').hidden = true; $('aviso').hidden = true;
+    $('progresso').textContent = atualizar ? 'Lendo o Tiny…' : 'Carregando…';
+    try {
+      if (!dados) await uma(g, false);
+      if (g !== geracao) return;
+      // Sem nada lido ainda: começa a leitura sozinho.
+      if (!atualizar && dados && !dados.leitura.estoqueEm && !dados.leitura.pedidosEm) atualizar = true;
+      let voltas = 0, r = dados;
+      while (atualizar) {
+        $('progresso').textContent = 'Lendo o Tiny… ' + progressoTxt(r);
+        r = await uma(g, true, forcar && voltas === 0);
+        if (g !== geracao) return;
+        if (!r || r.faltam <= 0 || r.bloqueado || ++voltas >= 30) break;
+      }
+      $('progresso').textContent = '';
+      const av = [...(r?.avisos || [])];
+      if (r?.bloqueado) av.unshift('O Tiny pediu uma pausa (limite de acessos). Clique em Atualizar do Tiny daqui a alguns minutos para continuar.');
+      else if (atualizar && r?.faltam > 0) av.unshift('A leitura ainda não terminou. Clique em Atualizar do Tiny para continuar.');
+      if (dados?.leitura?.campoReservado === false) av.unshift('O Tiny não devolveu o campo de reservado: a extensão "Reserva de Estoques" pode não estar ativa nesta conta.');
+      if (av.length) { $('aviso').innerHTML = av.map(esc).join('<br>'); $('aviso').hidden = false; }
+    } catch (e) {
+      if (g !== geracao) return;
+      $('progresso').textContent = '';
+      $('erro').textContent = 'Não foi possível carregar: ' + e.message;
+      $('erro').hidden = false;
+    } finally {
+      if (g === geracao) $('b-atualizar').disabled = false;
+    }
+  }
+
+  function progressoTxt(r) {
+    if (!r) return '';
+    const l = r.leitura || {};
+    const partes = [];
+    if (l.produtosLidos) partes.push(`${fmt(l.produtosLidos)} produtos lidos`);
+    if (l.pedidosAbertos) partes.push(`${fmt(l.pedidosAbertos)} pedidos em aberto`);
+    return partes.join(' · ');
+  }
+
+  async function uma(g, atualizar, forcar) {
+    const params = new URLSearchParams({ filial });
+    if (!atualizar) params.set('atualizar', '0');
+    if (forcar) params.set('forcar', '1');
+    const resp = await fetch('/api/reservas?' + params);
+    const r = await resp.json();
+    if (g !== geracao) return null;
+    if (!r.ok) throw new Error(r.error || 'erro desconhecido');
+    dados = r;
+    desenhar();
+    return r;
+  }
+
+  function filtradas() {
+    if (!dados) return [];
+    const q = $('f-busca').value.trim().toLowerCase();
+    return dados.linhas.filter(l => {
+      if (ver === 'sem' && !(l.semPedido > 0)) return false;
+      if (ver === 'ped' && !l.pedidos.length) return false;
+      if (!q) return true;
+      return [l.sku, l.produto].some(v => String(v || '').toLowerCase().includes(q)) || l.pedidos.some(p => String(p.numero).includes(q));
+    });
+  }
+
+  function desenhar() {
+    if (!dados) return;
+    const todas = dados.linhas;
+    const comReserva = todas.filter(l => l.reservado > 0);
+    const sem = todas.filter(l => l.semPedido > 0);
+    const soma = (lista, k) => lista.reduce((s, l) => s + (l[k] || 0), 0);
+    $('kpis').innerHTML = `
+      <div class="kpi"><span>Produtos reservados</span><b>${fmt(comReserva.length)}</b><small>${fmt(soma(comReserva, 'reservado'))} un. reservadas</small></div>
+      <div class="kpi"><span>Reserva sem pedido</span><b class="${sem.length ? 'neg' : ''}">${fmt(sem.length)}</b><small>${fmt(soma(sem, 'semPedido'))} un. para conferir</small></div>
+      <div class="kpi"><span>Pedidos em aberto</span><b>${fmt(dados.leitura.pedidosAbertos)}</b><small>Em aberto, Aprovado, Preparando envio</small></div>
+      <div class="kpi"><span>Produtos lidos</span><b>${fmt(dados.leitura.produtosLidos)}</b><small>${dados.leitura.varreduraEmAndamento ? 'leitura em andamento' : 'estoque lido em ' + dataHoraBr(dados.leitura.estoqueEm)}</small></div>`;
+
+    const linhas = filtradas();
+    $('cont').textContent = linhas.length + (linhas.length === 1 ? ' produto' : ' produtos');
+    $('linhas').innerHTML = linhas.length ? linhas.map(l => {
+      const [rot, cor] = SIT[l.situacao] || ['–', 'neutral'];
+      const peds = l.pedidos.map(p => `<span>${esc(p.numero)} <small>· ${esc(p.situacao)} · ${esc(p.data)} · ${fmt(p.qtd)} un.</small></span>`).join('');
+      return `<tr>
+        <td><span class="sku">${esc(l.sku || '(sem código)')}</span><span class="prod">${esc(l.produto)}</span></td>
+        <td class="r num">${fmt(l.saldo)}</td>
+        <td class="r num forte">${fmt(l.reservado)}</td>
+        <td class="r num">${fmt(l.emPedidos)}</td>
+        <td class="r num ${l.semPedido > 0 ? 'neg' : ''}">${fmt(l.semPedido)}</td>
+        <td><span class="pill ${cor}">${rot}</span></td>
+        <td><div class="peds">${peds || '<small>nenhum</small>'}</div></td></tr>`;
+    }).join('')
+      : `<tr><td colspan="7" class="vazio">${dados.leitura.estoqueEm || dados.leitura.produtosLidos ? 'Nenhum produto neste filtro.' : 'Ainda sem leitura do Tiny: clique em Atualizar do Tiny.'}</td></tr>`;
+
+    $('b-excel').disabled = !todas.length;
+    const partes = [`Pedidos lidos em ${dataHoraBr(dados.leitura.pedidosEm)}`, `estoque lido em ${dataHoraBr(dados.leitura.estoqueEm)}`];
+    $('rodape').textContent = partes.join(' · ');
+  }
+
+  function exportarExcel() {
+    if (!dados || !window.XLSX) { alert('A biblioteca de planilhas ainda não carregou. Tente de novo em alguns segundos.'); return; }
+    const linhas = filtradas();
+    const prod = linhas.map(l => ({
+      'Filial': NOMES[filial],
+      'SKU': l.sku,
+      'Produto': l.produto,
+      'Saldo': l.saldo,
+      'Reservado': l.reservado,
+      'Em pedidos': l.emPedidos,
+      'Sem pedido': l.semPedido,
+      'Situação': (SIT[l.situacao] || ['–'])[0],
+      'Pedidos': l.pedidos.map(p => p.numero).join(', '),
+    }));
+    const peds = linhas.flatMap(l => l.pedidos.map(p => ({
+      'Filial': NOMES[filial], 'Pedido': p.numero, 'Data': p.data, 'Situação do pedido': p.situacao,
+      'SKU': l.sku, 'Produto': l.produto, 'Quantidade': p.qtd, 'Reservado no produto': l.reservado,
+    })));
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.json_to_sheet(prod.length ? prod : [{ 'Filial': NOMES[filial], 'SKU': '(nenhum produto neste filtro)' }]);
+    ws1['!cols'] = [{ wch: 14 }, { wch: 18 }, { wch: 50 }, { wch: 9 }, { wch: 11 }, { wch: 11 }, { wch: 11 }, { wch: 18 }, { wch: 30 }];
+    ws1['!autofilter'] = { ref: ws1['!ref'] };
+    XLSX.utils.book_append_sheet(wb, ws1, 'Reservas');
+    const ws2 = XLSX.utils.json_to_sheet(peds.length ? peds : [{ 'Filial': NOMES[filial], 'Pedido': '(nenhum pedido em aberto neste filtro)' }]);
+    ws2['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 11 }, { wch: 18 }, { wch: 18 }, { wch: 50 }, { wch: 11 }, { wch: 12 }];
+    ws2['!autofilter'] = { ref: ws2['!ref'] };
+    XLSX.utils.book_append_sheet(wb, ws2, 'Pedidos em aberto');
+    XLSX.writeFile(wb, `reservas_${filial}_${new Date().toLocaleDateString('sv')}.xlsx`);
+  }
+
+  document.querySelectorAll('[data-filial]').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.filial === filial) return;
+    filial = b.dataset.filial; dados = null; marcar(); carregar(false);
+  }));
+  document.querySelectorAll('[data-ver]').forEach(b => b.addEventListener('click', () => { ver = b.dataset.ver; marcar(); desenhar(); }));
+  $('f-busca').addEventListener('input', desenhar);
+  $('b-atualizar').addEventListener('click', e => carregar(true, e.shiftKey)); // Shift+clique relê tudo
+  $('b-excel').addEventListener('click', exportarExcel);
+
+  marcar();
+  carregar(false);
+})();
+</script>
+</body>
+</html>

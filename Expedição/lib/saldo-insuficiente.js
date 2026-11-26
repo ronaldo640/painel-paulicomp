@@ -34,7 +34,7 @@ const LIMITE_MS = 40000;       // tempo de Tiny por chamada (função tem 60 s)
 const PAUSA_MS = 1100;         // entre chamadas ao Tiny, mesmo ritmo do RMA
 const MAX_DIAS = 180;          // período mais longo aceito (mesmo limite da tela)
 
-const esperar = ms => new Promise(r => setTimeout(r, ms));
+export const esperar = ms => new Promise(r => setTimeout(r, ms));
 
 let tabelaPronta = false;
 async function garantirTabela(sql) {
@@ -57,7 +57,7 @@ function brDe(iso) {
   return `${d}/${m}/${a}`;
 }
 
-async function tiny(metodo, params) {
+export async function tiny(metodo, params) {
   const resp = await fetch(`${TINY}/${metodo}?${new URLSearchParams({ ...params, formato: 'json' })}`);
   const r = (await resp.json()).retorno || {};
   if (String(r.status).toLowerCase() === 'erro') {
@@ -71,7 +71,7 @@ async function tiny(metodo, params) {
   return r;
 }
 
-const bloqueio = e => /bloquead|excedido|limite/i.test(e.message || '');
+export const bloqueio = e => /bloquead|excedido|limite/i.test(e.message || '');
 
 async function gravarSaldo(sql, filial, { sku, produtoId = null, nome = null, saldo = null, naoEncontrado = false }) {
   await sql`
