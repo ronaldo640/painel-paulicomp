@@ -303,8 +303,30 @@ async function varrerEstoque(sql, filial, token, inicio, forcar, estado) {
       }
     }
   }
+  // c) A baixa de uma reserva nem sempre entra na lista de alterações do Tiny:
+  //    produtos que estão com reserva são relidos um a um se a leitura tem mais de 1 h.
+  let reconferir = 0;
+  if (catalogoOk && !pendentes && !bloqueado) {
+    const velhos = await sql`SELECT produto_id FROM reserva_produtos WHERE filial = ${filial} AND reservado > 0
+      AND (lido_em IS NULL OR lido_em < now() - interval '1 hour') ORDER BY lido_em LIMIT 80`;
+    for (const { produto_id } of velhos) {
+      if (!tempo()) break;
+      try {
+        const r = await tiny('produto.obter.estoque.php', { token, id: String(produto_id) });
+        const p = r.produto || {};
+        await gravarEstoque(sql, filial, produto_id, num(p.saldo), num(p.saldoReservado) ?? 0);
+      } catch (e) {
+        if (bloqueio(e)) { bloqueado = true; break; }
+        await sql`DELETE FROM reserva_produtos WHERE filial = ${filial} AND produto_id = ${produto_id}`;
+      }
+      await esperar(PAUSA_MS);
+    }
+    const [{ n }] = await sql`SELECT COUNT(*)::int AS n FROM reserva_produtos WHERE filial = ${filial} AND reservado > 0
+      AND (lido_em IS NULL OR lido_em < now() - interval '1 hour')`;
+    reconferir = n;
+  }
   await sql`UPDATE reserva_varredura SET campo_reservado = ${campoReservado ?? null} WHERE filial = ${filial}`;
-  const faltam = pendentes + (catalogoOk ? 0 : 1) + (incrementalPendente ? 1 : 0);
+  const faltam = pendentes + (catalogoOk ? 0 : 1) + (incrementalPendente ? 1 : 0) + reconferir;
   return { faltam: aviso && !catalogoOk ? pendentes : faltam, bloqueado, aviso };
 }
 
@@ -363,6 +385,19 @@ export async function reservasHandler(req, res) {
 
     const avisos = [];
     let faltam = 0, bloqueado = false;
+    // Relê o estoque de um produto só (botão ↻ da linha), na hora.
+    if (req.query.produto) {
+      const token = process.env[FILIAIS[filial]];
+      const id = Number(req.query.produto);
+      try {
+        const r = await tiny('produto.obter.estoque.php', { token, id: String(id) });
+        const p = r.produto || {};
+        await gravarEstoque(sql, filial, id, num(p.saldo), num(p.saldoReservado) ?? 0);
+        return res.status(200).json({ ok: true, filial, produtoId: id, saldo: num(p.saldo), reservado: num(p.saldoReservado) ?? 0 });
+      } catch (e) {
+        return res.status(200).json({ ok: false, error: e.message });
+      }
+    }
     // Consulta pontual de um pedido pelo número (só leitura), para conferir situação e nota.
     if (req.query.pedido) {
       const token = process.env[FILIAIS[filial]];

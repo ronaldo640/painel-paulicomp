@@ -29,6 +29,10 @@
   .peds { display: flex; flex-direction: column; gap: 2px; font-size: .82rem; }
   .peds span { white-space: nowrap; }
   .peds small { color: var(--muted); }
+  .reler { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: .95rem; padding: 0 2px; line-height: 1; }
+  .reler:hover { color: var(--text, inherit); }
+  .reler.girando { animation: girar 1s linear infinite; }
+  @keyframes girar { to { transform: rotate(360deg); } }
   .peds .com-nota { text-decoration: line-through; opacity: .7; }
   .peds .com-nota b { color: var(--warn, #b45309); text-decoration: none; display: inline-block; }
   .nota { font-size: .85rem; color: var(--muted); margin: 0; line-height: 1.45; }
@@ -95,7 +99,7 @@
     <details>
       <summary>Como a conta é feita</summary>
       <p class="nota" style="margin-top:10px">O painel lê no Tiny o saldo e o reservado de todos os produtos da filial e os itens de todos os pedidos em aberto (Em aberto, Aprovado, Preparando envio e Dados incompletos). Para cada produto, compara o reservado com a soma dos pedidos.</p>
-      <p class="nota" style="margin-top:8px"><b>Sem pedido:</b> tem reserva e nenhum pedido em aberto. <b>Parcial:</b> parte da reserva tem pedido, o resto não. <b>Pedido sem reserva:</b> há pedido em aberto, mas o produto não está reservado (por exemplo, pedido ainda em aberto que não reserva). <b>OK:</b> a reserva bate com os pedidos. Pedido que continua aberto no Tiny mas <b>já tem nota fiscal</b> aparece riscado e não conta: a nota já baixou o estoque, então ele não explica reserva.</p>
+      <p class="nota" style="margin-top:8px"><b>Sem pedido:</b> tem reserva e nenhum pedido em aberto. <b>Parcial:</b> parte da reserva tem pedido, o resto não. <b>Pedido sem reserva:</b> há pedido em aberto, mas o produto não está reservado (por exemplo, pedido ainda em aberto que não reserva). <b>OK:</b> a reserva bate com os pedidos. Baixou uma reserva no Tiny? Clique no <b>↻</b> ao lado do reservado para reler aquele produto na hora; os produtos com reserva também são relidos a cada atualização. Pedido que continua aberto no Tiny mas <b>já tem nota fiscal</b> aparece riscado e não conta: a nota já baixou o estoque, então ele não explica reserva.</p>
       <p class="nota" style="margin-top:8px">A primeira leitura de cada filial lê o estoque produto a produto e pode levar de 30 min a 1 h (o Tiny só deixa ler aos poucos e só lista alterações dos últimos 30 dias); a página continua sozinha enquanto estiver aberta, e o que já foi lido fica guardado. Depois disso, as atualizações pegam só o que mudou. Depois disso, o que foi lido há menos de 6 h não é lido de novo. Nada é alterado no Tiny.</p>
     </details>
   </section>
@@ -215,7 +219,7 @@
       return `<tr>
         <td><span class="sku">${esc(l.sku || '(sem código)')}</span><span class="prod">${esc(l.produto)}</span></td>
         <td class="r num">${l.semEstoqueLido ? "<small class=\"muted\">lendo…</small>" : fmt(l.saldo)}</td>
-        <td class="r num forte">${fmt(l.reservado)}</td>
+        <td class="r num forte">${fmt(l.reservado)}${l.produtoId ? ` <button type="button" class="reler" data-reler="${l.produtoId}" title="Reler o estoque deste produto no Tiny agora">↻</button>` : ''}</td>
         <td class="r num">${fmt(l.emPedidos)}</td>
         <td class="r num ${l.semPedido > 0 ? 'neg' : ''}">${fmt(l.semPedido)}</td>
         <td><span class="pill ${cor}">${rot}</span></td>
@@ -266,6 +270,20 @@
   $('f-busca').addEventListener('input', desenhar);
   $('b-atualizar').addEventListener('click', e => carregar(true, e.shiftKey)); // Shift+clique relê tudo
   $('b-excel').addEventListener('click', exportarExcel);
+  // ↻ na linha: relê só aquele produto no Tiny e redesenha.
+  $('linhas').addEventListener('click', async e => {
+    const b = e.target.closest('[data-reler]');
+    if (!b) return;
+    b.disabled = true; b.classList.add('girando');
+    try {
+      const r = await (await fetch(`/api/reservas?filial=${filial}&produto=${b.dataset.reler}`)).json();
+      if (!r.ok) throw new Error(r.error || 'erro');
+      await uma(geracao, false);
+    } catch (err) {
+      b.disabled = false; b.classList.remove('girando');
+      b.title = 'Não foi possível reler: ' + err.message;
+    }
+  });
 
   marcar();
   carregar(false);
