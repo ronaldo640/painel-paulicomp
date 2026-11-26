@@ -23,7 +23,7 @@ import { tiny, esperar, bloqueio } from './saldo-insuficiente.js';
 const FILIAIS = { SUL: 'TINY_TOKEN_SUL', TRADE: 'TINY_TOKEN_TRADE' };
 // Situações de pedido que ainda não viraram nota (a nota baixa o estoque e
 // solta a reserva). Código usado na busca → nome mostrado na tela.
-const SITUACOES = { aberto: 'Em aberto', aprovado: 'Aprovado', preparando_envio: 'Preparando envio' };
+const SITUACOES = { aberto: 'Em aberto', aprovado: 'Aprovado', preparando_envio: 'Preparando envio', dados_incompletos: 'Dados incompletos' };
 const LIMITE_MS = 40000;
 const PAUSA_MS = 1100;
 const VALIDADE_HORAS = 6;   // pedidos e estoque lidos há menos que isso não são relidos
@@ -387,7 +387,7 @@ export async function reservasHandler(req, res) {
         await sql`UPDATE reserva_produtos SET lido_em = NULL WHERE filial = ${filial}`;
       }
       const inicio = Date.now();
-      const p = await lerPedidos(sql, filial, token, inicio, forcar, forcar ? { ...estado, pedidos_em: null } : estado);
+      const p = await lerPedidos(sql, filial, token, inicio, forcar, forcar || req.query.pedidos === '1' ? { ...estado, pedidos_em: null } : estado);
       avisos.push(...p.avisos);
       faltam += p.faltam; bloqueado = p.bloqueado;
       if (!bloqueado && Date.now() - inicio < LIMITE_MS) {

@@ -82,7 +82,7 @@
 
   <section class="card">
     <div class="cab"><h2>Produtos com reserva</h2><span class="muted" id="cont" style="font-size:.85rem"></span></div>
-    <p class="nota"><b>Reservado</b> é o saldo reservado do produto no Tiny. <b>Em pedidos</b> é quanto os pedidos de venda ainda não faturados (Em aberto, Aprovado, Preparando envio) pedem desse produto. <b>Sem pedido</b> é a diferença: reserva que nenhum pedido em aberto explica, provavelmente manual ou esquecida.</p>
+    <p class="nota"><b>Reservado</b> é o saldo reservado do produto no Tiny. <b>Em pedidos</b> é quanto os pedidos de venda ainda não faturados (Em aberto, Aprovado, Preparando envio, Dados incompletos) pedem desse produto. <b>Sem pedido</b> é a diferença: reserva que nenhum pedido em aberto explica, provavelmente manual ou esquecida.</p>
     <div class="rolagem">
       <table>
         <thead><tr><th>Produto</th><th class="r">Saldo</th><th class="r">Reservado</th><th class="r">Em pedidos</th><th class="r">Sem pedido</th><th>Situação</th><th>Pedidos em aberto</th></tr></thead>
@@ -94,7 +94,7 @@
   <section class="card">
     <details>
       <summary>Como a conta é feita</summary>
-      <p class="nota" style="margin-top:10px">O painel lê no Tiny o saldo e o reservado de todos os produtos da filial e os itens de todos os pedidos em aberto (Em aberto, Aprovado e Preparando envio). Para cada produto, compara o reservado com a soma dos pedidos.</p>
+      <p class="nota" style="margin-top:10px">O painel lê no Tiny o saldo e o reservado de todos os produtos da filial e os itens de todos os pedidos em aberto (Em aberto, Aprovado, Preparando envio e Dados incompletos). Para cada produto, compara o reservado com a soma dos pedidos.</p>
       <p class="nota" style="margin-top:8px"><b>Sem pedido:</b> tem reserva e nenhum pedido em aberto. <b>Parcial:</b> parte da reserva tem pedido, o resto não. <b>Pedido sem reserva:</b> há pedido em aberto, mas o produto não está reservado (por exemplo, pedido ainda em aberto que não reserva). <b>OK:</b> a reserva bate com os pedidos. Pedido que continua aberto no Tiny mas <b>já tem nota fiscal</b> aparece riscado e não conta: a nota já baixou o estoque, então ele não explica reserva.</p>
       <p class="nota" style="margin-top:8px">A primeira leitura de cada filial lê o estoque produto a produto e pode levar de 30 min a 1 h (o Tiny só deixa ler aos poucos e só lista alterações dos últimos 30 dias); a página continua sozinha enquanto estiver aberta, e o que já foi lido fica guardado. Depois disso, as atualizações pegam só o que mudou. Depois disso, o que foi lido há menos de 6 h não é lido de novo. Nada é alterado no Tiny.</p>
     </details>
@@ -204,7 +204,7 @@
     $('kpis').innerHTML = `
       <div class="kpi"><span>Produtos reservados</span><b>${fmt(comReserva.length)}</b><small>${fmt(soma(comReserva, 'reservado'))} un. reservadas</small></div>
       <div class="kpi"><span>Reserva sem pedido</span><b class="${sem.length ? 'neg' : ''}">${fmt(sem.length)}</b><small>${fmt(soma(sem, 'semPedido'))} un. para conferir</small></div>
-      <div class="kpi"><span>Pedidos em aberto</span><b>${fmt(dados.leitura.pedidosAbertos)}</b><small>${dados.leitura.pedidosComNota ? `+ ${fmt(dados.leitura.pedidosComNota)} ainda abertos mas já com nota` : 'Em aberto, Aprovado, Preparando envio'}</small></div>
+      <div class="kpi"><span>Pedidos em aberto</span><b>${fmt(dados.leitura.pedidosAbertos)}</b><small>${dados.leitura.pedidosComNota ? `+ ${fmt(dados.leitura.pedidosComNota)} ainda abertos mas já com nota` : 'Em aberto, Aprovado, Preparando envio, Dados incompletos'}</small></div>
       <div class="kpi"><span>Produtos lidos</span><b>${fmt(dados.leitura.produtosLidos)}</b><small>${dados.leitura.varreduraEmAndamento ? `de ${fmt(dados.leitura.produtosTotal)}${dados.leitura.catalogoCompleto ? "" : "+"} · leitura em andamento` : "estoque lido em " + dataHoraBr(dados.leitura.estoqueEm)}</small></div>`;
 
     const linhas = filtradas();
