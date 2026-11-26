@@ -24,6 +24,11 @@
   .cab { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
   td .sku { font-family: ui-monospace, Consolas, monospace; font-size: .85rem; }
   td .prod { display: block; color: var(--muted); font-size: .82rem; max-width: 30rem; }
+  /* Espaço entre colunas: o tema deixa as colunas numéricas coladas. */
+  #tabela th, #tabela td { padding: 10px 14px; vertical-align: top; }
+  #tabela th:first-child, #tabela td:first-child { padding-left: 0; }
+  #tabela th.r, #tabela td.r { padding-right: 14px; }
+  #tabela td.acao { padding-right: 0; text-align: right; width: 1%; }
   td.forte { font-weight: 700; }
   td.neg { color: var(--bad); font-weight: 700; }
   .peds { display: flex; flex-direction: column; gap: 2px; font-size: .82rem; }
@@ -88,8 +93,8 @@
     <div class="cab"><h2>Produtos com reserva</h2><span class="muted" id="cont" style="font-size:.85rem"></span></div>
     <p class="nota"><b>Reservado</b> é o saldo reservado do produto no Tiny. <b>Em pedidos</b> é quanto os pedidos de venda ainda não faturados (Em aberto, Aprovado, Preparando envio, Dados incompletos) pedem desse produto. <b>Sem pedido</b> é a diferença: reserva que nenhum pedido em aberto explica, provavelmente manual ou esquecida.</p>
     <div class="rolagem">
-      <table>
-        <thead><tr><th>Produto</th><th class="r">Saldo</th><th class="r">Reservado</th><th class="r">Em pedidos</th><th class="r">Sem pedido</th><th>Situação</th><th>Pedidos em aberto</th></tr></thead>
+      <table id="tabela">
+        <thead><tr><th>Produto</th><th class="r">Saldo</th><th class="r">Reservado</th><th class="r">Em pedidos</th><th class="r">Sem pedido</th><th>Situação</th><th>Pedidos em aberto</th><th class="acao" aria-label="Reler"></th></tr></thead>
         <tbody id="linhas"></tbody>
       </table>
     </div>
@@ -99,7 +104,7 @@
     <details>
       <summary>Como a conta é feita</summary>
       <p class="nota" style="margin-top:10px">O painel lê no Tiny o saldo e o reservado de todos os produtos da filial e os itens de todos os pedidos em aberto (Em aberto, Aprovado, Preparando envio e Dados incompletos). Para cada produto, compara o reservado com a soma dos pedidos.</p>
-      <p class="nota" style="margin-top:8px"><b>Sem pedido:</b> tem reserva e nenhum pedido em aberto. <b>Parcial:</b> parte da reserva tem pedido, o resto não. <b>Pedido sem reserva:</b> há pedido em aberto, mas o produto não está reservado (por exemplo, pedido ainda em aberto que não reserva). <b>OK:</b> a reserva bate com os pedidos. Baixou uma reserva no Tiny? Clique no <b>↻</b> ao lado do reservado para reler aquele produto na hora; os produtos com reserva também são relidos a cada atualização. Pedido que continua aberto no Tiny mas <b>já tem nota fiscal</b> não conta e não aparece na linha (a nota já baixou o estoque); ele fica na aba "Pedidos em aberto" do Excel, com a coluna "Já tem nota", para você fechar no Tiny.</p>
+      <p class="nota" style="margin-top:8px"><b>Sem pedido:</b> tem reserva e nenhum pedido em aberto. <b>Parcial:</b> parte da reserva tem pedido, o resto não. <b>Pedido sem reserva:</b> há pedido em aberto, mas o produto não está reservado (por exemplo, pedido ainda em aberto que não reserva). <b>OK:</b> a reserva bate com os pedidos. Baixou uma reserva no Tiny? Clique no <b>↻</b> no fim da linha para reler aquele produto na hora; os produtos com reserva também são relidos a cada atualização. Pedido que continua aberto no Tiny mas <b>já tem nota fiscal</b> não conta e não aparece na linha (a nota já baixou o estoque); ele fica na aba "Pedidos em aberto" do Excel, com a coluna "Já tem nota", para você fechar no Tiny.</p>
       <p class="nota" style="margin-top:8px">A primeira leitura de cada filial lê o estoque produto a produto e pode levar de 30 min a 1 h (o Tiny só deixa ler aos poucos e só lista alterações dos últimos 30 dias); a página continua sozinha enquanto estiver aberta, e o que já foi lido fica guardado. Depois disso, as atualizações pegam só o que mudou. Depois disso, o que foi lido há menos de 6 h não é lido de novo. Nada é alterado no Tiny.</p>
     </details>
   </section>
@@ -219,13 +224,14 @@
       return `<tr>
         <td><span class="sku">${esc(l.sku || '(sem código)')}</span><span class="prod">${esc(l.produto)}</span></td>
         <td class="r num">${l.semEstoqueLido ? "<small class=\"muted\">lendo…</small>" : fmt(l.saldo)}</td>
-        <td class="r num forte">${fmt(l.reservado)}${l.produtoId ? ` <button type="button" class="reler" data-reler="${l.produtoId}" title="Reler o estoque deste produto no Tiny agora">↻</button>` : ''}</td>
+        <td class="r num forte">${fmt(l.reservado)}</td>
         <td class="r num">${fmt(l.emPedidos)}</td>
         <td class="r num ${l.semPedido > 0 ? 'neg' : ''}">${fmt(l.semPedido)}</td>
         <td><span class="pill ${cor}">${rot}</span></td>
-        <td><div class="peds">${peds || '<small>nenhum</small>'}</div></td></tr>`;
+        <td><div class="peds">${peds || '<small>nenhum</small>'}</div></td>
+        <td class="acao">${l.produtoId ? `<button type="button" class="reler" data-reler="${l.produtoId}" title="Reler o estoque deste produto no Tiny agora">↻</button>` : ''}</td></tr>`;
     }).join('')
-      : `<tr><td colspan="7" class="vazio">${dados.leitura.estoqueEm || dados.leitura.produtosLidos ? 'Nenhum produto neste filtro.' : 'Ainda sem leitura do Tiny: clique em Atualizar do Tiny.'}</td></tr>`;
+      : `<tr><td colspan="8" class="vazio">${dados.leitura.estoqueEm || dados.leitura.produtosLidos ? 'Nenhum produto neste filtro.' : 'Ainda sem leitura do Tiny: clique em Atualizar do Tiny.'}</td></tr>`;
 
     $('b-excel').disabled = !todas.length;
     const partes = [`Pedidos lidos em ${dataHoraBr(dados.leitura.pedidosEm)}`, `estoque lido em ${dataHoraBr(dados.leitura.estoqueEm)}`];
