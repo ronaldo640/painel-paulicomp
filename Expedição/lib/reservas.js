@@ -445,7 +445,11 @@ export async function reservasHandler(req, res) {
     const idsPedidos = [...new Set(pedidos.flatMap(p => (p.itens || []).map(i => i.produto_id).filter(Boolean)))];
     const extra = idsPedidos.length ? await sql`SELECT produto_id, sku, nome, saldo::float AS saldo, reservado::float AS reservado, lido_em IS NOT NULL AS lido
       FROM reserva_produtos WHERE filial = ${filial} AND produto_id = ANY(${idsPedidos}) AND COALESCE(reservado, 0) <= 0` : [];
-    const linhas = montarReservas([...produtos, ...extra], pedidos);
+    const todas = montarReservas([...produtos, ...extra], pedidos);
+    // Pedido aberto em produto sem reserva (estoque já lançado, ou situação que não reserva) não
+    // interessa para limpar reservas: sai da tela e vai só para o Excel.
+    const linhas = todas.filter(l => l.situacao !== 'pedido_sem_reserva');
+    const pedidosSemReserva = todas.filter(l => l.situacao === 'pedido_sem_reserva');
     const [cont] = await sql`SELECT COUNT(*)::int AS total, COUNT(lido_em)::int AS lidos FROM reserva_produtos WHERE filial = ${filial}`;
 
     return res.status(200).json({
@@ -463,6 +467,7 @@ export async function reservasHandler(req, res) {
         pedidosComNota: pedidos.filter(p => p.nota_id).length,
       },
       linhas,
+      pedidosSemReserva,
     });
   } catch (error) {
     console.error('Erro nas reservas:', error);

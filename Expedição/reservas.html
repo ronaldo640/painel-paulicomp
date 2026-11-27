@@ -104,7 +104,7 @@
     <details>
       <summary>Como a conta é feita</summary>
       <p class="nota" style="margin-top:10px">O painel lê no Tiny o saldo e o reservado de todos os produtos da filial e os itens de todos os pedidos em aberto (Em aberto, Aprovado, Preparando envio e Dados incompletos). Para cada produto, compara o reservado com a soma dos pedidos.</p>
-      <p class="nota" style="margin-top:8px"><b>Sem pedido:</b> tem reserva e nenhum pedido em aberto. <b>Parcial:</b> parte da reserva tem pedido, o resto não. <b>Pedido sem reserva:</b> há pedido em aberto, mas o produto não está reservado (por exemplo, pedido ainda em aberto que não reserva). <b>OK:</b> a reserva bate com os pedidos. Baixou uma reserva no Tiny? Clique no <b>↻</b> no fim da linha para reler aquele produto na hora; os produtos com reserva também são relidos a cada atualização. Pedido que continua aberto no Tiny mas <b>já tem nota fiscal</b> não conta e não aparece na linha (a nota já baixou o estoque); ele fica na aba "Pedidos em aberto" do Excel, com a coluna "Já tem nota", para você fechar no Tiny.</p>
+      <p class="nota" style="margin-top:8px"><b>Sem pedido:</b> tem reserva e nenhum pedido em aberto. <b>Parcial:</b> parte da reserva tem pedido, o resto não. <b>OK:</b> a reserva bate com os pedidos. Baixou uma reserva no Tiny? Clique no <b>↻</b> no fim da linha para reler aquele produto na hora; os produtos com reserva também são relidos a cada atualização. Pedido que continua aberto no Tiny mas <b>já tem nota fiscal</b> não conta e não aparece na linha (a nota já baixou o estoque); ele fica na aba "Pedidos em aberto" do Excel, com a coluna "Já tem nota", para você fechar no Tiny. Pedido aberto em produto <b>sem reserva</b> (por exemplo, com estoque já lançado, ou em Preparando envio) também não aparece aqui: não segura reserva, e fica só no Excel, com "Segura reserva = Não".</p>
       <p class="nota" style="margin-top:8px">A primeira leitura de cada filial lê o estoque produto a produto e pode levar de 30 min a 1 h (o Tiny só deixa ler aos poucos e só lista alterações dos últimos 30 dias); a página continua sozinha enquanto estiver aberta, e o que já foi lido fica guardado. Depois disso, as atualizações pegam só o que mudou. Depois disso, o que foi lido há menos de 6 h não é lido de novo. Nada é alterado no Tiny.</p>
     </details>
   </section>
@@ -213,7 +213,7 @@
     $('kpis').innerHTML = `
       <div class="kpi"><span>Produtos reservados</span><b>${fmt(comReserva.length)}</b><small>${fmt(soma(comReserva, 'reservado'))} un. reservadas</small></div>
       <div class="kpi"><span>Reserva sem pedido</span><b class="${sem.length ? 'neg' : ''}">${fmt(sem.length)}</b><small>${fmt(soma(sem, 'semPedido'))} un. para conferir</small></div>
-      <div class="kpi"><span>Pedidos em aberto</span><b>${fmt(dados.leitura.pedidosAbertos)}</b><small>${dados.leitura.pedidosComNota ? `+ ${fmt(dados.leitura.pedidosComNota)} ainda abertos mas já com nota` : 'Em aberto, Aprovado, Preparando envio, Dados incompletos'}</small></div>
+      <div class="kpi"><span>Pedidos com reserva</span><b>${fmt(new Set(dados.linhas.flatMap(l => l.pedidos.map(p => p.numero))).size)}</b><small>de ${fmt(dados.leitura.pedidosAbertos)} em aberto no Tiny${dados.leitura.pedidosComNota ? ` · + ${fmt(dados.leitura.pedidosComNota)} já com nota` : ''}</small></div>
       <div class="kpi"><span>Produtos lidos</span><b>${fmt(dados.leitura.produtosLidos)}</b><small>${dados.leitura.varreduraEmAndamento ? `de ${fmt(dados.leitura.produtosTotal)}${dados.leitura.catalogoCompleto ? "" : "+"} · leitura em andamento` : "estoque lido em " + dataHoraBr(dados.leitura.estoqueEm)}</small></div>`;
 
     const linhas = filtradas();
@@ -252,9 +252,11 @@
       'Situação': (SIT[l.situacao] || ['–'])[0],
       'Pedidos': l.pedidos.map(p => p.numero).join(', '),
     }));
-    const peds = linhas.flatMap(l => [...l.pedidos, ...(l.pedidosComNota || [])].map(p => ({
+    const q = $('f-busca').value.trim().toLowerCase();
+    const extras = ver === 'sem' ? [] : (dados.pedidosSemReserva || []).filter(l => !q || [l.sku, l.produto].some(v => String(v || '').toLowerCase().includes(q)) || l.pedidos.some(p => String(p.numero).includes(q)));
+    const peds = [...linhas, ...extras].flatMap(l => [...l.pedidos, ...(l.pedidosComNota || [])].map(p => ({
       'Filial': NOMES[filial], 'Pedido': p.numero, 'Data': p.data, 'Situação do pedido': p.situacao,
-      'Já tem nota': p.comNota ? 'Sim' : 'Não', 'SKU': l.sku, 'Produto': l.produto, 'Quantidade': p.qtd, 'Reservado no produto': l.reservado,
+      'Já tem nota': p.comNota ? 'Sim' : 'Não', 'Segura reserva': !p.comNota && l.reservado > 0 ? 'Sim' : 'Não', 'SKU': l.sku, 'Produto': l.produto, 'Quantidade': p.qtd, 'Reservado no produto': l.reservado,
     })));
     const wb = XLSX.utils.book_new();
     const ws1 = XLSX.utils.json_to_sheet(prod.length ? prod : [{ 'Filial': NOMES[filial], 'SKU': '(nenhum produto neste filtro)' }]);
@@ -262,7 +264,7 @@
     ws1['!autofilter'] = { ref: ws1['!ref'] };
     XLSX.utils.book_append_sheet(wb, ws1, 'Reservas');
     const ws2 = XLSX.utils.json_to_sheet(peds.length ? peds : [{ 'Filial': NOMES[filial], 'Pedido': '(nenhum pedido em aberto neste filtro)' }]);
-    ws2['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 11 }, { wch: 18 }, { wch: 18 }, { wch: 50 }, { wch: 11 }, { wch: 12 }];
+    ws2['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 11 }, { wch: 18 }, { wch: 11 }, { wch: 14 }, { wch: 18 }, { wch: 50 }, { wch: 11 }, { wch: 12 }];
     ws2['!autofilter'] = { ref: ws2['!ref'] };
     XLSX.utils.book_append_sheet(wb, ws2, 'Pedidos em aberto');
     XLSX.writeFile(wb, `reservas_${filial}_${new Date().toLocaleDateString('sv')}.xlsx`);
