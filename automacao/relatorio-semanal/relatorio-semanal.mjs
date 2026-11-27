@@ -116,7 +116,9 @@ async function sincronizar() {
       for (const r of j.results || []) {
         if (r.error) avisos.push(`Separação ${br(dia)}: falha ao atualizar ${r.filial} (${r.error}).`);
         else if (r.pedidosProcessados < r.pedidosEncontrados) {
-          avisos.push(`Separação ${br(dia)}: ${r.filial} leu ${r.pedidosProcessados} de ${r.pedidosEncontrados} pedidos (limite por execução).`);
+          // Só no log, fora do e-mail da diretoria: o limite por execução é esperado em dias movimentados e
+          // os pedidos mais antigos do dia costumam já estar gravados pelas rotinas das 4h e das 8h.
+          console.warn(`AVISO (só no log): Separação ${br(dia)}: ${r.filial} leu ${r.pedidosProcessados} de ${r.pedidosEncontrados} pedidos (limite por execução).`);
         }
       }
     }
