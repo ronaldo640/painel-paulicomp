@@ -395,6 +395,29 @@ export async function reservasHandler(req, res) {
         const r = await tiny('produto.obter.estoque.php', { token, id: String(id) });
         const p = r.produto || {};
         await gravarEstoque(sql, filial, id, num(p.saldo), num(p.saldoReservado) ?? 0);
+        // Reconfere os pedidos em aberto desse produto: excluídos, cancelados, faturados ou
+        // com nota saem da conta na hora (sem esperar a releitura da lista de pedidos).
+        const peds = await sql`SELECT DISTINCT p.pedido_id, p.numero FROM reserva_pedidos p, jsonb_array_elements(p.itens) i
+          WHERE p.filial = ${filial} AND (i->>'produto_id') = ${String(id)}`;
+        const nomesAbertos = new Set(Object.values(SITUACOES).map(s => s.toLowerCase()));
+        for (const ped of peds) {
+          await esperar(PAUSA_MS);
+          let o = null;
+          try {
+            o = (await tiny('pedido.obter.php', { token, id: String(ped.pedido_id) })).pedido || null;
+          } catch (e) {
+            if (bloqueio(e)) break;
+            if (!e.semRegistros && !/encontrad|inexist|exclu/i.test(e.message)) continue; // erro passageiro: mantém
+          }
+          const aberto = o && nomesAbertos.has(String(o.situacao || '').toLowerCase());
+          if (!aberto) {
+            await sql`DELETE FROM reserva_pedidos WHERE filial = ${filial} AND pedido_id = ${ped.pedido_id}`;
+          } else {
+            const nf = String(o.id_nota_fiscal || '').trim();
+            await sql`UPDATE reserva_pedidos SET situacao = ${o.situacao}, nota_id = ${nf && nf !== '0' ? nf : null}, nota_lida = true
+              WHERE filial = ${filial} AND pedido_id = ${ped.pedido_id}`;
+          }
+        }
         return res.status(200).json({ ok: true, filial, produtoId: id, saldo: num(p.saldo), reservado: num(p.saldoReservado) ?? 0 });
       } catch (e) {
         return res.status(200).json({ ok: false, error: e.message });

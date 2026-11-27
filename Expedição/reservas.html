@@ -139,6 +139,7 @@
 
   // Lê o guardado e, se atualizar, continua lendo o Tiny enquanto faltar algo.
   async function carregar(atualizar, forcar) {
+    const manual = !!atualizar; // clique no botão (não a leitura automática da primeira vez)
     const g = ++geracao;
     $('b-atualizar').disabled = true;
     $('erro').hidden = true; $('aviso').hidden = true;
@@ -151,7 +152,7 @@
       let voltas = 0, r = dados;
       while (atualizar) {
         $('progresso').textContent = 'Lendo o Tiny… ' + progressoTxt(r);
-        r = await uma(g, true, forcar && voltas === 0);
+        r = await uma(g, true, forcar && voltas === 0, voltas === 0 && manual);
         if (g !== geracao) return;
         if (!r || r.faltam <= 0 || r.bloqueado || ++voltas >= 200) break;
       }
@@ -180,10 +181,11 @@
     return partes.join(' · ');
   }
 
-  async function uma(g, atualizar, forcar) {
+  async function uma(g, atualizar, forcar, primeira) {
     const params = new URLSearchParams({ filial });
     if (!atualizar) params.set('atualizar', '0');
     if (forcar) params.set('forcar', '1');
+    if (atualizar && primeira) params.set('pedidos', '1'); // clique em Atualizar: relê também a lista de pedidos
     const resp = await fetch('/api/reservas?' + params);
     const r = await resp.json();
     if (g !== geracao) return null;
