@@ -402,12 +402,18 @@ export async function reservasHandler(req, res) {
         const nomesAbertos = new Set(Object.values(SITUACOES).map(s => s.toLowerCase()));
         for (const ped of peds) {
           await esperar(PAUSA_MS);
+          // Pedido excluído ainda responde no pedido.obter, mas some da busca por número.
           let o = null;
           try {
-            o = (await tiny('pedido.obter.php', { token, id: String(ped.pedido_id) })).pedido || null;
+            const achados = ((await tiny('pedidos.pesquisa.php', { token, numero: String(ped.numero) })).pedidos || [])
+              .map(x => x.pedido || x).filter(x => String(x.id) === String(ped.pedido_id));
+            if (achados.length) {
+              await esperar(PAUSA_MS);
+              o = (await tiny('pedido.obter.php', { token, id: String(ped.pedido_id) })).pedido || null;
+            }
           } catch (e) {
             if (bloqueio(e)) break;
-            if (!e.semRegistros && !/encontrad|inexist|exclu/i.test(e.message)) continue; // erro passageiro: mantém
+            if (!e.semRegistros) continue; // erro passageiro: mantém
           }
           const aberto = o && nomesAbertos.has(String(o.situacao || '').toLowerCase());
           if (!aberto) {
