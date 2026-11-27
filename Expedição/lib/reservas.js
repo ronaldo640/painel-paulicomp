@@ -410,6 +410,7 @@ export async function reservasHandler(req, res) {
         await esperar(PAUSA_MS);
         const d = await tiny('pedido.obter.php', { token, id: String(p.id) }).catch(e => ({ erro: e.message }));
         const o = d.pedido || {};
+        if (req.query.bruto === '1') { const { cliente, endereco_entrega, ...resto } = o; det.push({ lista: p, obter: resto }); continue; }
         det.push({ id: p.id, numero: p.numero, situacao: o.situacao || p.situacao, data: o.data_pedido, id_nota_fiscal: o.id_nota_fiscal,
           ecommerce: o.ecommerce?.nomeEcommerce, itens: (o.itens || []).map(x => x.item || x).map(i => `${i.codigo} x${i.quantidade}`) });
       }
